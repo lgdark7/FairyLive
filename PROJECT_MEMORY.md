@@ -48,16 +48,16 @@ Rebuild **FAIRY LIVE** from scratch as a high-performance, professional native A
       - Test suite grew to **71 unit + 3 device tests** (added `CaptureFailureRegressionTest` 10 + `testProjectionDeniedCreatorErrorCard` for failure-path and error UX).
       - **M6 revalidation (2026-09-13 13:45 review response)**: Tests A–F passed on-device (full-screen dialog, fresh state, repeated auth cancel/accept, clean stop→restart streams again). Success stream verified: **14,679,930 bytes, 3,129 video + 11,326 audio AUs** over 263s (audio 43.07 AU/s = theory; video ~11.9 fps — full-display swiftshader throttle, M5 single-app was 23 fps).
       - **M6 final review (2026-09-13 14:35)**: per-stage FPS trace added (`STAGE-AUDIT` log in StreamPipeline; 492.56s run: encoder output = muxer tags = RTMP-sent at every sample, drops=0 — zero pipeline loss; fps ceiling upstream VirtualDisplay, not transport). Projection-denied path posts typed CreatorError card (verified on-device: error card + OFFLINE/CAPTURE IDLE + 0 bytes to server). Credential masking verified in UI and logcat.
-  - **M7: Broadcast Overlay Compositor** (Completed & Verified — **WAITING FOR CHATGPT REVIEW**)
+  - **M7: Broadcast Overlay Compositor** (Revalidated & Verified — **WAITING FOR CHATGPT REVIEW**)
       - **Architecture**: Established GPU GLES2/EGL broadcast compositor between `MediaProjection` and `HardwareVideoEncoder` (`VirtualDisplay -> compositor SurfaceTexture -> GLES renderer -> MediaCodec Surface`). Decoupled creator UI domain from broadcast composition domain.
       - **Overlay Model**: Normalized spatial coordinates ($[0.0, 1.0]$) surviving resolution changes; immutable `OverlayElement` (id, type, enabled, visible, opacity, transform, resourcePath) with automatic sanitization clamping; z-sorted `OverlayScene`; mutable runtime `OverlayLayer`.
       - **Resource Caching**: Bounded LRU GPU texture cache and background BitmapFactory decoding in `OverlayResourceManager`. High-res transparent 256x256 circular teal logo (`overlay_logo.png`).
-      - **Render Loop**: Event-driven on SurfaceTexture `onFrameAvailable` with adaptive 16 ms poll fallback on dedicated `FairyCompositorThread` to ensure smooth frame delivery on virtualized GPUs.
+      - **Duplicate Frame Resolution**: Identified that initial ~46 FPS was caused by unconditional 16 ms polling without checking buffer timestamps. Fixed by: (1) `setDefaultBufferSize(width, height)`, (2) routing callbacks directly onto render thread, (3) guarding draws with `consumeNewFrame` timestamp verification (`duplicateRendersSkipped`), and (4) forwarding source timestamps via `EGLExt.eglPresentationTimeANDROID`.
       - **Creator Control UI**: Dashboard `switch_enable_compositor` toggle, live compositor state/FPS status readout.
       - **A/B Performance Verification**:
-        * Baseline OFF (179s): 1,794 V, 7,705 A, 0 drops, 20.6% CPU, 67.7 MB PSS.
-        * Composited ON (76s): 3,520 V, 3,273 A, 0 drops, 56.6% CPU, 74.7 MB PSS (+7.0 MB), 46.36 FPS steady.
-      - **Test Suite**: **80 Unit Tests** + **4 On-Device Connected Tests** (100% Passing). Added `OverlayCompositorTest` (9 tests) and `CompositorInstrumentedTest` (pixel-level readback assertion).
+        * Baseline OFF (116s): 1,285 V (11.04 FPS), 5,011 A (43.08 AU/s), 0 drops, 20.6% CPU, 67.7 MB PSS.
+        * Composited ON (78s): 810 V (10.41 FPS), 3,351 A (43.09 AU/s), 0 drops, 34.4% CPU, 75.2 MB PSS (+7.5 MB), true 10.4 FPS matched to source capture rate, 4,217 duplicate frames prevented.
+      - **Test Suite**: **81 Unit Tests** + **4 On-Device Connected Tests** (100% Passing). Added `OverlayCompositorTest` (10 tests) and `CompositorInstrumentedTest` (pixel-level readback assertion).
 - **Pending Milestones**: M8 through M15 (strictly gated on ChatGPT M7 approval).
 
 ---
@@ -133,4 +133,4 @@ Rebuild **FAIRY LIVE** from scratch as a high-performance, professional native A
 - **Pipeline Audio Framerate**: **43.08 – 43.09 AU/s** (Theoretical exact: 43.066 AU/s)
 - **Muxer & Queue Packet Drops**: **0** (Zero dropped frames in both baseline and composited runs)
 - **Queue Memory Footprint**: Strictly capped at 4 MB / 90 packets.
-- **Test Suite**: **80 Unit Tests** + **4 On-Device Connected Tests** (100% Passing).
+- **Test Suite**: **81 Unit Tests** + **4 On-Device Connected Tests** (100% Passing).

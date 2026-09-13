@@ -14,8 +14,13 @@ enum class CompositorState {
 
 /** Snapshot of compositor performance for telemetry (no per-frame UI redraw loops). */
 data class CompositorMetrics(
+    val captureFrames: Long = 0L,
+    val surfaceTextureUpdates: Long = 0L,
+    val renderIterations: Long = 0L,
+    val duplicateRendersSkipped: Long = 0L,
     val framesComposited: Long = 0L,
     val outputFps: Double = 0.0,
+    val sourceFps: Double = 0.0,
     val overlayCount: Int = 0,
     val state: CompositorState = CompositorState.IDLE,
     val lastFrameTimeMs: Long = 0L

@@ -153,4 +153,28 @@ class OverlayCompositorTest {
         assertEquals(0, layer.textureHandle)  // not uploaded yet (GL-side)
         assertTrue(layer.dirty)
     }
+
+    @Test
+    fun testCompositorMetricsCountersAndAccounting() {
+        val metrics = com.fairylive.app.core.compositor.CompositorMetrics(
+            captureFrames = 120L,
+            surfaceTextureUpdates = 100L,
+            renderIterations = 100L,
+            duplicateRendersSkipped = 20L,
+            framesComposited = 100L,
+            outputFps = 20.0,
+            sourceFps = 20.0,
+            overlayCount = 2,
+            state = com.fairylive.app.core.compositor.CompositorState.RUNNING
+        )
+        assertEquals(120L, metrics.captureFrames)
+        assertEquals(100L, metrics.surfaceTextureUpdates)
+        assertEquals(100L, metrics.renderIterations)
+        assertEquals(20L, metrics.duplicateRendersSkipped)
+        assertEquals(100L, metrics.framesComposited)
+        assertEquals(20.0, metrics.outputFps, 0.001)
+        assertEquals(20.0, metrics.sourceFps, 0.001)
+        assertEquals(2, metrics.overlayCount)
+        assertEquals(com.fairylive.app.core.compositor.CompositorState.RUNNING, metrics.state)
+    }
 }

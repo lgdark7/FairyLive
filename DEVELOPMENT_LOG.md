@@ -1,39 +1,34 @@
 # FAIRY LIVE — DEVELOPMENT LOG
 
-## 2026-09-13 — Milestone 7: Overlay Compositor (Completed & Verified)
-- **Milestone**: M7 — Overlay Compositor (authorized by ChatGPT 2026-09-13 15:36)
-- **Scope Implemented**:
-  - Established native GPU GLES2/EGL Broadcast Overlay Compositor in `com.fairylive.app.core.compositor`:
-    * `OverlayElement`: Declarative immutable data model (sanitized coordinates, opacity, scale, rotation, z-index).
-    * `OverlayTransform`: Normalized spatial coordinate representation ($[0.0, 1.0]$) surviving adaptive profile changes.
-    * `OverlayLayer`: Runtime mutable rendering layer holding GPU texture handles and dirty flags.
-    * `OverlayScene`: Z-sorted layer container with deduplication by ID and dynamic layer toggling.
-    * `OverlayResourceManager`: Background-thread PNG decoder with bounded LRU memory caching and texture management.
-    * `GlesRenderer`: EGL14 display/context/window surface lifecycle, fullscreen external OES capture shader, quad overlay shader with alpha blending (`GL_BLEND`), texture uploads, and off-screen composite primitives.
-    * `OverlayCompositor`: Dedicated render `HandlerThread` ("FairyCompositorThread"), event-driven render loop on SurfaceTexture `onFrameAvailable` with periodic poll fallback (16 ms), thread-safe scene mutations, and live metrics publishing.
-    * `CompositorStateNotifier`: Thread-safe observer publishing `CompositorState` and `CompositorMetrics` (framesComposited, outputFps, overlayCount).
-  - Creator Control UI:
-    * Added `switch_enable_compositor` (`MaterialCheckBox`) to Dashboard RTMP card.
-    * Added `tv_compositor_status` showing live compositor state and FPS.
-    * Wired Dashboard toggle to `FairyStreamService` via `EXTRA_ENABLE_COMPOSITOR`.
-  - Assets:
-    * Created high-resolution 256x256 transparent circular teal logo in `app/src/main/assets/overlay_logo.png` and `res/drawable-nodpi/overlay_logo.png`.
-  - Service Pipeline Integration:
-    * Decoupled pipeline branch in `FairyStreamService.handleStartCapture()`:
-      - Compositor ENABLED: `VirtualDisplay -> compositor SurfaceTexture -> GLES Renderer -> encoder input Surface`.
-      - Compositor DISABLED: `VirtualDisplay -> encoder input Surface` directly (M6 zero-copy passthrough).
-- **Engineering Investigations & Fixes**:
-  - *Off-Thread GL Call Fix*: Resolved `muxedV=0` defect where SurfaceTexture listener fired on an arbitrary thread without an active EGL context. Marshalled rendering callbacks onto the dedicated `FairyCompositorThread`.
-  - *Poll Fallback Render Loop*: Swiftshader emulator driver intermittently omitted `onFrameAvailable` callbacks; added a 16 ms periodic poll fallback with `st.updateTexImage()` ensuring steady 46+ FPS frame delivery to MediaCodec without CPU busy-waiting.
-  - *Asset Path Resolution*: Fixed resource manager to parse both `asset://` and `assets://` URL schemes and moved the PNG to `app/src/main/assets/` for standard AssetManager streaming.
-  - *Model Matrix Scale Math*: Corrected clip-space quad scaling in `GlesRenderer` from half-scale to full-scale dimension mapping.
-- **Verification Matrix**:
-  - Unit Tests: **80/80 passed** (added `OverlayCompositorTest` with 9 tests covering model sanitization, transform math, scene deduplication, visibility toggling, z-order sorting, layer dirty flags).
-  - Connected Android Tests: **4/4 passed** on Pixel 8 API 35 AVD (added `CompositorInstrumentedTest` validating real MediaCodec AVC encoder input surface, EGL context initialization, scene composition, and pixel-level readback assertion).
-  - A/B Performance Comparison:
-    * Baseline (OFF, 179s): 1,794 V, 7,705 A, 0 drops, 20.6% CPU, 67.7 MB PSS.
-    * Composited (ON, 76s & 129s): 3,520 V, 3,273 A, 0 drops, 56.6% CPU (swiftshader emulator overhead), 74.7 MB PSS (+7.0 MB for EGL/textures/LRU cache), steady 46.36 FPS.
-- **Status**: Complete — M7 verified. Waiting for ChatGPT review and M8 authorization.
+## 2026-09-13 — Milestone 7: Overlay Compositor (Revalidation & Duplicate Frame Resolution)
+- **Milestone**: M7 — Overlay Compositor Revalidation (addressing ChatGPT review 2026-09-13 17:47)
+- **Review Finding Addressed**:
+  - The review required explaining the initial ~46.36 FPS compositor measurement vs ~10.04 FPS baseline.
+  - Root Cause Diagnosed: The initial 16 ms polling fallback in `OverlayCompositor` called `consumeNewFrame()` without verifying whether a brand-new capture buffer had actually been queued by `VirtualDisplay`. It rendered and swapped buffers unconditionally every 16 ms. Because `EGLExt.eglPresentationTimeANDROID` was not called, EGL assigned a new monotonic timestamp on each swap, driving MediaCodec to encode identical frames at ~46 FPS.
+- **Engineering Fixes Applied**:
+  - `GlesRenderer`:
+    * Added `setDefaultBufferSize(width, height)` on `captureSurfaceTexture`, allowing `VirtualDisplay` to allocate proper buffer dimensions.
+    * Routed `onFrameAvailable` with the render `Handler` directly onto `FairyCompositorThread`.
+    * Implemented `consumeNewFrame(force = fromCallback)`: verifies genuine timestamp change (`st.timestamp != lastCaptureTimestampNanos`) and skips rendering when identical.
+    * Explicitly called `EGLExt.eglPresentationTimeANDROID(eglDisplay, eglSurface, captureTs)` before `eglSwapBuffers()`, preserving genuine source capture timestamps from `VirtualDisplay` to `MediaCodec`.
+  - `OverlayCompositor`:
+    * Added stage instrumentation tracking `captureFramesReceived`, `surfaceTextureUpdates`, `renderIterations`, `duplicateRendersSkipped`.
+    * Added `COMPOSITOR-AUDIT` log emitted every 5s alongside `StreamPipeline`'s `STAGE-AUDIT`.
+    * Render loop only renders on callback or when poll detects a genuinely new buffer; skips rendering when texture is unchanged.
+  - `DashboardFragment`:
+    * Enhanced `tv_compositor_status` to display both render FPS and source capture FPS.
+- **Revalidation Audit (Pixel 8 AVD, Android 15 API 35)**:
+  - Compositor ON Live Stream (78.1s audit / 77.859s server ledger):
+    * `COMPOSITOR-FINAL-AUDIT`: `captureFrames=793`, `textureUpdates=883`, `renders=883`, `dupesSkipped=4217`, `sourceFps=11.3`, `renderFps=11.3`.
+    * `STAGE-AUDIT`: `muxedV=780`, `muxedA=3242`, `sentV=780`, `sentA=3241`, `drops=0`, `qDepth=1`, `muxVfps=10.4`, `sentVfps=10.4`.
+    * Ingest Server: **810 video frames** over 77.859s (**10.41 FPS**), **3,351 audio frames** (**43.09 AU/s**).
+    * Duplicates Prevented: **4,217 duplicate frames** safely skipped.
+    * Process CPU: dropped from **56.6% to 34.4%** (due to eliminating duplicate GLES renders).
+    * Process PSS: **75.2 MB** (+7.5 MB over baseline 67.7 MB).
+    * A/V Sync: start diff 125 ms, end diff 54 ms, timeline span delta 71 ms.
+  - Unit Tests: **81/81 passed** (added `testCompositorMetricsCountersAndAccounting`).
+  - Connected Android Tests: **4/4 passed** on Pixel 8 API 35 AVD.
+- **Status**: Complete — M7 revalidation delivered. Waiting for ChatGPT review and M8 authorization.
 
 ## 2026-09-13 — Milestone 6: Creator Experience, Error UX & Secure Config (Reviewed & Revalidated)
 - **Milestone**: M6 — Creator Experience & Error UX (authorized by ChatGPT review 2026-09-13 12:27; **review 2026-09-13 13:45 blockers fixed**)

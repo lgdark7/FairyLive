@@ -7,34 +7,41 @@ Every performance claim must be backed by real measurements captured from target
 
 ---
 
-## 2. Milestone 7 — A/B Compositor Performance Audit (2026-09-13)
+## 2. Milestone 7 — Compositor Performance Audit & Revalidation (2026-09-13)
 
-Clean A/B comparison on identical hardware profile:
-- **Baseline (A)**: M6 Direct Pipeline (`VirtualDisplay -> MediaCodec H.264 Surface`) with Compositor Disabled.
-- **Composited (B)**: M7 GLES Pipeline (`VirtualDisplay -> SurfaceTexture -> GLES Renderer -> MediaCodec Surface`) with Compositor Enabled (static PNG watermark overlay).
+### A. Investigation of Initial ~46 FPS Measurement & Root Cause
+- **Initial Finding**: The initial M7 compositor test reported ~46.36 FPS while baseline was ~10.04 FPS.
+- **Root Cause**: The 16 ms polling fallback in `OverlayCompositor` previously executed `consumeNewFrame()` and called `eglSwapBuffers` unconditionally every 16 ms without verifying whether a brand-new capture buffer was queued by `VirtualDisplay`. Because `EGLExt.eglPresentationTimeANDROID` was not called, EGL assigned a new monotonic timestamp on each swap, driving MediaCodec to encode identical frames at ~46 FPS.
+- **Resolution**:
+  1. Configured `captureSurfaceTexture.setDefaultBufferSize(width, height)`.
+  2. Routed `onFrameAvailable` callbacks with the render `Handler` directly onto `FairyCompositorThread`.
+  3. Guarded rendering: poll checks timestamp change (`st.timestamp != lastCaptureTimestampNanos`) and skips rendering when identical (`duplicateRendersSkipped`).
+  4. Forwarded real capture presentation timestamps via `EGLExt.eglPresentationTimeANDROID(eglDisplay, eglSurface, captureTs)`.
+- **Result**: Video FPS dropped from artificial ~46 FPS to the **true source capture rate of 10.41–11.3 FPS**, matching the baseline M6 VirtualDisplay swiftshader emulator rate. Over 4,200 duplicate renders were eliminated, and process CPU dropped from 56.6% to 34.4%.
 
-### A. A/B Performance Telemetry Matrix
+### B. Clean A/B Performance Telemetry Matrix
 
 | Metric | Baseline (Compositor OFF) | Composited (GLES Compositor ON) | Delta / Impact Analysis |
 |---|---|---|---|
 | **Pipeline Architecture** | Direct zero-copy passthrough | GLES2 SurfaceTexture composite | 1 GLES render stage inserted |
 | **Active Overlay** | None | 1 PNG watermark (256x256 RGBA) | GPU texture cached (LRU) |
-| **Stream Duration** | 179.027 s | 76.073 s (and 129.398 s) | Both sustained, clean socket close |
-| **Total Ingest Payload** | 5,302,932 B (~5.30 MB) | 1,637,341 B (~1.64 MB) | Uninterrupted stream receipt |
-| **Video Payload** | 3,140,167 B (59.2%) | 718,370 B (43.9%) | H.264 AVC elementary stream |
-| **Audio Payload** | 2,162,051 B (40.8%) | 918,257 B (56.1%) | AAC-LC elementary stream |
-| **Video Ingest Frames** | 1,794 frames | 3,520 frames | Ingest-verified NALUs |
-| **Video Timespan** | 178,668 ms | 75,916 ms | Monotonic timestamp span |
-| **Effective Video FPS** | **10.04 FPS** | **46.36 FPS** | Compositor loop drives steady frames to encoder |
-| **Audio Ingest Units** | 7,705 frames | 3,273 frames | Continuous 1024-sample AUs |
-| **Audio Timespan** | 178,864 ms | 75,953 ms | Monotonic timestamp span |
+| **Stream Duration** | **116.374 s** (and 179.027 s) | **77.859 s** (and 78.1 s audit) | Both sustained, clean socket close |
+| **Total Ingest Payload** | 5,752,035 B (~5.75 MB) | 3,208,286 B (~3.21 MB) | Uninterrupted stream receipt |
+| **Video Payload** | 4,345,313 B (75.5%) | 2,267,425 B (70.7%) | H.264 AVC elementary stream |
+| **Audio Payload** | 1,406,008 B (24.5%) | 940,147 B (29.3%) | AAC-LC elementary stream |
+| **Video Ingest Frames** | **1,285 frames** | **810 frames** | Ingest-verified NALUs |
+| **Video Timespan** | 116,315 ms | 77,835 ms | Monotonic timestamp span |
+| **Effective Video FPS** | **11.04 FPS** | **10.41 FPS** | True source frame rate matched |
+| **Audio Ingest Units** | **5,011 frames** | **3,351 frames** | Continuous 1024-sample AUs |
+| **Audio Timespan** | 116,309 ms | 77,764 ms | Monotonic timestamp span |
 | **Effective Audio Rate** | **43.08 AU/s** | **43.09 AU/s** | Identical to theory (43.066 AU/s) |
+| **Duplicate Renders Skipped** | N/A (passthrough) | **4,217 frames** (78.1s audit) | Duplicate frames completely prevented |
 | **Muxer / Queue Drops** | **0** | **0** | Zero backpressure drops |
 | **Queue Depth** | 0 – 1 | 0 – 1 | Memory ceiling respected |
-| **Average Bitrate** | ~236.9 kbps | ~172.2 kbps | Controlled CBR encoding |
-| **Process CPU (`top`)** | **20.6%** | **56.6%** | Expected GLES GPU software emulation on swiftshader |
-| **Process Memory (PSS)** | **67.7 MB** (67,685 KB) | **74.7 MB** (74,693 KB) | **+7.0 MB** overhead (EGL, textures, shaders, LRU cache) |
-| **Process Memory (RSS)** | 168.9 MB | 179.8 MB | **+10.9 MB** total resident memory |
+| **Average Bitrate** | ~395.4 kbps | ~329.6 kbps | Controlled CBR encoding |
+| **Process CPU (`top`)** | **20.6%** | **34.4%** | +13.8% for GLES shader & composition |
+| **Process Memory (PSS)** | **67.7 MB** (67,685 KB) | **75.2 MB** (75,251 KB) | **+7.5 MB** overhead (EGL, textures, shaders, LRU cache) |
+| **Process Memory (RSS)** | 168.9 MB | 181.3 MB | **+12.4 MB** total resident memory |
 | **APK Binary Size** | 5.8 MB (M6) | **6.15 MB** (M7) | **+0.35 MB** (< 15 MB budget met) |
 
 ---

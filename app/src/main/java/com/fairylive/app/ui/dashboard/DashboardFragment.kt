@@ -695,12 +695,13 @@ class DashboardFragment : Fragment(),
             com.fairylive.app.core.compositor.CompositorState.IDLE -> "OFF"
         }
         val fps = String.format("%.1f", metrics.outputFps)
+        val srcFps = String.format("%.1f", metrics.sourceFps)
         val overlayInfo = if (metrics.overlayCount > 0) " | ${metrics.overlayCount} overlay(s)" else ""
         binding.tvCompositorStatus.text =
             if (state == com.fairylive.app.core.compositor.CompositorState.IDLE) {
                 "Compositor: OFF (passthrough)"
             } else {
-                "Compositor: $prefix | $fps fps | ${metrics.framesComposited} frames$overlayInfo"
+                "Compositor: $prefix | $fps fps (src: $srcFps) | ${metrics.framesComposited} frames$overlayInfo"
             }
     }
 

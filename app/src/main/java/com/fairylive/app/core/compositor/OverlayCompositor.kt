@@ -45,10 +45,20 @@ class OverlayCompositor(
     @Volatile
     private var available: Boolean = false
 
+    private val captureFramesReceived = AtomicLong(0L)
+    private val surfaceTextureUpdates = AtomicLong(0L)
+    private val renderIterations = AtomicLong(0L)
+    private val duplicateRendersSkipped = AtomicLong(0L)
     private val framesComposited = AtomicLong(0L)
+
     private var lastFpsCalcTime: Long = 0L
-    private var lastFrameCount: Long = 0L
-    private var currentFps: Double = 0.0
+    private var lastRenderFrameCount: Long = 0L
+    private var lastSourceFrameCount: Long = 0L
+    private var currentOutputFps: Double = 0.0
+    private var currentSourceFps: Double = 0.0
+
+    private var lastAuditLogTime: Long = 0L
+    private var auditStartElapsed: Long = 0L
 
     val overlayScene: OverlayScene get() = scene
 
@@ -77,10 +87,18 @@ class OverlayCompositor(
         val handler = Handler(thread.looper)
         this.renderHandler = handler
 
+        captureFramesReceived.set(0L)
+        surfaceTextureUpdates.set(0L)
+        renderIterations.set(0L)
+        duplicateRendersSkipped.set(0L)
         framesComposited.set(0L)
         lastFpsCalcTime = SystemClock.elapsedRealtime()
-        lastFrameCount = 0L
-        currentFps = 0.0
+        auditStartElapsed = lastFpsCalcTime
+        lastAuditLogTime = lastFpsCalcTime
+        lastRenderFrameCount = 0L
+        lastSourceFrameCount = 0L
+        currentOutputFps = 0.0
+        currentSourceFps = 0.0
 
         // Blocking: initialize GL on the render thread (the EGL context belongs to it).
         val initResult = handler.postWithResult {
@@ -89,23 +107,16 @@ class OverlayCompositor(
                     encoderSurface,
                     width,
                     height,
-                    appContext.assets
+                    appContext.assets,
+                    handler
                 )
                 // Auto-drive: every new capture frame triggers a composite + present.
-                // The SurfaceTexture callback fires on an arbitrary thread, so the
-                // actual GL work must be marshalled onto this render thread (the EGL
-                // context belongs to it — GL calls from another thread no-op).
                 renderer.onFrameAvailable = {
-                    renderHandler?.post {
-                        if (isRunning.get() && available) {
-                            renderFrame()
-                        }
-                    }
+                    onCaptureFrameAvailable()
                 }
                 isRunning.set(true)
                 available = true
                 CompositorStateNotifier.updateState(CompositorState.RUNNING)
-                renderer.updateCaptureTexture() // warm up
                 captureSurface
             } catch (e: Exception) {
                 Log.e(TAG, "Renderer initialize failed: ${e.message}", e)
@@ -129,9 +140,10 @@ class OverlayCompositor(
      *
      * Primary: the SurfaceTexture frame-available callback posts to this handler.
      * Fallback: a periodic poll (every 16ms) checks whether a new capture frame
-     * has arrived and draws it. This guarantees video flows even when callback
-     * delivery is unreliable (e.g. swiftshader emulator / some OEM devices),
-     * without busy-waiting — the poll no-ops when no new frame is pending.
+     * has arrived. If and ONLY if a brand-new capture buffer timestamp is detected
+     * via [GlesRenderer.consumeNewFrame], it renders. If no new capture buffer is
+     * available, it safely skips rendering and increments [duplicateRendersSkipped],
+     * preventing duplicate frame encoding.
      */
     private var pollRunnable: Runnable? = null
 
@@ -140,7 +152,7 @@ class OverlayCompositor(
         val poll = object : Runnable {
             override fun run() {
                 if (isRunning.get() && available) {
-                    renderFrame()
+                    renderFrame(fromCallback = false)
                     renderHandler?.postDelayed(this, POLL_INTERVAL_MS)
                 }
             }
@@ -149,35 +161,35 @@ class OverlayCompositor(
         renderHandler?.postDelayed(poll, POLL_INTERVAL_MS)
     }
 
-    /** Queues a frame to be composed + presented. Call from the capture thread. */
+    /** Queues a frame to be composed + presented. Call from the capture thread or listener. */
     fun onCaptureFrameAvailable() {
         if (!isRunning.get() || !available) return
+        captureFramesReceived.incrementAndGet()
         renderHandler?.post {
-            if (!isRunning.get()) return@post
-            renderer.updateCaptureTexture()
-            if (isPaused.get()) return@post
-            if (!enabled) {
-                // Disabled: still must forward the frame to the encoder (pass-through)
-                renderer.drawFrame(OverlayScene(), resources)
-            } else {
-                renderer.drawFrame(scene, resources)
-            }
-            framesComposited.incrementAndGet()
-            updateMetrics()
+            renderFrame(fromCallback = true)
         }
     }
 
-    /** Render-loop body — invoked by the SurfaceTexture frame-available callback. */
-    private fun renderFrame() {
+    /**
+     * Render-loop body — invoked on the render thread by the SurfaceTexture
+     * frame-available callback ([fromCallback] = true) or the poll fallback ([fromCallback] = false).
+     */
+    private fun renderFrame(fromCallback: Boolean = false) {
         if (!isRunning.get() || !available || isPaused.get()) return
-        if (!renderer.consumeNewFrame()) return // no new capture frame — skip (cheap no-op)
+        val isNew = renderer.consumeNewFrame(force = fromCallback)
+        if (!isNew) {
+            duplicateRendersSkipped.incrementAndGet()
+            return
+        }
+        surfaceTextureUpdates.incrementAndGet()
         if (enabled) {
             renderer.drawFrame(scene, resources)
         } else {
             // Disabled: forward capture to the encoder unchanged (pass-through)
             renderer.drawFrame(OverlayScene(), resources)
         }
-        framesComposited.incrementAndGet()
+        val count = renderIterations.incrementAndGet()
+        framesComposited.set(count)
         updateMetrics()
     }
 
@@ -185,26 +197,64 @@ class OverlayCompositor(
         val now = SystemClock.elapsedRealtime()
         val diff = now - lastFpsCalcTime
         if (diff >= 1000L) {
-            val framesInWindow = framesComposited.get() - lastFrameCount
-            currentFps = (framesInWindow * 1000.0) / diff
+            val rendersInWindow = renderIterations.get() - lastRenderFrameCount
+            val sourceInWindow = surfaceTextureUpdates.get() - lastSourceFrameCount
+            currentOutputFps = (rendersInWindow * 1000.0) / diff
+            currentSourceFps = (sourceInWindow * 1000.0) / diff
             lastFpsCalcTime = now
-            lastFrameCount = framesComposited.get()
+            lastRenderFrameCount = renderIterations.get()
+            lastSourceFrameCount = surfaceTextureUpdates.get()
 
             CompositorStateNotifier.updateMetrics(
                 CompositorMetrics(
-                    framesComposited = framesComposited.get(),
-                    outputFps = currentFps,
+                    captureFrames = captureFramesReceived.get(),
+                    surfaceTextureUpdates = surfaceTextureUpdates.get(),
+                    renderIterations = renderIterations.get(),
+                    duplicateRendersSkipped = duplicateRendersSkipped.get(),
+                    framesComposited = renderIterations.get(),
+                    outputFps = currentOutputFps,
+                    sourceFps = currentSourceFps,
                     overlayCount = scene.size,
                     state = CompositorStateNotifier.currentState,
                     lastFrameTimeMs = now
                 )
             )
         }
+
+        if (now - lastAuditLogTime >= 5000L) {
+            val elapsedSec = (now - auditStartElapsed) / 1000.0
+            if (elapsedSec > 0.0) {
+                Log.i(
+                    TAG,
+                    "COMPOSITOR-AUDIT captureFrames=${captureFramesReceived.get()} " +
+                        "textureUpdates=${surfaceTextureUpdates.get()} " +
+                        "renders=${renderIterations.get()} " +
+                        "dupesSkipped=${duplicateRendersSkipped.get()} " +
+                        "elapsed=${"%.1f".format(elapsedSec)}s " +
+                        "sourceFps=${"%.1f".format(surfaceTextureUpdates.get() / elapsedSec)} " +
+                        "renderFps=${"%.1f".format(renderIterations.get() / elapsedSec)}"
+                )
+            }
+            lastAuditLogTime = now
+        }
     }
 
     @Synchronized
     fun stop() {
         if (!isRunning.get() && renderThread == null) return
+        val now = SystemClock.elapsedRealtime()
+        val elapsedSec = (now - auditStartElapsed) / 1000.0
+        Log.i(
+            TAG,
+            "COMPOSITOR-FINAL-AUDIT captureFrames=${captureFramesReceived.get()} " +
+                "textureUpdates=${surfaceTextureUpdates.get()} " +
+                "renders=${renderIterations.get()} " +
+                "dupesSkipped=${duplicateRendersSkipped.get()} " +
+                "elapsed=${"%.1f".format(elapsedSec)}s " +
+                "sourceFps=${"%.1f".format(if (elapsedSec > 0) surfaceTextureUpdates.get() / elapsedSec else 0.0)} " +
+                "renderFps=${"%.1f".format(if (elapsedSec > 0) renderIterations.get() / elapsedSec else 0.0)}"
+        )
+
         CompositorStateNotifier.updateState(CompositorState.STOPPING)
         isRunning.set(false)
         available = false

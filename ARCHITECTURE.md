@@ -103,7 +103,7 @@ FAIRY LIVE enforces strict separation between:
 1. **Creator UI Domain**: The Android Activity, Fragments, and Views displayed on the streamer's device. Controls overlays and monitors live metrics.
 2. **Broadcast Composition Domain**: The outgoing media pipeline. Overlays are composited purely on the GPU into the H.264 encoder input Surface without appearing over the creator's phone screen.
 
-### B. GPU Zero-Copy Pipeline
+### B. GPU-based Composition Pipeline (No CPU Pixel Copies/Readbacks in the Live Path)
 ```text
 [ MediaProjection ]
        │
@@ -118,9 +118,9 @@ FAIRY LIVE enforces strict separation between:
                               ▼
                        [ EGL Window Surface ] ──► [ MediaCodec H.264 Input Surface ]
 ```
-- **Zero CPU Frame Copies**: Display output remains entirely on GPU textures. No Bitmaps or CPU pixel copies are performed during the frame rendering loop.
+- **GPU-based composition with no CPU pixel copies/readbacks in the live composition path**: Display output remains entirely on GPU textures. No Bitmaps or CPU pixel copies are performed during the frame rendering loop.
 - **Dedicated Render Thread**: `OverlayCompositor` runs a dedicated `HandlerThread` ("FairyCompositorThread") owning the EGL context, display, and window surface.
-- **Hybrid Event/Poll Drive**: Event-driven on SurfaceTexture `onFrameAvailable` with an adaptive 16 ms poll fallback ensuring continuous frame delivery even on virtualized/emulated GPU drivers.
+- **Hybrid Event/Poll Drive**: Event-driven on SurfaceTexture `onFrameAvailable` with an adaptive 16 ms poll fallback ensuring continuous frame delivery even on virtualized/emulated GPU drivers without duplicate frame encoding.
 
 ### C. Normalized Coordinate & Overlay Model
 - **Normalized Coordinates**: All overlay transforms ($x, y, w, h$) are defined in normalized range $[0.0, 1.0]$.

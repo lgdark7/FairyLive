@@ -6,10 +6,12 @@ import android.opengl.EGL14
 import android.opengl.EGLConfig
 import android.opengl.EGLContext
 import android.opengl.EGLDisplay
+import android.opengl.EGLExt
 import android.opengl.EGLSurface
 import android.opengl.GLES11Ext
 import android.opengl.GLES20
 import android.opengl.GLUtils
+import android.os.Handler
 import android.util.Log
 import android.view.Surface
 import com.fairylive.app.core.compositor.OverlayLayer
@@ -80,6 +82,8 @@ class GlesRenderer {
     @Volatile
     var onFrameAvailable: (() -> Unit)? = null
 
+    private var lastCaptureTimestampNanos: Long = -1L
+
     /**
      * Creates the EGL context, capture SurfaceTexture, and shaders. Returns the
      * [Surface] that the VirtualDisplay should render into (the compositor input).
@@ -88,13 +92,15 @@ class GlesRenderer {
         encoderSurface: Surface,
         width: Int,
         height: Int,
-        assets: android.content.res.AssetManager
+        assets: android.content.res.AssetManager,
+        renderHandler: Handler? = null
     ): Surface {
         require(encoderSurface.isValid) { "Encoder input surface is invalid" }
         this.encoderSurface = encoderSurface
         this.streamWidth = width
         this.streamHeight = height
         this.assetManager = assets
+        this.lastCaptureTimestampNanos = -1L
 
         eglDisplay = EGL14.eglGetDisplay(EGL14.EGL_DEFAULT_DISPLAY)
         check(eglDisplay != EGL14.EGL_NO_DISPLAY) { "eglGetDisplay failed" }
@@ -133,7 +139,11 @@ class GlesRenderer {
         // Capture input texture (OES) + SurfaceTexture the VirtualDisplay renders into
         captureTextureId = createOesTexture()
         captureSurfaceTexture = SurfaceTexture(captureTextureId).apply {
-            setOnFrameAvailableListener({ onFrameAvailable?.invoke() }, null)
+            setDefaultBufferSize(width, height)
+            setOnFrameAvailableListener({
+                Log.i(TAG, ">>> NATIVE onFrameAvailable FIRED! <<<")
+                onFrameAvailable?.invoke()
+            }, renderHandler)
         }
         captureSurface = Surface(captureSurfaceTexture)
 
@@ -158,20 +168,34 @@ class GlesRenderer {
     }
 
     /**
-     * Consumes a new capture frame if one is pending. Returns true when a frame
-     * was actually updated, false otherwise (no-op). Used by the poll fallback:
-     * the poll calls this every 16ms and only draws when it returns true.
+     * Consumes a new capture frame if one is pending.
+     * Returns true when a genuinely new capture buffer was latched,
+     * false if no new frame was available (duplicate texture prevented).
      */
-    fun consumeNewFrame(): Boolean {
+    fun consumeNewFrame(force: Boolean = false): Boolean {
         val st = captureSurfaceTexture ?: return false
         if (!initialized) return false
         return try {
             st.updateTexImage()
-            true
+            val currentTs = st.timestamp
+            val isDifferent = (currentTs != 0L && currentTs != lastCaptureTimestampNanos) || force
+            if (isDifferent) {
+                lastCaptureTimestampNanos = currentTs
+                true
+            } else {
+                false
+            }
         } catch (e: Exception) {
-            false // no new frame yet — updateTexImage throws IllegalStateException
+            Log.w(TAG, "consumeNewFrame skipped: ${e.message}")
+            false
         }
     }
+
+    /**
+     * Returns the timestamp of the most recently latched capture texture, in nanoseconds.
+     */
+    val currentCaptureTimestampNanos: Long
+        get() = captureSurfaceTexture?.timestamp ?: 0L
 
     /** Draws the composed frame to the encoder surface. Must run on the GL thread. */
     fun drawFrame(scene: OverlayScene, resources: OverlayResourceManager) {
@@ -179,6 +203,10 @@ class GlesRenderer {
         if (eglDisplay == EGL14.EGL_NO_DISPLAY || eglSurface == EGL14.EGL_NO_SURFACE) return
 
         composite(scene, resources)
+        val captureTs = captureSurfaceTexture?.timestamp ?: 0L
+        if (captureTs > 0L) {
+            EGLExt.eglPresentationTimeANDROID(eglDisplay, eglSurface, captureTs)
+        }
         EGL14.eglSwapBuffers(eglDisplay, eglSurface)
     }
 
@@ -338,6 +366,7 @@ class GlesRenderer {
         eglContext = EGL14.EGL_NO_CONTEXT
         eglSurface = EGL14.EGL_NO_SURFACE
         encoderSurface = null
+        lastCaptureTimestampNanos = -1L
         initialized = false
         Log.i(TAG, "Renderer released")
     }
