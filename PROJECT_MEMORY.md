@@ -48,17 +48,16 @@ Rebuild **FAIRY LIVE** from scratch as a high-performance, professional native A
       - Test suite grew to **71 unit + 3 device tests** (added `CaptureFailureRegressionTest` 10 + `testProjectionDeniedCreatorErrorCard` for failure-path and error UX).
       - **M6 revalidation (2026-09-13 13:45 review response)**: Tests A–F passed on-device (full-screen dialog, fresh state, repeated auth cancel/accept, clean stop→restart streams again). Success stream verified: **14,679,930 bytes, 3,129 video + 11,326 audio AUs** over 263s (audio 43.07 AU/s = theory; video ~11.9 fps — full-display swiftshader throttle, M5 single-app was 23 fps).
       - **M6 final review (2026-09-13 14:35)**: per-stage FPS trace added (`STAGE-AUDIT` log in StreamPipeline; 492.56s run: encoder output = muxer tags = RTMP-sent at every sample, drops=0 — zero pipeline loss; fps ceiling upstream VirtualDisplay, not transport). Projection-denied path posts typed CreatorError card (verified on-device: error card + OFFLINE/CAPTURE IDLE + 0 bytes to server). Credential masking verified in UI and logcat.
-  - **M7: Broadcast Overlay Compositor** (Revalidated & Verified — **WAITING FOR CHATGPT REVIEW**)
-      - **Architecture**: Established GPU GLES2/EGL broadcast compositor between `MediaProjection` and `HardwareVideoEncoder` (`VirtualDisplay -> compositor SurfaceTexture -> GLES renderer -> MediaCodec Surface`). Decoupled creator UI domain from broadcast composition domain.
-      - **Overlay Model**: Normalized spatial coordinates ($[0.0, 1.0]$) surviving resolution changes; immutable `OverlayElement` (id, type, enabled, visible, opacity, transform, resourcePath) with automatic sanitization clamping; z-sorted `OverlayScene`; mutable runtime `OverlayLayer`.
-      - **Resource Caching**: Bounded LRU GPU texture cache and background BitmapFactory decoding in `OverlayResourceManager`. High-res transparent 256x256 circular teal logo (`overlay_logo.png`).
-      - **Duplicate Frame Resolution**: Identified that initial ~46 FPS was caused by unconditional 16 ms polling without checking buffer timestamps. Fixed by: (1) `setDefaultBufferSize(width, height)`, (2) routing callbacks directly onto render thread, (3) guarding draws with `consumeNewFrame` timestamp verification (`duplicateRendersSkipped`), and (4) forwarding source timestamps via `EGLExt.eglPresentationTimeANDROID`.
-      - **Creator Control UI**: Dashboard `switch_enable_compositor` toggle, live compositor state/FPS status readout.
-      - **A/B Performance Verification**:
-        * Baseline OFF (116s): 1,285 V (11.04 FPS), 5,011 A (43.08 AU/s), 0 drops, 20.6% CPU, 67.7 MB PSS.
-        * Composited ON (78s): 810 V (10.41 FPS), 3,351 A (43.09 AU/s), 0 drops, 34.4% CPU, 75.2 MB PSS (+7.5 MB), true 10.4 FPS matched to source capture rate, 4,217 duplicate frames prevented.
-      - **Test Suite**: **81 Unit Tests** + **4 On-Device Connected Tests** (100% Passing). Added `OverlayCompositorTest` (10 tests) and `CompositorInstrumentedTest` (pixel-level readback assertion).
-- **Pending Milestones**: M8 through M15 (strictly gated on ChatGPT M7 approval).
+  - **M7: Broadcast Overlay Compositor** (Revalidated & Approved on 2026-09-13)
+  - **M8: Advanced Overlay System** (Completed & Verified — **WAITING FOR CHATGPT REVIEW**)
+      - **Overlay Suite**: Extensible data-driven overlay model supporting `IMAGE`, `TEXT`, `GOAL`, `LOWER_THIRD`, `QR`, `ALERT`, `WIDGET`, `GIF`.
+      - **Zero-Copy Rendering**: Modular rasterizers (`TextOverlayRasterizer`, `GoalOverlayRasterizer`, `LowerThirdOverlayRasterizer`, `QrOverlayRasterizer`, `AlertOverlayRasterizer`, `WidgetOverlayRasterizer`) render once on configuration change into Bitmaps; GPU textures cached in `OverlayResourceManager`.
+      - **Bounded GIF Engine**: `GifStreamPlayer` utilizes native Android `Movie` engine with 1 reusable Bitmap buffer (zero external dependencies, 0 KB APK overhead).
+      - **Decoupled Alert Audio**: `AlertSoundController` utilizes `SoundPool` for independent sound playback without touching `AudioRecord` or GLES render threads.
+      - **Low-End Limits**: `CompositorLimits` strictly caps active overlays (10), cached textures (32), and texture dimensions (1024).
+      - **A/B Performance Verification**: Live 94.6s stream with 5 simultaneous overlays (PNG logo + Text banner + Follower goal + Live stats widget + Animated GIF) delivered 346 V, 2,968 A, 0 drops, with only +3.8% CPU and +0.7 MB PSS overhead over M7 baseline.
+      - **Test Suite**: **81 Unit Tests** + **5 On-Device Connected Tests** (100% Passing). Added `testMultiOverlaySceneRendering`.
+- **Pending Milestones**: M9 through M15 (strictly gated on ChatGPT M8 approval).
 
 ---
 
@@ -133,4 +132,4 @@ Rebuild **FAIRY LIVE** from scratch as a high-performance, professional native A
 - **Pipeline Audio Framerate**: **43.08 – 43.09 AU/s** (Theoretical exact: 43.066 AU/s)
 - **Muxer & Queue Packet Drops**: **0** (Zero dropped frames in both baseline and composited runs)
 - **Queue Memory Footprint**: Strictly capped at 4 MB / 90 packets.
-- **Test Suite**: **81 Unit Tests** + **4 On-Device Connected Tests** (100% Passing).
+- **Test Suite**: **81 Unit Tests** + **5 On-Device Connected Tests** (100% Passing).

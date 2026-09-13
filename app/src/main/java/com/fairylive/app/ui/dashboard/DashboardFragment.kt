@@ -2,6 +2,7 @@ package com.fairylive.app.ui.dashboard
 
 import android.app.Activity
 import android.content.Context
+import android.content.Intent
 import android.content.res.Configuration
 import android.media.projection.MediaProjectionConfig
 import android.media.projection.MediaProjectionManager
@@ -678,6 +679,21 @@ class DashboardFragment : Fragment(),
                 "Compositor: ON (GLES overlay active)"
             } else {
                 "Compositor: OFF (passthrough)"
+            }
+        }
+
+        binding.btnTriggerAlert.setOnClickListener {
+            val intent = Intent(requireContext(), FairyStreamService::class.java).apply {
+                action = FairyStreamService.ACTION_TRIGGER_ALERT
+                putExtra(FairyStreamService.EXTRA_ALERT_HEADLINE, "NEW FOLLOWER!")
+                putExtra(FairyStreamService.EXTRA_ALERT_SUBTEXT, "Alex Live joined the broadcast!")
+                putExtra(FairyStreamService.EXTRA_ALERT_DURATION, 4000L)
+            }
+            try {
+                requireContext().startService(intent)
+                Toast.makeText(requireContext(), "Broadcast alert triggered (4s)", Toast.LENGTH_SHORT).show()
+            } catch (e: Exception) {
+                Toast.makeText(requireContext(), "Start stream first to display broadcast alerts", Toast.LENGTH_SHORT).show()
             }
         }
     }

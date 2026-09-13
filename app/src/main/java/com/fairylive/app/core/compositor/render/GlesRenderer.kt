@@ -16,6 +16,8 @@ import android.util.Log
 import android.view.Surface
 import com.fairylive.app.core.compositor.OverlayLayer
 import com.fairylive.app.core.compositor.OverlayScene
+import com.fairylive.app.core.compositor.animation.GifStreamPlayer
+import com.fairylive.app.core.compositor.model.OverlayType
 import com.fairylive.app.core.compositor.resource.OverlayResourceManager
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
@@ -53,6 +55,7 @@ class GlesRenderer {
 
     private var captureProgram: Int = 0
     private var overlayProgram: Int = 0
+    private var gifStreamPlayer: GifStreamPlayer? = null
 
     // Fullscreen quad (2D, 2 verts each) — NDC position + UV
     private val quadVerts = directBuffer(floatArrayOf(-1f, -1f, 1f, -1f, -1f, 1f, 1f, 1f))
@@ -149,6 +152,7 @@ class GlesRenderer {
 
         captureProgram = createProgram(VERTEX_SHADER, CAPTURE_FRAGMENT)
         overlayProgram = createProgram(OVERLAY_VERTEX_SHADER, OVERLAY_FRAGMENT)
+        gifStreamPlayer = GifStreamPlayer(assets)
 
         GLES20.glClearColor(0f, 0f, 0f, 1f)
         initialized = true
@@ -250,16 +254,16 @@ class GlesRenderer {
         if (!layer.liveVisible || layer.liveOpacity <= 0f) return
         if (overlayProgram == 0) return
 
-        // Ensure the overlay texture is uploaded once
-        if (layer.textureHandle == 0) {
-            val assets = assetManager
-            val bitmap = if (assets != null) {
-                layer.element.resourcePath?.let { resources.loadBitmap(it, assets) }
-            } else {
-                null
-            }
+        // Ensure the overlay texture is uploaded once, or updated if animated
+        val isGif = layer.element.type == OverlayType.GIF
+        if (layer.textureHandle == 0 || isGif) {
+            val bitmap = resolveLayerBitmap(layer, resources)
             if (bitmap != null) {
+                if (isGif && layer.textureHandle != 0) {
+                    GLES20.glDeleteTextures(1, intArrayOf(layer.textureHandle), 0)
+                }
                 layer.textureHandle = uploadBitmap(bitmap)
+                resources.trackTexture(layer.textureHandle)
                 layer.sourceWidth = bitmap.width
                 layer.sourceHeight = bitmap.height
             } else {
@@ -326,6 +330,70 @@ class GlesRenderer {
         GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, 0)
     }
 
+    private fun resolveLayerBitmap(layer: OverlayLayer, resources: OverlayResourceManager): Bitmap? {
+        val element = layer.element
+        val assets = assetManager ?: return null
+        return when (element.type) {
+            OverlayType.IMAGE, OverlayType.PNG -> {
+                element.resourcePath?.let { resources.loadBitmap(it, assets) }
+            }
+            OverlayType.TEXT -> {
+                element.textConfig?.let { config ->
+                    val key = "text_${element.id}_${config.hashCode()}"
+                    resources.getOrPutBitmap(key) {
+                        com.fairylive.app.core.compositor.rasterizer.TextOverlayRasterizer.rasterize(config)
+                    }
+                }
+            }
+            OverlayType.GOAL -> {
+                element.goalConfig?.let { config ->
+                    val key = "goal_${element.id}_${config.currentVal}_${config.targetVal}"
+                    resources.getOrPutBitmap(key) {
+                        com.fairylive.app.core.compositor.rasterizer.GoalOverlayRasterizer.rasterize(config)
+                    }
+                }
+            }
+            OverlayType.LOWER_THIRD -> {
+                element.lowerThirdConfig?.let { config ->
+                    val key = "l3_${element.id}_${config.title}_${config.subtitle}"
+                    resources.getOrPutBitmap(key) {
+                        com.fairylive.app.core.compositor.rasterizer.LowerThirdOverlayRasterizer.rasterize(config)
+                    }
+                }
+            }
+            OverlayType.QR -> {
+                element.qrConfig?.let { config ->
+                    val key = "qr_${element.id}_${config.payloadUrl}"
+                    resources.getOrPutBitmap(key) {
+                        com.fairylive.app.core.compositor.rasterizer.QrOverlayRasterizer.rasterize(config)
+                    }
+                }
+            }
+            OverlayType.ALERT -> {
+                element.alertConfig?.let { config ->
+                    val key = "alert_${element.id}_${config.headline}_${config.subtext}"
+                    resources.getOrPutBitmap(key) {
+                        com.fairylive.app.core.compositor.rasterizer.AlertOverlayRasterizer.rasterize(config)
+                    }
+                }
+            }
+            OverlayType.WIDGET -> {
+                element.widgetConfig?.let { config ->
+                    val key = "widget_${element.id}_${config.label}_${config.value}"
+                    resources.getOrPutBitmap(key) {
+                        com.fairylive.app.core.compositor.rasterizer.WidgetOverlayRasterizer.rasterize(config)
+                    }
+                }
+            }
+            OverlayType.GIF -> {
+                element.gifConfig?.let { config ->
+                    val streamTime = android.os.SystemClock.elapsedRealtime()
+                    gifStreamPlayer?.getFrame(config, streamTime)?.first
+                }
+            }
+        }
+    }
+
     private fun uploadBitmap(bitmap: Bitmap): Int {
         val textures = IntArray(1)
         GLES20.glGenTextures(1, textures, 0)
@@ -367,6 +435,8 @@ class GlesRenderer {
         eglSurface = EGL14.EGL_NO_SURFACE
         encoderSurface = null
         lastCaptureTimestampNanos = -1L
+        gifStreamPlayer?.release()
+        gifStreamPlayer = null
         initialized = false
         Log.i(TAG, "Renderer released")
     }

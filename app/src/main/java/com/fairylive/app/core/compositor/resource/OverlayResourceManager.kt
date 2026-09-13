@@ -1,49 +1,50 @@
 package com.fairylive.app.core.compositor.resource
 
+import android.content.res.AssetManager
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.opengl.GLES20
 import android.util.Log
-import com.fairylive.app.core.compositor.model.OverlayType
+import com.fairylive.app.core.compositor.limits.CompositorLimits
 import java.io.File
 import java.io.InputStream
-import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicInteger
 
 /**
- * Bounded, cached overlay resource manager.
+ * Bounded, cached overlay resource and texture manager (M8).
  *
- * - PNG decode happens exactly once per resource path (never per frame).
- * - Bitmaps are cached in a bounded LRU-ish cache (memory cap) — repeated frames
- *   reuse the decoded bitmap.
- * - Resource lifecycle: explicit [release] clears everything (called on
- *   compositor stop); each texture is uploaded once by the renderer.
- *
- * Thread-safety: decode is heavyweight → runs on caller thread; the cache read is
- * lock-free. The renderer reads bitmaps from the cache (never decodes in the
- * per-frame loop).
+ * Requirements met:
+ * 1. PNG / Image decode happens once per resource path (never in per-frame loop).
+ * 2. Text / Goal / Widget / QR rasterization happens once per configuration state.
+ * 3. Enforces strict memory caps ([CompositorLimits.MAX_CACHED_TEXTURES]).
+ * 4. Explicit [release] frees both CPU Bitmaps and GPU texture handles.
  */
 class OverlayResourceManager(
-    private val maxCachedBitmaps: Int = 8,
-    private val maxBitmapBytes: Long = 24L * 1024 * 1024 // 24 MB cap
+    private val maxCachedBitmaps: Int = CompositorLimits.MAX_CACHED_TEXTURES,
+    private val maxBitmapBytes: Long = 24L * 1024 * 1024 // 24 MB memory cap
 ) {
 
-    private val cache = object : LinkedHashMap<String, CachedBitmap>(64, 0.75f, true) {
+    private val bitmapCache = object : LinkedHashMap<String, CachedBitmap>(64, 0.75f, true) {
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, CachedBitmap>?): Boolean {
-            return size > maxCachedBitmaps
+            val shouldEvict = size > maxCachedBitmaps
+            if (shouldEvict && eldest != null) {
+                totalBytes.addAndGet(-eldest.value.bytes.toInt())
+            }
+            return shouldEvict
         }
     }
     private val cacheLock = Any()
     private val totalBytes = AtomicInteger(0)
 
+    /** GPU texture handles allocated by the renderer, tracked for clean disposal. */
+    private val allocatedTextures = mutableSetOf<Int>()
+
     /**
-     * Loads and decodes a PNG resource (or returns cached). Supports:
-     * - asset path ("asset://logo.png")
-     * - file path ("file:///data/.../logo.png" or raw path)
-     * In M7 we primarily test with assets; file support is for creator-added images.
+     * Loads and decodes a PNG resource (or returns cached).
      */
-    fun loadBitmap(resourcePath: String, assets: android.content.res.AssetManager): Bitmap? {
+    fun loadBitmap(resourcePath: String, assets: AssetManager): Bitmap? {
         synchronized(cacheLock) {
-            cache[resourcePath]?.let { return it.bitmap }
+            bitmapCache[resourcePath]?.let { return it.bitmap }
         }
 
         val bitmap = decode(resourcePath, assets) ?: run {
@@ -51,15 +52,33 @@ class OverlayResourceManager(
             return null
         }
 
-        // Enforce memory cap: if adding exceeds the budget, evict oldest.
+        return putBitmap(resourcePath, bitmap)
+    }
+
+    /**
+     * Gets or generates a cached Bitmap using a custom generator (used for text, goals, QR, etc.).
+     */
+    fun getOrPutBitmap(cacheKey: String, generator: () -> Bitmap?): Bitmap? {
+        synchronized(cacheLock) {
+            bitmapCache[cacheKey]?.let { return it.bitmap }
+        }
+
+        val generated = generator() ?: return null
+        return putBitmap(cacheKey, generated)
+    }
+
+    private fun putBitmap(key: String, bitmap: Bitmap): Bitmap {
         val size = bitmap.byteCount.toLong()
         synchronized(cacheLock) {
-            while (totalBytes.get() + size > maxBitmapBytes && cache.isNotEmpty()) {
-                val oldest = cache.entries.first().key
-                totalBytes.addAndGet(-(cache.remove(oldest)?.bytes ?: 0L).toInt())
+            while (totalBytes.get() + size > maxBitmapBytes && bitmapCache.isNotEmpty()) {
+                val oldestKey = bitmapCache.entries.first().key
+                val removed = bitmapCache.remove(oldestKey)
+                if (removed != null) {
+                    totalBytes.addAndGet(-removed.bytes.toInt())
+                }
             }
             if (totalBytes.get() + size <= maxBitmapBytes) {
-                cache[resourcePath] = CachedBitmap(bitmap, size)
+                bitmapCache[key] = CachedBitmap(bitmap, size)
                 totalBytes.addAndGet(size.toInt())
             } else {
                 Log.w(TAG, "Overlay bitmap too large to cache (${size / 1024} KB) — returning transient")
@@ -68,12 +87,12 @@ class OverlayResourceManager(
         return bitmap
     }
 
-    private fun decode(resourcePath: String, assets: android.content.res.AssetManager): Bitmap? {
+    private fun decode(resourcePath: String, assets: AssetManager): Bitmap? {
         return try {
             val opts = BitmapFactory.Options().apply {
                 inPreferredConfig = Bitmap.Config.ARGB_8888
             }
-            val normalized = resourcePath.removeSuffix("/") // strip trailing slash
+            val normalized = resourcePath.removeSuffix("/")
             when {
                 normalized.startsWith("asset://") || normalized.startsWith("assets://") -> {
                     val assetPath = normalized.replace(Regex("^assets?://"), "")
@@ -86,7 +105,9 @@ class OverlayResourceManager(
                 }
                 else -> {
                     val f = File(resourcePath)
-                    if (f.exists()) BitmapFactory.decodeFile(resourcePath, opts) else null
+                    if (f.exists()) BitmapFactory.decodeFile(resourcePath, opts) else assets.open(resourcePath.trimStart('/')).use {
+                        BitmapFactory.decodeStream(it, null, opts)
+                    }
                 }
             }
         } catch (e: Exception) {
@@ -95,18 +116,33 @@ class OverlayResourceManager(
         }
     }
 
-    /** Returns true if a cached bitmap exists (for renderer texture upload). */
-    fun isCached(resourcePath: String): Boolean = synchronized(cacheLock) { cache.containsKey(resourcePath) }
+    fun trackTexture(textureHandle: Int) {
+        if (textureHandle != 0) {
+            synchronized(cacheLock) {
+                allocatedTextures.add(textureHandle)
+            }
+        }
+    }
 
-    fun cachedCount(): Int = synchronized(cacheLock) { cache.size }
+    fun isCached(key: String): Boolean = synchronized(cacheLock) { bitmapCache.containsKey(key) }
+
+    fun cachedCount(): Int = synchronized(cacheLock) { bitmapCache.size }
 
     fun totalBitmapBytes(): Long = totalBytes.get().toLong()
 
+    /** Releases all cached Bitmaps and associated GPU textures. Must run on GL thread for GL deletes. */
     fun release() {
         synchronized(cacheLock) {
-            cache.clear()
+            bitmapCache.clear()
             totalBytes.set(0)
+
+            if (allocatedTextures.isNotEmpty()) {
+                val textures = allocatedTextures.toIntArray()
+                GLES20.glDeleteTextures(textures.size, textures, 0)
+                allocatedTextures.clear()
+            }
         }
+        Log.i(TAG, "OverlayResourceManager released")
     }
 
     private data class CachedBitmap(val bitmap: Bitmap, val bytes: Long)

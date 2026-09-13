@@ -19,7 +19,14 @@ data class OverlayElement(
     val opacity: Float = 1f,          // 0..1
     val zIndex: Int = 0,              // higher = on top
     val visible: Boolean = true,
-    val resourcePath: String? = null    // PNG/asset resource reference
+    val resourcePath: String? = null,  // image/asset resource reference
+    val textConfig: TextOverlayConfig? = null,
+    val goalConfig: GoalOverlayConfig? = null,
+    val lowerThirdConfig: LowerThirdOverlayConfig? = null,
+    val alertConfig: AlertOverlayConfig? = null,
+    val qrConfig: QrOverlayConfig? = null,
+    val gifConfig: GifOverlayConfig? = null,
+    val widgetConfig: WidgetOverlayConfig? = null
 ) {
     val isVisible: Boolean get() = enabled && visible && opacity > 0f
 
@@ -31,10 +38,170 @@ data class OverlayElement(
         normalizedWidth = normalizedWidth.coerceIn(0f, 1f),
         scale = scale.coerceAtLeast(0.01f)
     )
+
+    companion object {
+        fun createImage(
+            id: String,
+            resourcePath: String,
+            x: Float,
+            y: Float,
+            width: Float,
+            opacity: Float = 1f,
+            zIndex: Int = 0
+        ) = OverlayElement(
+            id = id,
+            type = OverlayType.IMAGE,
+            resourcePath = resourcePath,
+            normalizedX = x,
+            normalizedY = y,
+            normalizedWidth = width,
+            opacity = opacity,
+            zIndex = zIndex
+        )
+
+        fun createText(
+            id: String,
+            config: TextOverlayConfig,
+            x: Float,
+            y: Float,
+            width: Float = 0.4f,
+            opacity: Float = 1f,
+            zIndex: Int = 10
+        ) = OverlayElement(
+            id = id,
+            type = OverlayType.TEXT,
+            textConfig = config,
+            normalizedX = x,
+            normalizedY = y,
+            normalizedWidth = width,
+            opacity = opacity,
+            zIndex = zIndex
+        )
+
+        fun createGoal(
+            id: String,
+            config: GoalOverlayConfig,
+            x: Float,
+            y: Float,
+            width: Float = 0.6f,
+            opacity: Float = 1f,
+            zIndex: Int = 10
+        ) = OverlayElement(
+            id = id,
+            type = OverlayType.GOAL,
+            goalConfig = config,
+            normalizedX = x,
+            normalizedY = y,
+            normalizedWidth = width,
+            opacity = opacity,
+            zIndex = zIndex
+        )
+
+        fun createLowerThird(
+            id: String,
+            config: LowerThirdOverlayConfig,
+            x: Float = 0.05f,
+            y: Float = 0.82f,
+            width: Float = 0.75f,
+            opacity: Float = 1f,
+            zIndex: Int = 20
+        ) = OverlayElement(
+            id = id,
+            type = OverlayType.LOWER_THIRD,
+            lowerThirdConfig = config,
+            normalizedX = x,
+            normalizedY = y,
+            normalizedWidth = width,
+            opacity = opacity,
+            zIndex = zIndex
+        )
+
+        fun createAlert(
+            id: String,
+            config: AlertOverlayConfig,
+            x: Float = 0.15f,
+            y: Float = 0.12f,
+            width: Float = 0.70f,
+            opacity: Float = 1f,
+            zIndex: Int = 30
+        ) = OverlayElement(
+            id = id,
+            type = OverlayType.ALERT,
+            alertConfig = config,
+            normalizedX = x,
+            normalizedY = y,
+            normalizedWidth = width,
+            opacity = opacity,
+            zIndex = zIndex
+        )
+
+        fun createQr(
+            id: String,
+            config: QrOverlayConfig,
+            x: Float,
+            y: Float,
+            width: Float = 0.22f,
+            opacity: Float = 1f,
+            zIndex: Int = 10
+        ) = OverlayElement(
+            id = id,
+            type = OverlayType.QR,
+            qrConfig = config,
+            normalizedX = x,
+            normalizedY = y,
+            normalizedWidth = width,
+            opacity = opacity,
+            zIndex = zIndex
+        )
+
+        fun createGif(
+            id: String,
+            config: GifOverlayConfig,
+            x: Float,
+            y: Float,
+            width: Float = 0.25f,
+            opacity: Float = 1f,
+            zIndex: Int = 10
+        ) = OverlayElement(
+            id = id,
+            type = OverlayType.GIF,
+            gifConfig = config,
+            normalizedX = x,
+            normalizedY = y,
+            normalizedWidth = width,
+            opacity = opacity,
+            zIndex = zIndex
+        )
+
+        fun createWidget(
+            id: String,
+            config: WidgetOverlayConfig,
+            x: Float,
+            y: Float,
+            width: Float = 0.35f,
+            opacity: Float = 1f,
+            zIndex: Int = 15
+        ) = OverlayElement(
+            id = id,
+            type = OverlayType.WIDGET,
+            widgetConfig = config,
+            normalizedX = x,
+            normalizedY = y,
+            normalizedWidth = width,
+            opacity = opacity,
+            zIndex = zIndex
+        )
+    }
 }
 
 enum class OverlayType {
-    PNG,
+    IMAGE,
+    GIF,
     TEXT,
-    // Future: ANIMATED_GIF, SHAPE, ... (M7 architecture only)
+    GOAL,
+    LOWER_THIRD,
+    ALERT,
+    QR,
+    WIDGET,
+    PNG // Backward compatibility alias for IMAGE
 }

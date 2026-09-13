@@ -132,4 +132,65 @@ class CompositorInstrumentedTest {
         encoder.stop()
         encoder.release()
     }
+
+    @Test
+    fun testMultiOverlaySceneRendering() {
+        val width = 480
+        val height = 1056
+        val format = MediaFormat.createVideoFormat("video/avc", width, height).apply {
+            setInteger(MediaFormat.KEY_COLOR_FORMAT, MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface)
+            setInteger(MediaFormat.KEY_BIT_RATE, 1_200_000)
+            setInteger(MediaFormat.KEY_FRAME_RATE, 24)
+            setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, 1)
+        }
+
+        val encoder = MediaCodec.createEncoderByType("video/avc")
+        encoder.configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
+        val encoderSurface = encoder.createInputSurface()
+        encoder.start()
+
+        val renderer = GlesRenderer()
+        val initLatch = CountDownLatch(1)
+        val errorHolder = arrayOfNulls<Throwable>(1)
+
+        val glThread = Thread {
+            try {
+                renderer.initialize(encoderSurface, width, height, context.assets)
+                val resources = OverlayResourceManager()
+                val scene = OverlayScene()
+
+                // 1. Watermark logo
+                scene.add(OverlayElement.createImage("logo", "assets://overlay_logo.png", 0.7f, 0.8f, 0.2f, zIndex = 5))
+                // 2. Styled text banner
+                scene.add(OverlayElement.createText("txt", com.fairylive.app.core.compositor.model.TextOverlayConfig("TEST TITLE"), 0.05f, 0.05f, 0.4f, zIndex = 10))
+                // 3. Goal progress
+                scene.add(OverlayElement.createGoal("goal", com.fairylive.app.core.compositor.model.GoalOverlayConfig("Subs", 100, 200), 0.5f, 0.05f, 0.45f, zIndex = 15))
+                // 4. Widget
+                scene.add(OverlayElement.createWidget("stat", com.fairylive.app.core.compositor.model.WidgetOverlayConfig("STATS", "FPS", "24.0"), 0.05f, 0.90f, 0.35f, zIndex = 15))
+
+                renderer.composite(scene, resources)
+
+                // Verify textures uploaded for all 4 overlays
+                org.junit.Assert.assertEquals(4, scene.size)
+                scene.orderedLayers.forEach { layer ->
+                    assertTrue("Layer ${layer.element.id} must have valid texture handle", layer.textureHandle != 0)
+                }
+
+                renderer.drawFrame(scene, resources)
+                renderer.release()
+                resources.release()
+            } catch (t: Throwable) {
+                errorHolder[0] = t
+            } finally {
+                initLatch.countDown()
+            }
+        }
+        glThread.start()
+        assertTrue("Multi-overlay GL thread did not finish", initLatch.await(10, TimeUnit.SECONDS))
+        if (errorHolder[0] != null) throw errorHolder[0]!!
+
+        encoder.signalEndOfInputStream()
+        encoder.stop()
+        encoder.release()
+    }
 }

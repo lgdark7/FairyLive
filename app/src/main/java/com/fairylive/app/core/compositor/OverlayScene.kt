@@ -47,7 +47,15 @@ class OverlayScene {
         val layer = OverlayLayer(element)
         synchronized(lock) {
             val idx = layers.indexOfFirst { it.element.id == element.id }
-            if (idx >= 0) layers[idx] = layer else layers.add(layer)
+            if (idx >= 0) {
+                layers[idx] = layer
+            } else {
+                if (layers.size >= com.fairylive.app.core.compositor.limits.CompositorLimits.MAX_ACTIVE_OVERLAYS) {
+                    val lowest = layers.minByOrNull { it.transform.zIndex }
+                    if (lowest != null) layers.remove(lowest)
+                }
+                layers.add(layer)
+            }
         }
         return layer
     }

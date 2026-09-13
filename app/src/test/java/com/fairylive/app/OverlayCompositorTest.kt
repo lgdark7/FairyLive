@@ -177,4 +177,96 @@ class OverlayCompositorTest {
         assertEquals(2, metrics.overlayCount)
         assertEquals(com.fairylive.app.core.compositor.CompositorState.RUNNING, metrics.state)
     }
+
+    @Test
+    fun testTextOverlayConfigAndFactory() {
+        val config = com.fairylive.app.core.compositor.model.TextOverlayConfig(
+            text = "Welcome to FAIRY LIVE",
+            fontSizeSp = 22f
+        )
+        val element = OverlayElement.createText("txt1", config, x = 0.05f, y = 0.1f)
+        assertEquals(OverlayType.TEXT, element.type)
+        assertEquals("Welcome to FAIRY LIVE", element.textConfig?.text)
+        assertEquals(0.05f, element.normalizedX, 1e-6f)
+        assertEquals(0.1f, element.normalizedY, 1e-6f)
+        assertTrue(element.isVisible)
+    }
+
+    @Test
+    fun testGoalOverlayProgressFractionCalculation() {
+        val goalConfig = com.fairylive.app.core.compositor.model.GoalOverlayConfig(
+            title = "Subscribers",
+            currentVal = 300,
+            targetVal = 600
+        )
+        assertEquals(0.5f, goalConfig.progressFraction, 0.001f)
+
+        val completedGoal = goalConfig.copy(currentVal = 700)
+        assertEquals(1.0f, completedGoal.progressFraction, 0.001f) // Clamped to 1.0
+
+        val zeroGoal = goalConfig.copy(targetVal = 0)
+        assertEquals(0.0f, zeroGoal.progressFraction, 0.001f)
+    }
+
+    @Test
+    fun testLowerThirdOverlayConfig() {
+        val l3 = com.fairylive.app.core.compositor.model.LowerThirdOverlayConfig(
+            title = "John Doe",
+            subtitle = "Lead Mobile Architect"
+        )
+        val element = OverlayElement.createLowerThird("l3_banner", l3)
+        assertEquals(OverlayType.LOWER_THIRD, element.type)
+        assertEquals("John Doe", element.lowerThirdConfig?.title)
+        assertEquals("Lead Mobile Architect", element.lowerThirdConfig?.subtitle)
+        assertEquals(20, element.zIndex)
+    }
+
+    @Test
+    fun testQrMatrixGenerationHasValidFinders() {
+        val url = "https://fairylive.app/stream"
+        val matrix = com.fairylive.app.core.compositor.rasterizer.QrOverlayRasterizer.generateQrMatrix(url)
+        assertEquals(21, matrix.size)
+        assertEquals(21, matrix[0].size)
+
+        // Top-left finder center (row 3, col 3) must be dark
+        assertTrue(matrix[3][3])
+        // Top-left finder border (row 0, col 0) must be dark
+        assertTrue(matrix[0][0])
+        // Top-right finder center (row 3, col 21-4 = 17) must be dark
+        assertTrue(matrix[3][17])
+        // Bottom-left finder center (row 17, col 3) must be dark
+        assertTrue(matrix[17][3])
+    }
+
+    @Test
+    fun testCompositorLimitsEnforcedOnScene() {
+        val scene = OverlayScene()
+        // Add more than MAX_ACTIVE_OVERLAYS (10)
+        for (i in 1..15) {
+            val el = sampleElement(id = "layer_$i", z = i)
+            scene.add(el)
+        }
+        assertEquals(com.fairylive.app.core.compositor.limits.CompositorLimits.MAX_ACTIVE_OVERLAYS, scene.size)
+        // Ensure the highest z-index layers survived
+        assertNotNull(scene.find("layer_15"))
+        assertNotNull(scene.find("layer_14"))
+    }
+
+    @Test
+    fun testMultiOverlaySceneOrdering() {
+        val scene = OverlayScene()
+        val logo = OverlayElement.createImage("logo", "asset://logo.png", 0.7f, 0.8f, 0.2f, zIndex = 5)
+        val text = OverlayElement.createText("title", com.fairylive.app.core.compositor.model.TextOverlayConfig("Title"), 0.1f, 0.1f, zIndex = 15)
+        val alert = OverlayElement.createAlert("alert", com.fairylive.app.core.compositor.model.AlertOverlayConfig("Alert", "Sub"), zIndex = 50)
+
+        scene.add(alert)
+        scene.add(logo)
+        scene.add(text)
+
+        val sorted = scene.orderedLayers
+        assertEquals(3, sorted.size)
+        assertEquals("logo", sorted[0].element.id) // zIndex = 5
+        assertEquals("title", sorted[1].element.id) // zIndex = 15
+        assertEquals("alert", sorted[2].element.id) // zIndex = 50
+    }
 }

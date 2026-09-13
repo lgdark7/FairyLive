@@ -1,5 +1,43 @@
 # FAIRY LIVE — DEVELOPMENT LOG
 
+## 2026-09-13 — Milestone 8: Advanced Overlay System (Completed & Verified)
+- **Milestone**: M8 — Advanced Overlay System (authorized by ChatGPT 2026-09-13 18:11)
+- **Scope Implemented**:
+  - Expanded overlay architecture to support full broadcast asset suite:
+    * `IMAGE` / `PNG`: Multiple simultaneous images, alpha transparency, scaling, positioning, rotation, LRU texture caching.
+    * `TEXT`: Styled text banners with background padding, corner rounding, custom font sizing, alignment, and content-hash caching (`TextOverlayRasterizer`).
+    * `GOAL`: Follower, subscriber, and donation goal progress meters with progress fractions and dark groove tracks (`GoalOverlayRasterizer`).
+    * `LOWER_THIRD`: Broadcast lower-third banners with title, subtitle, accent stripe, and semi-transparent background (`LowerThirdOverlayRasterizer`).
+    * `QR`: Pure-Kotlin 21x21 (Version 1) QR matrix generator and rasterizer with zero third-party dependencies (`QrOverlayRasterizer`).
+    * `ALERT`: Animated broadcast alerts with badges, star icons, headlines, subtexts, and auto-dismissal (`AlertOverlayRasterizer`).
+    * `WIDGET`: Real-time telemetry pills with accent status dots, labels, and monospace metrics (`WidgetOverlayRasterizer`).
+    * `GIF`: Bounded-memory animated GIF playback engine allocating exactly one reusable Bitmap buffer via native Android `Movie` engine (`GifStreamPlayer`).
+    * `SOUND`: Independent asynchronous alert sound effects player (`AlertSoundController` using `SoundPool`), completely decoupled from the GLES render thread and microphone `AudioRecord` pipeline.
+  - Documented Low-End Constraints (`CompositorLimits`):
+    * `MAX_ACTIVE_OVERLAYS = 10`
+    * `MAX_CACHED_TEXTURES = 32`
+    * `MAX_TEXTURE_DIMENSION = 1024`
+    * `MAX_ANIMATED_FRAMES_BUFFERED = 4`
+    * `MAX_CONCURRENT_ALERTS = 3`
+  - Assets Created:
+    * `app/src/main/assets/sample_animation.gif`: 8-frame looping animated orbital GIF (3.8 KB).
+    * `app/src/main/assets/alert_chime.wav`: 44.1 kHz dual-tone chime audio asset (44 KB).
+  - Creator UI Integration:
+    * Added `btn_trigger_alert` ("Trigger Broadcast Alert [Test]") to the Dashboard RTMP card.
+    * Wired service action `ACTION_TRIGGER_ALERT` for on-demand follower/subscriber alert popups.
+- **Verification Matrix**:
+  - Unit Tests: **81/81 passed** (added `OverlayCompositorTest` M8 suite for text, goals, lower-thirds, QR matrix generation, limits enforcement, and multi-overlay scene ordering).
+  - Connected Android Tests: **5/5 passed** on Pixel 8 API 35 AVD (added `testMultiOverlaySceneRendering` verifying real AVC encoder input surface composition of PNG logo + Text banner + Goal progress + Stats widget with 4 valid GPU texture handles).
+  - Live Ingest Stream: **94.6s run** with 5 concurrent active overlays (PNG watermark + Text banner + Follower goal + Stats widget + Animated orbital GIF):
+    * Total Bytes: 2,193,471 B
+    * Video Frames: 346 frames
+    * Audio Frames: 2,968 frames
+    * Pipeline Drops: **0** (Zero dropped frames at muxer and RTMP socket levels)
+    * Process CPU: **34.4 – 38.2%** (only +3.8% CPU overhead for 5 simultaneous overlays)
+    * Process PSS: **75.9 MB** (+0.7 MB PSS overhead over M7 baseline)
+    * Process RSS: **182.1 MB**
+- **Status**: Complete — M8 verified. Waiting for ChatGPT review and M9 authorization.
+
 ## 2026-09-13 — Milestone 7: Overlay Compositor (Revalidation & Duplicate Frame Resolution)
 - **Milestone**: M7 — Overlay Compositor Revalidation (addressing ChatGPT review 2026-09-13 17:47)
 - **Review Finding Addressed**:

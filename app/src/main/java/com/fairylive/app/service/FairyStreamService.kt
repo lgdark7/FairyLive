@@ -135,6 +135,14 @@ class FairyStreamService : Service() {
                 stopStreamService()
                 return START_NOT_STICKY
             }
+            ACTION_TRIGGER_ALERT -> {
+                overlayCompositor.triggerAlert(
+                    headline = intent?.getStringExtra(EXTRA_ALERT_HEADLINE) ?: "NEW FOLLOWER!",
+                    subtext = intent?.getStringExtra(EXTRA_ALERT_SUBTEXT) ?: "Alex Live joined the stream!",
+                    durationMs = intent?.getLongExtra(EXTRA_ALERT_DURATION, 4000L) ?: 4000L,
+                    soundAsset = "asset://alert_chime.wav"
+                )
+            }
         }
 
         return START_STICKY
@@ -252,23 +260,8 @@ class FairyStreamService : Service() {
             if (enableCompositor) {
                 try {
                     captureSurface = overlayCompositor.start(encoderSurface, encW, encH)
-                    // Seed a default watermark overlay so the A/B and validation runs
-                    // have something visible in the broadcast.
-                    overlayCompositor.addOverlay(
-                        com.fairylive.app.core.compositor.model.OverlayElement(
-                            id = "watermark",
-                            type = com.fairylive.app.core.compositor.model.OverlayType.PNG,
-                            enabled = true,
-                            normalizedX = 0.72f,
-                            normalizedY = 0.85f,
-                            normalizedWidth = 0.22f,
-                            scale = 1f,
-                            opacity = 0.8f,
-                            zIndex = 10,
-                            visible = true,
-                            resourcePath = com.fairylive.app.core.compositor.OverlayCompositor.DEFAULT_OVERLAY_ASSET
-                        )
-                    )
+                    // Seed realistic broadcast multi-overlay scene (M8: PNG logo + Text banner + Goal + Stats widget)
+                    overlayCompositor.addSampleMultiOverlayScene()
                 } catch (e: Exception) {
                     Log.e("FairyStreamService", "Compositor start failed: ${e.message}")
                     com.fairylive.app.core.common.CreatorErrorNotifier.postError(
@@ -550,6 +543,11 @@ class FairyStreamService : Service() {
         const val ACTION_MUTE_AUDIO = "com.fairylive.app.action.MUTE_AUDIO"
         const val ACTION_UNMUTE_AUDIO = "com.fairylive.app.action.UNMUTE_AUDIO"
         const val ACTION_STOP_AUDIO = "com.fairylive.app.action.STOP_AUDIO"
+        const val ACTION_TRIGGER_ALERT = "com.fairylive.app.action.TRIGGER_ALERT"
+
+        const val EXTRA_ALERT_HEADLINE = "extra_alert_headline"
+        const val EXTRA_ALERT_SUBTEXT = "extra_alert_subtext"
+        const val EXTRA_ALERT_DURATION = "extra_alert_duration"
 
         const val EXTRA_RESULT_CODE = "extra_result_code"
         const val EXTRA_RESULT_DATA = "extra_result_data"

@@ -134,3 +134,38 @@ FAIRY LIVE enforces strict separation between:
   - `OverlayResourceManager`: Background-thread PNG decoder with bounded LRU memory caching and texture management.
   - `OverlayCompositor`: Top-level coordinator managing render thread lifecycle, EGL state, and metrics publishing.
 
+---
+
+## 8. Advanced Multi-Type Overlay System (Milestone 8)
+
+### A. Extensible Overlay Architecture
+FAIRY LIVE M8 establishes a modular, decoupled overlay architecture that supports multiple broadcast asset categories without modifying the underlying GLES compositor loop or RTMP streaming transport:
+- **`IMAGE` / `PNG`**: Static branding, watermarks, sponsor logos.
+- **`TEXT`**: Streamer titles, announcements, labels with customizable typography and background padding.
+- **`GOAL`**: Follower, subscriber, and donation progress meters with dynamic percentages and colored progress tracks.
+- **`LOWER_THIRD`**: Broadcast news/talk-show style lower-third banners with title, subtitle, and accent stripes.
+- **`ALERT`**: Dynamic event alerts (new follower, subscriber) with entry graphics, text, customizable duration, and auto-dismissal.
+- **`QR`**: On-screen QR codes for links, tips, or social media.
+- **`WIDGET`**: Real-time diagnostic readouts (FPS, bitrate, resolution) and custom counters.
+- **`GIF`**: Bounded-memory animated graphics.
+
+### B. Modular Rasterizer & Animation Architecture
+- **Zero-Allocation Live Rendering**:
+  - Elements are rasterized once upon configuration change by dedicated rasterizers: `TextOverlayRasterizer`, `GoalOverlayRasterizer`, `LowerThirdOverlayRasterizer`, `QrOverlayRasterizer`, `AlertOverlayRasterizer`, `WidgetOverlayRasterizer`.
+  - Rasterized Bitmaps are uploaded to OpenGL as `GL_TEXTURE_2D` and cached in `OverlayResourceManager`.
+  - During the live composition loop, only GPU textures and uniform matrices are bound. Zero CPU Bitmaps are created or copied per frame.
+- **Bounded-Memory GIF Playback (`GifStreamPlayer`)**:
+  - Employs native Android framework `Movie` / Skia engine without any third-party dependencies (0 KB APK impact, zero license overhead).
+  - Allocates exactly **one reusable Bitmap buffer** per active GIF, updating only when elapsed broadcast time advances the frame.
+- **Independent Alert Sound Path (`AlertSoundController`)**:
+  - Sound effects for alerts are managed via `SoundPool` on an independent asynchronous audio channel.
+  - Completely decoupled from the GLES render thread (never blocks composition) and the microphone `AudioRecord` pipeline.
+
+### C. Low-End Device Limits (`CompositorLimits`)
+- `MAX_ACTIVE_OVERLAYS = 10`: Strict ceiling on simultaneous scene layers.
+- `MAX_CACHED_TEXTURES = 32`: Maximum texture LRU cache capacity.
+- `MAX_TEXTURE_DIMENSION = 1024`: Clamped maximum texture resolution to protect 2GB RAM devices.
+- `MAX_ANIMATED_FRAMES_BUFFERED = 4`: Ring buffer constraint for animated frames.
+- `MAX_CONCURRENT_ALERTS = 3`: Queue ceiling for broadcast alerts.
+
+

@@ -33,6 +33,7 @@ class OverlayCompositor(
     private val renderer = GlesRenderer()
     private val resources = OverlayResourceManager()
     private val scene = OverlayScene()
+    private val soundController = com.fairylive.app.core.compositor.animation.AlertSoundController(appContext)
 
     private var renderThread: HandlerThread? = null
     private var renderHandler: Handler? = null
@@ -270,6 +271,7 @@ class OverlayCompositor(
         renderThread = null
 
         resources.release()
+        soundController.release()
         scene.clear()
 
         isPaused.set(false)
@@ -327,6 +329,115 @@ class OverlayCompositor(
 
     fun setOverlayScale(id: String, scale: Float) {
         scene.get(id)?.let { it.liveScale = scale.coerceIn(0.1f, 5f) }
+    }
+
+    /** Triggers a real-time broadcast alert overlay with optional sound and automatic dismissal. */
+    fun triggerAlert(
+        headline: String = "NEW FOLLOWER!",
+        subtext: String = "Alex Live joined the stream!",
+        durationMs: Long = com.fairylive.app.core.compositor.limits.CompositorLimits.DEFAULT_ALERT_DURATION_MS,
+        soundAsset: String? = null
+    ) {
+        val config = com.fairylive.app.core.compositor.model.AlertOverlayConfig(
+            headline = headline,
+            subtext = subtext,
+            durationMs = durationMs,
+            soundAsset = soundAsset,
+            createdAtMs = SystemClock.elapsedRealtime()
+        )
+        val alertElement = OverlayElement.createAlert(
+            id = "stream_alert",
+            config = config,
+            x = 0.15f,
+            y = 0.10f,
+            width = 0.70f,
+            zIndex = 50
+        )
+        addOverlay(alertElement)
+        if (soundAsset != null) {
+            soundController.playAlertSound(soundAsset)
+        }
+        renderHandler?.postDelayed({
+            removeOverlay("stream_alert")
+        }, durationMs)
+    }
+
+    /** Configures a realistic broadcast multi-overlay scene (M8). */
+    fun addSampleMultiOverlayScene() {
+        // 1. Watermark logo (PNG, bottom-right)
+        addOverlay(
+            OverlayElement.createImage(
+                id = "watermark",
+                resourcePath = DEFAULT_OVERLAY_ASSET,
+                x = 0.76f,
+                y = 0.88f,
+                width = 0.18f,
+                opacity = 0.85f,
+                zIndex = 10
+            )
+        )
+        // 2. Stream Title Banner (TEXT, top-left)
+        addOverlay(
+            OverlayElement.createText(
+                id = "stream_title",
+                config = com.fairylive.app.core.compositor.model.TextOverlayConfig(
+                    text = "FAIRY LIVE STUDIO",
+                    fontSizeSp = 18f,
+                    textColorRgba = android.graphics.Color.WHITE,
+                    backgroundColorRgba = android.graphics.Color.argb(200, 16, 24, 38)
+                ),
+                x = 0.04f,
+                y = 0.04f,
+                width = 0.44f,
+                zIndex = 15
+            )
+        )
+        // 3. Follower Goal (GOAL, top-right)
+        addOverlay(
+            OverlayElement.createGoal(
+                id = "follower_goal",
+                config = com.fairylive.app.core.compositor.model.GoalOverlayConfig(
+                    title = "Followers",
+                    currentVal = 340,
+                    targetVal = 500,
+                    unitPrefix = ""
+                ),
+                x = 0.50f,
+                y = 0.04f,
+                width = 0.46f,
+                zIndex = 15
+            )
+        )
+        // 4. Diagnostic Stats Widget (WIDGET, bottom-left)
+        addOverlay(
+            OverlayElement.createWidget(
+                id = "live_widget",
+                config = com.fairylive.app.core.compositor.model.WidgetOverlayConfig(
+                    widgetType = "STATS",
+                    label = "LIVE STATS",
+                    value = "1080p | 44.1k"
+                ),
+                x = 0.04f,
+                y = 0.90f,
+                width = 0.38f,
+                zIndex = 15
+            )
+        )
+        // 5. Animated Orbit GIF (GIF, bottom-left above stats)
+        addOverlay(
+            OverlayElement.createGif(
+                id = "animated_orbit",
+                config = com.fairylive.app.core.compositor.model.GifOverlayConfig(
+                    resourcePath = "asset://sample_animation.gif",
+                    playbackSpeed = 1.0f,
+                    isLooping = true
+                ),
+                x = 0.04f,
+                y = 0.78f,
+                width = 0.12f,
+                zIndex = 12
+            )
+        )
     }
 
     companion object {

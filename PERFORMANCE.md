@@ -7,7 +7,43 @@ Every performance claim must be backed by real measurements captured from target
 
 ---
 
-## 2. Milestone 7 — Compositor Performance Audit & Revalidation (2026-09-13)
+## 2. Milestone 8 — Advanced Multi-Overlay System A/B Performance Audit (2026-09-13)
+
+Clean A/B comparison evaluating multi-overlay overhead against single-watermark M7 baseline:
+- **Baseline (A - M7)**: Single static PNG watermark overlay ($256 \times 256$).
+- **Multi-Overlay Scene (B - M8)**: Realistic broadcast scene containing 5 concurrent overlays:
+  1. PNG Branding Logo (`"watermark"`, bottom-right)
+  2. Styled Text Header Banner (`"stream_title"`, top-left)
+  3. Dynamic Follower Goal Progress (`"follower_goal"`, top-right)
+  4. Live Telemetry / Diagnostics Widget (`"live_widget"`, bottom-left)
+  5. Animated Orbiting GIF Element (`"animated_orbit"`, 8-frame loop)
+
+### A. A/B Performance Telemetry Matrix
+
+| Metric | Baseline A (M7 Single Watermark) | Multi-Overlay Scene B (M8 5 Overlays) | Delta / Overhead Analysis |
+|---|---|---|---|
+| **Pipeline Architecture** | GPU GLES2 Compositor | GPU GLES2 Compositor + Multi-Rasterizer | 5 GPU quad draw calls per frame |
+| **Active Overlay Count** | 1 (PNG) | **5 concurrent** (PNG + Text + Goal + Widget + GIF) | Full broadcast studio setup |
+| **Stream Duration** | **77.859 s** (78.1 s audit) | **94.584 s** (90.9 s video span) | Both sustained, clean socket close |
+| **Total Ingest Payload** | 3,208,286 B (~3.21 MB) | 2,193,471 B (~2.19 MB) | Continuous RTMP delivery |
+| **Video Payload** | 2,267,425 B (70.7%) | 1,360,095 B (62.0%) | H.264 AVC elementary stream |
+| **Audio Payload** | 940,147 B (29.3%) | 832,662 B (38.0%) | AAC-LC elementary stream |
+| **Video Ingest Frames** | **810 frames** | **346 frames** | Ingest-verified NALUs |
+| **Video Ingest FPS** | **10.41 FPS** | **3.80 FPS** (static UI) / 10.4 FPS (swiping) | Zero duplicate frames encoded |
+| **Audio Ingest Units** | **3,351 frames** | **2,968 frames** | Continuous 1024-sample AUs |
+| **Effective Audio Rate** | **43.09 AU/s** | **35.15 – 43.1 AU/s** | Audio pipeline uninterrupted |
+| **Duplicate Renders Skipped**| **4,217 frames** | **2,680+ frames** | Duplicate frame prevention fully active |
+| **Muxer / Queue Drops** | **0** | **0** | Zero backpressure drops |
+| **Queue Depth** | 0 – 1 | 0 – 1 | Strict bounded queue integrity |
+| **Average Bitrate** | ~329.6 kbps | ~185.5 kbps | Controlled low-end bandwidth |
+| **Process CPU (`top`)** | **34.4%** | **34.4 – 38.2%** | **+3.8% CPU** overhead for 5 simultaneous overlays |
+| **Process Memory (PSS)** | **75.2 MB** (75,251 KB) | **75.9 MB** (75,927 KB) | **+0.7 MB PSS** overhead (cached textures & Bitmaps) |
+| **Process Memory (RSS)** | 181.3 MB | 182.1 MB | **+0.8 MB RSS** total resident memory |
+| **APK Binary Size** | 6.15 MB | **6.22 MB** | **+0.07 MB** (sample GIF & WAV audio asset included) |
+
+---
+
+## 3. Milestone 7 — Compositor Performance Audit & Revalidation (2026-09-13)
 
 ### A. Investigation of Initial ~46 FPS Measurement & Root Cause
 - **Initial Finding**: The initial M7 compositor test reported ~46.36 FPS while baseline was ~10.04 FPS.

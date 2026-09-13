@@ -5,7 +5,27 @@ Testing covers unit tests, instrumentation, system-level execution, memory stabi
 
 ---
 
-## 2. Milestone 7 — Broadcast Overlay Compositor Verification & Revalidation Matrix
+## 2. Milestone 8 — Advanced Multi-Overlay System Verification Matrix
+
+| Category | Test Case | Target / Command | Result | Evidence |
+|---|---|---|---|---|
+| **Build** | Clean & Assemble | `./gradlew clean assembleDebug` | **PASS** | `BUILD SUCCESSFUL`, 6.22 MB APK (< 15 MB budget) |
+| **Unit Tests** | Complete Suite | `./gradlew testDebugUnitTest` | **PASS** | **81/81 unit tests pass** (11 classes, incl. `OverlayCompositorTest` with M8 suite) |
+| **Device Tests** | On-Device Instrumentation | `connectedDebugAndroidTest` | **PASS** | **5/5 pass** on Pixel 8 Android 15 AVD (incl. `testMultiOverlaySceneRendering`) |
+| **Text Overlay** | Typography, Padding & Background | `OverlayCompositorTest` | **PASS** | `testTextOverlayConfigAndFactory`: fontSize, textColor, background card |
+| **Goal Overlay** | Value & Progress Fraction Math | `OverlayCompositorTest` | **PASS** | `testGoalOverlayProgressFractionCalculation`: 0.0 to 1.0 clamped progress |
+| **Lower Third** | Broadcast Banner Structure | `OverlayCompositorTest` | **PASS** | `testLowerThirdOverlayConfig`: title, subtitle, accent stripe, zIndex=20 |
+| **QR Generation** | Pure-Kotlin QR Matrix 21x21 | `OverlayCompositorTest` | **PASS** | `testQrMatrixGenerationHasValidFinders`: finder patterns, timing strips, zero ZXing dep |
+| **Resource Limits** | Low-End Memory Constraint | `OverlayCompositorTest` | **PASS** | `testCompositorLimitsEnforcedOnScene`: max 10 active overlays strictly enforced |
+| **Multi-Overlay** | Multi-Layer Scene Ordering | `OverlayCompositorTest` | **PASS** | `testMultiOverlaySceneOrdering`: ascending z-index ordering across all types |
+| **GL Multi-Layer** | 4 Simultaneous Overlays to Surface | `CompositorInstrumentedTest` | **PASS** | `testMultiOverlaySceneRendering`: real AVC encoder surface, all 4 texture handles valid |
+| **Live Multi-Stream**| RTMP Broadcast with 5 Overlays | Real Ingest Server | **PASS** | 94.6s run: 346 V, 2,968 A, 0 drops, qDepth=1, clean socket teardown |
+| **Alert Trigger** | On-Screen Alert & Sound | UI & Service Action | **PASS** | Animated alert with headline, subtext, and auto-dismissal after 4000ms |
+| **A/B Comparison** | M7 Single vs M8 Multi-Overlay | `tools/m8_multi_overlay.log` | **PASS** | Only +3.8% CPU, +0.7 MB PSS overhead for 5 simultaneous active overlays |
+
+---
+
+## 3. Milestone 7 — Broadcast Overlay Compositor Verification & Revalidation Matrix
 
 | Category | Test Case | Target / Command | Result | Evidence |
 |---|---|---|---|---|

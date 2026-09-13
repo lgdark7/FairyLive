@@ -694,6 +694,19 @@
                     android:textColor="@color/text_muted"
                     android:textSize="11sp" />
 
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btn_trigger_alert"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:backgroundTint="@color/bg_surface"
+                    android:text="Trigger Broadcast Alert [Test]"
+                    android:textColor="@color/status_amber"
+                    android:textSize="12sp"
+                    app:cornerRadius="6dp"
+                    app:strokeColor="@color/status_amber"
+                    app:strokeWidth="1dp" />
+
                 <TextView
                     android:id="@+id/tv_stream_endpoint_info"
                     android:layout_width="match_parent"
