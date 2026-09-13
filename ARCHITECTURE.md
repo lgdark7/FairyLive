@@ -93,3 +93,44 @@ Fairy Live is a pure native Android streaming application engineered from the gr
 - Hosted in foreground service `FairyStreamService` (`foregroundServiceType="mediaProjection|microphone"`).
 - Dashboard Fragment: Real-time telemetry cards for Device Capability, Screen Capture, Video Encoder, Audio Subsystem, and RTMP Streaming Transport.
 - Masked Stream Key: Plaintext stream keys are never exposed in UI or logcat.
+
+---
+
+## 7. Broadcast Overlay Compositor Architecture (Milestone 7)
+
+### A. Dual-Domain Decoupling
+FAIRY LIVE enforces strict separation between:
+1. **Creator UI Domain**: The Android Activity, Fragments, and Views displayed on the streamer's device. Controls overlays and monitors live metrics.
+2. **Broadcast Composition Domain**: The outgoing media pipeline. Overlays are composited purely on the GPU into the H.264 encoder input Surface without appearing over the creator's phone screen.
+
+### B. GPU Zero-Copy Pipeline
+```text
+[ MediaProjection ]
+       │
+       ▼
+[ VirtualDisplay ] ──► [ SurfaceTexture (OES Texture) ]
+                              │
+                              ▼ (GLES2 Composition on Render Thread)
+                       [ GlesRenderer ]
+                              │ ──► Samples capture texture (GL_TEXTURE_EXTERNAL_OES)
+                              │ ──► Blends cached overlay textures (GL_TEXTURE_2D)
+                              │ ──► Alpha blending (SRC_ALPHA, ONE_MINUS_SRC_ALPHA)
+                              ▼
+                       [ EGL Window Surface ] ──► [ MediaCodec H.264 Input Surface ]
+```
+- **Zero CPU Frame Copies**: Display output remains entirely on GPU textures. No Bitmaps or CPU pixel copies are performed during the frame rendering loop.
+- **Dedicated Render Thread**: `OverlayCompositor` runs a dedicated `HandlerThread` ("FairyCompositorThread") owning the EGL context, display, and window surface.
+- **Hybrid Event/Poll Drive**: Event-driven on SurfaceTexture `onFrameAvailable` with an adaptive 16 ms poll fallback ensuring continuous frame delivery even on virtualized/emulated GPU drivers.
+
+### C. Normalized Coordinate & Overlay Model
+- **Normalized Coordinates**: All overlay transforms ($x, y, w, h$) are defined in normalized range $[0.0, 1.0]$.
+  - $0.0, 0.0$ represents top-left; $1.0, 1.0$ represents bottom-right of the active broadcast resolution.
+  - Overlays survive adaptive resolution changes (e.g. 480x1056 -> 720x1584) without distortion or clipping.
+- **Model Hierarchy**:
+  - `OverlayElement`: Declarative immutable data model (id, type, enabled, visible, opacity, transform, resourcePath). Sanitized against out-of-bounds coordinates and opacity.
+  - `OverlayTransform`: Normalized spatial properties (x, y, width, height, scale, rotation, z-index).
+  - `OverlayLayer`: Mutable runtime rendering state holding GPU texture handles, live visibility, and dirty flags.
+  - `OverlayScene`: Thread-safe container maintaining layers sorted by ascending z-index.
+  - `OverlayResourceManager`: Background-thread PNG decoder with bounded LRU memory caching and texture management.
+  - `OverlayCompositor`: Top-level coordinator managing render thread lifecycle, EGL state, and metrics publishing.
+

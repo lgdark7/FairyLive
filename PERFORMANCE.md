@@ -7,7 +7,39 @@ Every performance claim must be backed by real measurements captured from target
 
 ---
 
-## 2. Milestone 6 Revalidation Telemetry (2026-09-13, full-display capture path)
+## 2. Milestone 7 — A/B Compositor Performance Audit (2026-09-13)
+
+Clean A/B comparison on identical hardware profile:
+- **Baseline (A)**: M6 Direct Pipeline (`VirtualDisplay -> MediaCodec H.264 Surface`) with Compositor Disabled.
+- **Composited (B)**: M7 GLES Pipeline (`VirtualDisplay -> SurfaceTexture -> GLES Renderer -> MediaCodec Surface`) with Compositor Enabled (static PNG watermark overlay).
+
+### A. A/B Performance Telemetry Matrix
+
+| Metric | Baseline (Compositor OFF) | Composited (GLES Compositor ON) | Delta / Impact Analysis |
+|---|---|---|---|
+| **Pipeline Architecture** | Direct zero-copy passthrough | GLES2 SurfaceTexture composite | 1 GLES render stage inserted |
+| **Active Overlay** | None | 1 PNG watermark (256x256 RGBA) | GPU texture cached (LRU) |
+| **Stream Duration** | 179.027 s | 76.073 s (and 129.398 s) | Both sustained, clean socket close |
+| **Total Ingest Payload** | 5,302,932 B (~5.30 MB) | 1,637,341 B (~1.64 MB) | Uninterrupted stream receipt |
+| **Video Payload** | 3,140,167 B (59.2%) | 718,370 B (43.9%) | H.264 AVC elementary stream |
+| **Audio Payload** | 2,162,051 B (40.8%) | 918,257 B (56.1%) | AAC-LC elementary stream |
+| **Video Ingest Frames** | 1,794 frames | 3,520 frames | Ingest-verified NALUs |
+| **Video Timespan** | 178,668 ms | 75,916 ms | Monotonic timestamp span |
+| **Effective Video FPS** | **10.04 FPS** | **46.36 FPS** | Compositor loop drives steady frames to encoder |
+| **Audio Ingest Units** | 7,705 frames | 3,273 frames | Continuous 1024-sample AUs |
+| **Audio Timespan** | 178,864 ms | 75,953 ms | Monotonic timestamp span |
+| **Effective Audio Rate** | **43.08 AU/s** | **43.09 AU/s** | Identical to theory (43.066 AU/s) |
+| **Muxer / Queue Drops** | **0** | **0** | Zero backpressure drops |
+| **Queue Depth** | 0 – 1 | 0 – 1 | Memory ceiling respected |
+| **Average Bitrate** | ~236.9 kbps | ~172.2 kbps | Controlled CBR encoding |
+| **Process CPU (`top`)** | **20.6%** | **56.6%** | Expected GLES GPU software emulation on swiftshader |
+| **Process Memory (PSS)** | **67.7 MB** (67,685 KB) | **74.7 MB** (74,693 KB) | **+7.0 MB** overhead (EGL, textures, shaders, LRU cache) |
+| **Process Memory (RSS)** | 168.9 MB | 179.8 MB | **+10.9 MB** total resident memory |
+| **APK Binary Size** | 5.8 MB (M6) | **6.15 MB** (M7) | **+0.35 MB** (< 15 MB budget met) |
+
+---
+
+## 3. Milestone 6 Revalidation Telemetry (2026-09-13, full-display capture path)
 
 | Metric | M5 (single-app) | M6 (full-display) | Note |
 |---|---|---|---|

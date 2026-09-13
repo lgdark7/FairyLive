@@ -5,7 +5,27 @@ Testing covers unit tests, instrumentation, system-level execution, memory stabi
 
 ---
 
-## 2. Milestone 6 — Creator Experience, Error UX & Secure Config Verification & Revalidation Matrix
+## 2. Milestone 7 — Broadcast Overlay Compositor Verification Matrix
+
+| Category | Test Case | Target / Command | Result | Evidence |
+|---|---|---|---|---|
+| **Build** | Clean & Assemble | `./gradlew clean assembleDebug` | **PASS** | `BUILD SUCCESSFUL`, 6.15 MB APK (< 15 MB budget) |
+| **Unit Tests** | Complete Suite | `./gradlew testDebugUnitTest` | **PASS** | **80/80 unit tests pass** (11 classes, incl. `OverlayCompositorTest` 9 tests) |
+| **Device Tests** | On-Device Instrumentation | `connectedDebugAndroidTest` | **PASS** | **4/4 pass** on Pixel 8 Android 15 AVD (incl. `CompositorInstrumentedTest`) |
+| **Overlay Model** | Normalized Coords & Sanitization | `OverlayCompositorTest` | **PASS** | $x, y, w, h \in [0.0, 1.0]$, opacity clamp, visibility state |
+| **Scene Management** | Z-Order & Ordering | `OverlayCompositorTest` | **PASS** | Sorted layer retrieval, layer dedup-by-id, dynamic toggle |
+| **Transform Math** | Resolution Invariance | `OverlayCompositorTest` | **PASS** | Aspect-ratio preserving height/width calculations across profile changes |
+| **GLES Renderer** | Real Encoder Input Surface Init | `CompositorInstrumentedTest` | **PASS** | EGL14 display, context, window surface bound to MediaCodec `video/avc` input Surface |
+| **Visual Validation** | Pixel-Level Readback Assertion | `CompositorInstrumentedTest` | **PASS** | `glReadPixels` confirms non-clear color (`rgba=(36, 208, 180, 207)`) matching teal circle logo |
+| **Resource Cache** | PNG Decode & LRU Texture Cache | `OverlayResourceManager` | **PASS** | Background bitmap decode from assets, bounded cache, clean release |
+| **A/B Baseline (A)** | Compositor OFF Passthrough | On-device RTMP Stream | **PASS** | 179s run: 1,794 V, 7,705 A, 0 drops, 20.6% CPU, 67.7 MB PSS |
+| **A/B Composite (B)** | Compositor ON with Watermark | On-device RTMP Stream | **PASS** | 76s run: 3,520 V, 3,273 A, 0 drops, 56.6% CPU, 74.7 MB PSS, steady 46.3 FPS |
+| **Clean Teardown** | Stop & Resource Cleanup | Notification "Stop Service" | **PASS** | GLES renderer released, EGL terminated, HandlerThread quitSafely, zero leaked surfaces |
+| **Creator Control UI** | Dashboard Toggle Switch | On-device UI | **PASS** | MaterialCheckBox toggle, live status readout ("Compositor: ON (GLES overlay active)") |
+
+---
+
+## 3. Milestone 6 — Creator Experience, Error UX & Secure Config Verification & Revalidation Matrix
 
 | Category | Test Case | Target / Command | Result | Evidence |
 |---|---|---|---|---|

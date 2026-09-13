@@ -85,6 +85,7 @@ class DashboardFragment : Fragment(),
                 enableEncoding = true,
                 enableAudio = true,
                 enableRtmp = isRtmpEnabled,
+                enableCompositor = binding.switchEnableCompositor.isChecked,
                 rtmpUrl = settings.serverUrl,
                 streamKey = settings.streamKey,
                 bitrateKbps = settings.videoBitrateKbps,
@@ -99,6 +100,14 @@ class DashboardFragment : Fragment(),
             )
             CaptureStateNotifier.updateState(CaptureState.IDLE)
         }
+    }
+
+    private val compositorStateListener: () -> Unit = {
+        updateCompositorUI()
+    }
+
+    private val compositorMetricsListener: () -> Unit = {
+        updateCompositorUI()
     }
 
     override fun onCreateView(
@@ -120,6 +129,9 @@ class DashboardFragment : Fragment(),
         AudioStateNotifier.addStateListener(this)
         AudioStateNotifier.addMetricsListener(this)
         com.fairylive.app.core.common.CreatorErrorNotifier.addListener(this)
+        com.fairylive.app.core.compositor.CompositorStateNotifier.addStateListener(compositorStateListener)
+        com.fairylive.app.core.compositor.CompositorStateNotifier.addMetricsListener(compositorMetricsListener)
+        updateCompositorUI()
 
         bindDeviceCapability()
         bindCaptureControls()
@@ -152,6 +164,8 @@ class DashboardFragment : Fragment(),
         com.fairylive.app.core.stream.StreamTelemetryNotifier.removeStateListener(this)
         com.fairylive.app.core.stream.StreamTelemetryNotifier.removeTelemetryListener(this)
         com.fairylive.app.core.common.CreatorErrorNotifier.removeListener(this)
+        com.fairylive.app.core.compositor.CompositorStateNotifier.removeStateListener(compositorStateListener)
+        com.fairylive.app.core.compositor.CompositorStateNotifier.removeMetricsListener(compositorMetricsListener)
         _binding = null
     }
 
@@ -653,6 +667,41 @@ class DashboardFragment : Fragment(),
                 updateEndpointDisplay(settings.serverUrl, settings.streamKey)
             }
         }
+
+        binding.tvCompositorStatus.text = if (binding.switchEnableCompositor.isChecked) {
+            "Compositor: ON (GLES overlay active)"
+        } else {
+            "Compositor: OFF (passthrough)"
+        }
+        binding.switchEnableCompositor.setOnCheckedChangeListener { _, isChecked ->
+            binding.tvCompositorStatus.text = if (isChecked) {
+                "Compositor: ON (GLES overlay active)"
+            } else {
+                "Compositor: OFF (passthrough)"
+            }
+        }
+    }
+
+    private fun updateCompositorUI() {
+        val state = com.fairylive.app.core.compositor.CompositorStateNotifier.currentState
+        val metrics = com.fairylive.app.core.compositor.CompositorStateNotifier.currentMetrics
+
+        val prefix = when (state) {
+            com.fairylive.app.core.compositor.CompositorState.RUNNING -> "ON"
+            com.fairylive.app.core.compositor.CompositorState.STARTING -> "STARTING"
+            com.fairylive.app.core.compositor.CompositorState.PAUSED -> "PAUSED"
+            com.fairylive.app.core.compositor.CompositorState.ERROR -> "ERROR"
+            com.fairylive.app.core.compositor.CompositorState.STOPPING -> "STOPPING"
+            com.fairylive.app.core.compositor.CompositorState.IDLE -> "OFF"
+        }
+        val fps = String.format("%.1f", metrics.outputFps)
+        val overlayInfo = if (metrics.overlayCount > 0) " | ${metrics.overlayCount} overlay(s)" else ""
+        binding.tvCompositorStatus.text =
+            if (state == com.fairylive.app.core.compositor.CompositorState.IDLE) {
+                "Compositor: OFF (passthrough)"
+            } else {
+                "Compositor: $prefix | $fps fps | ${metrics.framesComposited} frames$overlayInfo"
+            }
     }
 
     private fun updateEndpointDisplay(url: String, key: String) {

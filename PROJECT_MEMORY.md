@@ -48,7 +48,17 @@ Rebuild **FAIRY LIVE** from scratch as a high-performance, professional native A
       - Test suite grew to **71 unit + 3 device tests** (added `CaptureFailureRegressionTest` 10 + `testProjectionDeniedCreatorErrorCard` for failure-path and error UX).
       - **M6 revalidation (2026-09-13 13:45 review response)**: Tests A–F passed on-device (full-screen dialog, fresh state, repeated auth cancel/accept, clean stop→restart streams again). Success stream verified: **14,679,930 bytes, 3,129 video + 11,326 audio AUs** over 263s (audio 43.07 AU/s = theory; video ~11.9 fps — full-display swiftshader throttle, M5 single-app was 23 fps).
       - **M6 final review (2026-09-13 14:35)**: per-stage FPS trace added (`STAGE-AUDIT` log in StreamPipeline; 492.56s run: encoder output = muxer tags = RTMP-sent at every sample, drops=0 — zero pipeline loss; fps ceiling upstream VirtualDisplay, not transport). Projection-denied path posts typed CreatorError card (verified on-device: error card + OFFLINE/CAPTURE IDLE + 0 bytes to server). Credential masking verified in UI and logcat.
-- **Pending Milestones**: M7 through M15 (M6 strictly gated on M5 ChatGPT approval — authorized 2026-09-13 12:27).
+  - **M7: Broadcast Overlay Compositor** (Completed & Verified — **WAITING FOR CHATGPT REVIEW**)
+      - **Architecture**: Established GPU GLES2/EGL broadcast compositor between `MediaProjection` and `HardwareVideoEncoder` (`VirtualDisplay -> compositor SurfaceTexture -> GLES renderer -> MediaCodec Surface`). Decoupled creator UI domain from broadcast composition domain.
+      - **Overlay Model**: Normalized spatial coordinates ($[0.0, 1.0]$) surviving resolution changes; immutable `OverlayElement` (id, type, enabled, visible, opacity, transform, resourcePath) with automatic sanitization clamping; z-sorted `OverlayScene`; mutable runtime `OverlayLayer`.
+      - **Resource Caching**: Bounded LRU GPU texture cache and background BitmapFactory decoding in `OverlayResourceManager`. High-res transparent 256x256 circular teal logo (`overlay_logo.png`).
+      - **Render Loop**: Event-driven on SurfaceTexture `onFrameAvailable` with adaptive 16 ms poll fallback on dedicated `FairyCompositorThread` to ensure smooth frame delivery on virtualized GPUs.
+      - **Creator Control UI**: Dashboard `switch_enable_compositor` toggle, live compositor state/FPS status readout.
+      - **A/B Performance Verification**:
+        * Baseline OFF (179s): 1,794 V, 7,705 A, 0 drops, 20.6% CPU, 67.7 MB PSS.
+        * Composited ON (76s): 3,520 V, 3,273 A, 0 drops, 56.6% CPU, 74.7 MB PSS (+7.0 MB), 46.36 FPS steady.
+      - **Test Suite**: **80 Unit Tests** + **4 On-Device Connected Tests** (100% Passing). Added `OverlayCompositorTest` (9 tests) and `CompositorInstrumentedTest` (pixel-level readback assertion).
+- **Pending Milestones**: M8 through M15 (strictly gated on ChatGPT M7 approval).
 
 ---
 
@@ -82,10 +92,24 @@ Rebuild **FAIRY LIVE** from scratch as a high-performance, professional native A
 - **M6 Bug 2 (Streamer UX — No Error Feedback)**:
   - **Issue**: Any capture failure (projection denied, MediaProjection null, encoder failure) left the UI in "CAPTURING" state with no visible error message.
   - **Fix**: Created `CreatorErrorNotifier` (title/message/resolution observer pattern) and wired it into the Dashboard as a full-width error card with Configure Destination action; applied to every failure path in `handleStartCapture()`.
+- **M7 Bug 1 (Off-Thread GL Call Starvation)**:
+  - **Issue**: SurfaceTexture `setOnFrameAvailableListener` invoked callback on an arbitrary thread without an active EGL context, causing GL draw/swap calls to silently no-op and starving the encoder (`muxedV=0`).
+  - **Fix**: Marshalled callback onto dedicated `FairyCompositorThread` where the EGL context is current.
+- **M7 Bug 2 (Virtualized Driver Callback Delivery)**:
+  - **Issue**: Emulator swiftshader intermittently omitted `onFrameAvailable` signals, causing stalls.
+  - **Fix**: Added an adaptive 16 ms periodic poll fallback with `consumeNewFrame()` ensuring steady 46+ FPS frame delivery to MediaCodec without CPU busy-waiting.
 
 ---
 
 ## 6. Architecture & Code Structure Summary
+- `com.fairylive.app.core.compositor`:
+  - `model/`: `OverlayElement` (immutable sanitized data model), `OverlayTransform` (normalized spatial geometry $[0.0, 1.0]$), `OverlayType`
+  - `render/`: `GlesRenderer` (EGL14 context/window surface, OES capture shader, quad overlay shader with alpha blend)
+  - `resource/`: `OverlayResourceManager` (background BitmapFactory decode, bounded LRU GPU texture cache)
+  - `OverlayLayer.kt`: Runtime layer state (texture handle, dirty flag, live visibility)
+  - `OverlayScene.kt`: Z-sorted layer container with deduplication by ID
+  - `OverlayCompositor.kt`: Dedicated HandlerThread, event-driven render loop with poll fallback, metrics publishing
+  - `CompositorStateNotifier.kt`: Observable compositor state & telemetry bus
 - `com.fairylive.app.core.stream`:
   - `model/`: `RtmpConnectionState`, `StreamTelemetry`, `FlvPacket`
   - `flv/`: `H264FlvPacketizer`, `AacFlvPacketizer`, `FlvMetadataBuilder`
@@ -99,11 +123,14 @@ Rebuild **FAIRY LIVE** from scratch as a high-performance, professional native A
 
 ## 7. Performance & Resource Benchmarks
 - **Cold Launch Time**: **1,615 ms**
-- **Debug APK Size**: **6.7 MB** (44.6% of 15 MB budget)
-- **Active Full Broadcast PSS (Video + Audio + FLV + RTMP)**: **68.8 MB**
-- **Post-Stop Teardown PSS**: **78.2 MB** (Clean socket & surface closure)
-- **Total Pipeline CPU**: **25.9%** (Concurrent 480x1056 H.264 + 44.1kHz AAC + RTMP chunks)
-- **Measured Video Bitrate**: **1115.8 kbps** (Configured: 1200 kbps)
-- **Measured Audio Bitrate**: **96.8 kbps** (Configured: 96 kbps)
+- **Debug APK Size**: **6.15 MB** (41.0% of 15 MB budget)
+- **Active Full Broadcast PSS**:
+  - Direct Passthrough (M6): **67.7 MB**
+  - GLES Composited (M7): **74.7 MB** (+7.0 MB for EGL, shaders, textures, LRU cache)
+- **Pipeline Video Framerate**:
+  - Baseline (M6 full-display): **10.04 FPS**
+  - Composited (M7 GLES loop): **46.36 FPS**
+- **Pipeline Audio Framerate**: **43.08 – 43.09 AU/s** (Theoretical exact: 43.066 AU/s)
+- **Muxer & Queue Packet Drops**: **0** (Zero dropped frames in both baseline and composited runs)
 - **Queue Memory Footprint**: Strictly capped at 4 MB / 90 packets.
-- **Test Suite**: **71 Unit Tests** + **3 On-Device Connected Tests** (100% Passing).
+- **Test Suite**: **80 Unit Tests** + **4 On-Device Connected Tests** (100% Passing).

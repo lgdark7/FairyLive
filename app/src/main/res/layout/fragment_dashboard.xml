@@ -674,6 +674,26 @@
                     android:textColor="@color/text_primary"
                     android:textSize="13sp" />
 
+                <com.google.android.material.checkbox.MaterialCheckBox
+                    android:id="@+id/switch_enable_compositor"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:checked="false"
+                    android:text="Enable Overlay Compositor [GLES]"
+                    android:textColor="@color/text_primary"
+                    android:textSize="13sp" />
+
+                <TextView
+                    android:id="@+id/tv_compositor_status"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:fontFamily="monospace"
+                    android:text="Compositor: OFF (passthrough)"
+                    android:textColor="@color/text_muted"
+                    android:textSize="11sp" />
+
                 <TextView
                     android:id="@+id/tv_stream_endpoint_info"
                     android:layout_width="match_parent"

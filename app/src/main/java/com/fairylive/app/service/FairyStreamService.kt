@@ -17,6 +17,7 @@ import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
 import android.util.Log
+import android.view.Surface
 import androidx.core.app.NotificationCompat
 import com.fairylive.app.FairyLiveApplication
 import com.fairylive.app.MainActivity
@@ -54,6 +55,7 @@ class FairyStreamService : Service() {
     val videoEncoder = HardwareVideoEncoder()
     val audioPipeline = AudioPipeline()
     val streamPipeline = StreamPipeline()
+    val overlayCompositor = com.fairylive.app.core.compositor.OverlayCompositor(this)
 
     private var activeMediaProjection: MediaProjection? = null
     private val mainHandler = Handler(Looper.getMainLooper())
@@ -164,6 +166,7 @@ class FairyStreamService : Service() {
         val dpi = intent.getIntExtra(EXTRA_DPI, 420)
         val enableEncoding = intent.getBooleanExtra(EXTRA_ENABLE_ENCODING, true)
         val enableAudio = intent.getBooleanExtra(EXTRA_ENABLE_AUDIO, true)
+        val enableCompositor = intent.getBooleanExtra(EXTRA_ENABLE_COMPOSITOR, false)
         val bitrateKbps = intent.getIntExtra(EXTRA_BITRATE_KBPS, 1200)
         val fps = intent.getIntExtra(EXTRA_FPS, 24)
 
@@ -215,6 +218,7 @@ class FairyStreamService : Service() {
                     Log.w("FairyStreamService", "MediaProjection stopped by system — tearing down capture")
                     mainHandler.post {
                         captureEngine.stop()
+                        overlayCompositor.stop()
                         videoEncoder.stop()
                         audioPipeline.stop()
                         streamPipeline.stop()
@@ -241,8 +245,46 @@ class FairyStreamService : Service() {
                 }
             }, mainHandler)
 
-            // CPU-copy-free Surface pipeline: VirtualDisplay feeds directly into MediaCodec input surface!
-            captureEngine.start(projection, encW, encH, dpi, customSurface = encoderSurface)
+            // CPU-copy-free Surface pipeline:
+            //   compositor ENABLED:  VirtualDisplay -> compositor SurfaceTexture -> GLES -> encoder input Surface
+            //   compositor DISABLED: VirtualDisplay -> encoder input Surface directly (M6 zero-copy passthrough)
+            val captureSurface: Surface
+            if (enableCompositor) {
+                try {
+                    captureSurface = overlayCompositor.start(encoderSurface, encW, encH)
+                    // Seed a default watermark overlay so the A/B and validation runs
+                    // have something visible in the broadcast.
+                    overlayCompositor.addOverlay(
+                        com.fairylive.app.core.compositor.model.OverlayElement(
+                            id = "watermark",
+                            type = com.fairylive.app.core.compositor.model.OverlayType.PNG,
+                            enabled = true,
+                            normalizedX = 0.72f,
+                            normalizedY = 0.85f,
+                            normalizedWidth = 0.22f,
+                            scale = 1f,
+                            opacity = 0.8f,
+                            zIndex = 10,
+                            visible = true,
+                            resourcePath = com.fairylive.app.core.compositor.OverlayCompositor.DEFAULT_OVERLAY_ASSET
+                        )
+                    )
+                } catch (e: Exception) {
+                    Log.e("FairyStreamService", "Compositor start failed: ${e.message}")
+                    com.fairylive.app.core.common.CreatorErrorNotifier.postError(
+                        title = "Overlay Compositor Failed",
+                        message = "The broadcast compositor could not initialize (${e.message}).",
+                        resolution = "Disable overlays in the Dashboard and retry."
+                    )
+                    stopStreamService()
+                    return
+                }
+                Log.i("FairyStreamService", "Compositor ENABLED — capture SurfaceTexture → GLES → encoder")
+            } else {
+                captureSurface = encoderSurface
+            }
+
+            captureEngine.start(projection, encW, encH, dpi, customSurface = captureSurface)
 
             if (!captureEngine.isCapturing || CaptureStateNotifier.currentState == CaptureState.ERROR) {
                 // VirtualDisplay creation failed — do not publish a video-less stream.
@@ -395,6 +437,7 @@ class FairyStreamService : Service() {
 
     private fun stopStreamService() {
         captureEngine.stop()
+        overlayCompositor.stop()
         videoEncoder.stop()
         audioPipeline.stop()
         streamPipeline.stop()
@@ -420,6 +463,7 @@ class FairyStreamService : Service() {
     override fun onDestroy() {
         super.onDestroy()
         captureEngine.stop()
+        overlayCompositor.stop()
         videoEncoder.stop()
         audioPipeline.stop()
         streamPipeline.stop()
@@ -515,6 +559,7 @@ class FairyStreamService : Service() {
         const val EXTRA_ENABLE_ENCODING = "extra_enable_encoding"
         const val EXTRA_ENABLE_AUDIO = "extra_enable_audio"
         const val EXTRA_ENABLE_RTMP = "extra_enable_rtmp"
+        const val EXTRA_ENABLE_COMPOSITOR = "extra_enable_compositor"
         const val EXTRA_RTMP_URL = "extra_rtmp_url"
         const val EXTRA_STREAM_KEY = "extra_stream_key"
         const val EXTRA_BITRATE_KBPS = "extra_bitrate_kbps"
@@ -554,6 +599,7 @@ class FairyStreamService : Service() {
             enableEncoding: Boolean = true,
             enableAudio: Boolean = true,
             enableRtmp: Boolean = false,
+            enableCompositor: Boolean = false,
             rtmpUrl: String = "",
             streamKey: String = "",
             bitrateKbps: Int = 1200,
@@ -569,6 +615,7 @@ class FairyStreamService : Service() {
                 putExtra(EXTRA_ENABLE_ENCODING, enableEncoding)
                 putExtra(EXTRA_ENABLE_AUDIO, enableAudio)
                 putExtra(EXTRA_ENABLE_RTMP, enableRtmp)
+                putExtra(EXTRA_ENABLE_COMPOSITOR, enableCompositor)
                 putExtra(EXTRA_RTMP_URL, rtmpUrl)
                 putExtra(EXTRA_STREAM_KEY, streamKey)
                 putExtra(EXTRA_BITRATE_KBPS, bitrateKbps)
