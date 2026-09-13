@@ -138,6 +138,10 @@ def run_server(port=19350):
     audio_packets = []
     total_bytes = 0
     start_time = None
+    first_video_ts = None
+    last_video_ts = None
+    first_audio_ts = None
+    last_audio_ts = None
 
     try:
         while True:
@@ -173,8 +177,14 @@ def run_server(port=19350):
 
             elif mtype == 9:
                 video_packets.append(msg)
+                if first_video_ts is None:
+                    first_video_ts = msg["timestamp"]
+                last_video_ts = msg["timestamp"]
             elif mtype == 8:
                 audio_packets.append(msg)
+                if first_audio_ts is None:
+                    first_audio_ts = msg["timestamp"]
+                last_audio_ts = msg["timestamp"]
 
             if len(video_packets) > 0 and len(video_packets) % 50 == 0:
                 elapsed = time.time() - start_time
@@ -186,7 +196,17 @@ def run_server(port=19350):
     finally:
         conn.close()
         server.close()
+        d = time.time() - (start_time or time.time())
         print(f"[RTMP_SERVER] Closed. Summary: {total_bytes} bytes received, {len(video_packets)} video frames, {len(audio_packets)} audio frames.", flush=True)
+        if video_packets:
+            print(f"[RTMP_SERVER]   video: first_ts={first_video_ts}ms last_ts={last_video_ts}ms span={last_video_ts - first_video_ts}ms", flush=True)
+        if audio_packets:
+            print(f"[RTMP_SERVER]   audio: first_ts={first_audio_ts}ms last_ts={last_audio_ts}ms span={last_audio_ts - first_audio_ts}ms", flush=True)
+        print(f"[RTMP_SERVER]   duration={d:.3f}s", flush=True)
+        # Per-stream bitrate by payload bytes
+        vbytes = sum(len(p["payload"]) for p in video_packets)
+        abytes = sum(len(p["payload"]) for p in audio_packets)
+        print(f"[RTMP_SERVER]   video_bytes={vbytes} audio_bytes={abytes}", flush=True)
 
 if __name__ == "__main__":
     run_server()

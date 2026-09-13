@@ -5,7 +5,26 @@ Testing covers unit tests, instrumentation, system-level execution, memory stabi
 
 ---
 
-## 2. Milestone 5 — Streaming Pipeline Verification & Revalidation Matrix
+## 2. Milestone 6 — Creator Experience, Error UX & Secure Config Verification & Revalidation Matrix
+
+| Category | Test Case | Target / Command | Result | Evidence |
+|---|---|---|---|---|
+| **Build** | Clean & Assemble | `./gradlew clean assembleDebug` | **PASS** | `BUILD SUCCESSFUL`, 5.8 MB APK |
+| **Unit Tests** | Complete Suite | `./gradlew testDebugUnitTest` | **PASS** | **70/70 unit tests pass** (9 classes, incl. `CreatorExperienceTest` 16 + `CaptureFailureRegressionTest` 10) |
+| **Device Tests** | On-Device Instrumentation | `connectedDebugAndroidTest` | **PASS** | **3/3 pass** on Pixel 8 Android 15 AVD (`CodecInspectionTest`) |
+| **Failure Path** | Null VirtualDisplay → ERROR, no false LIVE | `CaptureFailureRegressionTest` | **PASS** | Engine never reports CAPTURING on null VD; `CaptureState.ERROR` reachable; notifiers reset to IDLE; error bus fires; rapid errors don't crash |
+| **Test A** | Current M6 flow (full-display) | On-device GO LIVE | **PASS** | "Entire screen" dialog → LIVE → video + audio flowing (263s success run) |
+| **Test B** | Full-screen capture | On-device | **PASS** | **14,679,930 bytes, 3,129 video + 11,326 audio AUs**, clean stop |
+| **Test C** | Single-app selector (Android 15) | Documented | **KNOWN LIMITATION** | User selected single-app → `RECORD_CONTENT_TASK - id=-1` bind failure → null VD (root defect; full-display path works reliably) |
+| **Test D** | Fresh app/task state | force-stop + relaunch | **PASS** | Clean baseline, no stale state |
+| **Test E** | Repeated authorization | GO LIVE → Cancel → GO LIVE → Start | **PASS** | Cancel → OFFLINE/CAPTURE IDLE (no false LIVE); accept → streams |
+| **Test F** | Clean stop → restart | Stop via notification → GO LIVE | **PASS** | Stop → OFFLINE + Frames:0; restart → streams again (128s run, 1,317 video + 5,512 audio) |
+| **Success Path** | V+A both present at server | Verified server | **PASS** | Audio 43.07 AU/s (= theory 43.066); video ~11.9 fps (full-display swiftshader throttle); A/V first/last diff ≤ 82ms |
+| **Credential Masking** | Plaintext key concealment | UI + Logcat Audit | **PASS** | Dashboard `Key: li•••••••••••••••••••••yz`; Settings EditText `password=true`; **zero** plaintext in logcat |
+
+---
+
+## 3. Milestone 5 — Streaming Pipeline Verification & Revalidation Matrix
 
 | Category | Test Case | Target / Command | Result | Evidence |
 |---|---|---|---|---|

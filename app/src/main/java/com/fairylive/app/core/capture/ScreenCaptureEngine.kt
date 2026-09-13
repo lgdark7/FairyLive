@@ -188,9 +188,11 @@ class ScreenCaptureEngine {
 
         if (vd == null) {
             // VirtualDisplay creation failed (e.g. projection stopped/task session not applied).
-            // Do NOT mark CAPTURING — surface a creator error and clean up instead.
+            // Do NOT mark CAPTURING — clean up resources first, then surface ERROR.
             Log.e("FairyCapture", "createVirtualDisplay returned null — projection likely stopped or ContentRecordingSession failed")
-            stop()
+            isCapturing = false
+            stop()  // releases handler thread, callback, resources (sets IDLE internally)
+            CaptureStateNotifier.updateState(CaptureState.ERROR)
             com.fairylive.app.core.common.CreatorErrorNotifier.postError(
                 title = "Screen Capture Could Not Start",
                 message = "Android could not create the capture display. The capture session may have been interrupted or the system did not grant the recording session.",

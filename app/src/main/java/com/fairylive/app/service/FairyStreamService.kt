@@ -244,7 +244,7 @@ class FairyStreamService : Service() {
             // CPU-copy-free Surface pipeline: VirtualDisplay feeds directly into MediaCodec input surface!
             captureEngine.start(projection, encW, encH, dpi, customSurface = encoderSurface)
 
-            if (!captureEngine.isCapturing) {
+            if (!captureEngine.isCapturing || CaptureStateNotifier.currentState == CaptureState.ERROR) {
                 // VirtualDisplay creation failed — do not publish a video-less stream.
                 Log.e("FairyStreamService", "Capture engine failed to start; aborting broadcast")
                 com.fairylive.app.core.common.CreatorErrorNotifier.postError(

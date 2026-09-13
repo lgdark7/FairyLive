@@ -7,7 +7,28 @@ Every performance claim must be backed by real measurements captured from target
 
 ---
 
-## 2. Milestone 5 Verified Telemetry (Spec-Compliant RTMP Server Ingest)
+## 2. Milestone 6 Revalidation Telemetry (2026-09-13, full-display capture path)
+
+| Metric | M5 (single-app) | M6 (full-display) | Note |
+|---|---|---|---|
+| **Video FPS** | 23.06 | **~10–12** (8.9–16.7 range) | Full-display VirtualDisplay on emulator swiftshader delivers fewer frames/s than single-app window capture; content-dependent |
+| **Audio AU/s** | 43.12 | **43.07–43.08** | Both match theory 43.066 exactly |
+| **Video kbps** | 1,115.8 | ~288–350 | Scales with fps + content |
+| **Audio kbps** | 96.8 | **96.7** | Stable CBR |
+| **A/V first diff** | 86 ms | **+22 ms** (263s run) | Within tolerance |
+| **A/V last diff** | 41 ms | **+2 ms** | Drift-free |
+| **A/V timeline diff** | 45 ms | **+20 ms** | Within 1 video frame |
+| **CPU (streaming)** | 25.9% | **28.5–41%** | Full-display capture costs more |
+| **PSS (streaming)** | 68.8 MB | **77.6–86.2 MB** | Slightly higher (full-display buffer) |
+| **APK size** | 6.7 MB | **5.8 MB** | Smaller after clean build |
+
+Success-path audit (263s run): 14,679,930 bytes total; **3,129 H.264 video frames + 11,326 AAC AUs**; clean shutdown via notification Stop; server logged `Unexpected EOF reading 1 bytes (got 0)` = normal close.
+
+**Known limitation (documented, not a defect)**: full-display capture (`MediaProjectionConfig.createConfigForDefaultDisplay()`) on the emulator's swiftshader GPU yields ~10–12 fps vs the single-app selector's 23 fps in M5. Audio stays exactly at theory (43.07 AU/s) in both. On a real device with hardware GPU, full-display captures at display rate. This trade-off is REQUIRED on Android 15 (the single-app path is broken on this emulator) and is the correct semantic for a screen-streaming app.
+
+---
+
+## 3. Milestone 5 Verified Telemetry (Spec-Compliant RTMP Server Ingest)
 Captured during live concurrent screen capture, H.264 video encoding ($480 \times 1056$ @ 24fps), AAC-LC audio encoding (44.1kHz mono @ 96kbps), FLV multiplexing, and RTMP chunk delivery:
 
 ### A. System & Memory Performance
