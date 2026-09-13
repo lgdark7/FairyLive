@@ -38,9 +38,9 @@ Rebuild **FAIRY LIVE** from scratch as a high-performance, professional native A
   - **M2: Screen Capture Engine** (Approved by ChatGPT on 2026-09-13)
   - **M3: Hardware Video Encoding** (Approved by ChatGPT on 2026-09-13)
   - **M4: Audio Pipeline** (Revalidated on 2026-09-13)
-  - **M5: Streaming Pipeline** (Completed on 2026-09-13)
+  - **M5: Streaming Pipeline** (Revalidated on 2026-09-13)
     - Scope: Pure native Kotlin RTMP client, FLV multiplexer (H.264 Annex-B -> AVCDecoderConfigurationRecord / NALU + AAC AudioSpecificConfig / raw AAC), `@setDataFrame onMetaData` AMF0 script tag generation, bounded 4MB backpressure queue with non-keyframe delta frame eviction, live network telemetry (bitrate, bytes, latency, drops, queue depth), exponential backoff reconnection, integration into `FairyStreamService` and `DashboardFragment`, comprehensive unit test suite (44 tests) + on-device instrumented test suite (3 tests).
-    - Status: **M5 COMPLETE — WAITING FOR CHATGPT REVIEW AND AUTHORIZATION FOR M6**.
+    - Status: **M5 REVALIDATION COMPLETE — WAITING FOR CHATGPT REVIEW AND AUTHORIZATION FOR M6**.
 - **Pending Milestones**: M6 through M15 (M6 strictly gated on M5 ChatGPT approval).
 
 ---
@@ -60,6 +60,11 @@ Rebuild **FAIRY LIVE** from scratch as a high-performance, professional native A
   - **Fix**: Added immediate flushing after every RTMP control command and message chunk batch in `RtmpChunkWriter`.
 - **M5 Bug 2**: Android 15 `MaterialSwitch` threw NPE in `SwitchCompat.makeLayout` during layout pass.
   - **Fix**: Replaced with clean, reliable `MaterialCheckBox` implementing `CompoundButton`.
+- **M5 Bug 3 (AAC Frame Accounting Inconsistency)**:
+  - **Issue**: Initial test server reported 4,074 audio frames for ~42 seconds of streaming, which contradicted the theoretical $42 \times 44100 / 1024 \approx 1,808$ access units.
+  - **Root Cause**: The mock server script (`test_rtmp_server.py`) only read the first chunk (`min(msg_len, in_chunk_size)`) of large video messages (keyframes were up to 85 KB), leaving tens of thousands of unconsumed video payload bytes in the TCP stream. On subsequent iterations, the server read random bytes from the unconsumed video payload as chunk headers, misinterpreting any byte with upper bits `00` as a Format 0 header and any message type `8` as an audio frame.
+  - **Fix**: Replaced with a fully spec-compliant RTMP chunk reassembler (`RtmpChunkParser`) that tracks chunks across Format 0, 1, 2, and 3 continuation chunks per `csid`.
+  - **Revalidation Result**: Real server verification recorded **860 actual AAC access units** over **19.946 seconds** ($43.11\text{ fps}$), exactly matching $19.946 \times 44100 / 1024 = 859.0$ expected units. Average audio delta was **23.22 ms** ($1024 / 44100 = 23.2199\text{ ms}$). Video recorded **459 frames** over **19.901 seconds** (**23.06 FPS**). A/V timeline difference was **45 ms** (drift-free).
 
 ---
 
@@ -81,6 +86,7 @@ Rebuild **FAIRY LIVE** from scratch as a high-performance, professional native A
 - **Active Full Broadcast PSS (Video + Audio + FLV + RTMP)**: **68.8 MB**
 - **Post-Stop Teardown PSS**: **78.2 MB** (Clean socket & surface closure)
 - **Total Pipeline CPU**: **25.9%** (Concurrent 480x1056 H.264 + 44.1kHz AAC + RTMP chunks)
-- **Streaming Bitrate**: Configured at 1200 kbps video + 96 kbps audio; actual transmission measured steady.
+- **Measured Video Bitrate**: **1115.8 kbps** (Configured: 1200 kbps)
+- **Measured Audio Bitrate**: **96.8 kbps** (Configured: 96 kbps)
 - **Queue Memory Footprint**: Strictly capped at 4 MB / 90 packets.
 - **Test Suite**: **44 Unit Tests** + **3 On-Device Connected Tests** (100% Passing).

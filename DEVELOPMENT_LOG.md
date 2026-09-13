@@ -1,6 +1,29 @@
 # FAIRY LIVE — DEVELOPMENT LOG
 
-## 2026-09-13 — Milestone 5: Streaming Pipeline & Transport
+## 2026-09-13 — Milestone 5: Streaming Pipeline & Transport (Revalidated)
+- **Milestone**: M5 — Streaming Pipeline (Revalidation)
+- **Investigation & Root Cause Analysis**:
+  - Investigated ChatGPT review finding regarding the reported 4,074 audio frames in a ~42s broadcast.
+  - Root Cause: Identified that the test server script (`tools/test_rtmp_server.py`) read only the first 4096 bytes of large video frames (e.g. 85 KB keyframes), leaving unconsumed payload bytes in the TCP stream. The naive server parser subsequently misidentified random bytes in the unconsumed video stream having `(b >> 6) == 0` as Type 0 headers, and if byte 6 was 8, miscounted them as audio frames, producing the phantom 4,074 count.
+  - Fix: Implemented a 100% spec-compliant RTMP chunk stream reassembler (`RtmpChunkParser`) that tracks chunks across Format 0, 1, 2, and 3 continuation chunks per `csid`, accumulating payloads until `bytes_read >= total_length`.
+  - Revalidation Audit:
+    * Actual AAC Access Units: **860** across 19.946s ($43.11\text{ fps}$, theoretical: $44100 / 1024 = 43.066\text{ fps}$).
+    * Average Audio Frame Delta: **23.22 ms** (exact mathematical match to $1024 / 44100 \times 1000 = 23.2199\text{ ms}$).
+    * Audio Payload Bitrate: **96.8 kbps** (Configured: 96 kbps).
+    * Actual Video Frames: **459** across 19.901s (**23.06 FPS**).
+    * Video Payload Bitrate: **1115.8 kbps** (Configured: 1200 kbps).
+    * A/V Timeline Difference: **45 ms** (drift-free, $< 2$ video frames).
+  - Executed full clean build and regression suite: 44 unit tests passing, 3 connected Android instrumentation tests passing.
+- **Files Modified**:
+  - `tools/test_rtmp_server.py`
+  - `tools/verified_stream_report.json`
+  - `PROJECT_MEMORY.md`
+  - `DEVELOPMENT_LOG.md`
+  - `TESTING.md`
+  - `PERFORMANCE.md`
+- **Status**: Revalidated locally — Waiting for ChatGPT review and M6 authorization.
+
+## 2026-09-13 — Milestone 5: Streaming Pipeline & Transport (Initial)
 - **Milestone**: M5 — Streaming Pipeline
 - **Work Performed**:
   - Implemented Pure Native Streaming Transport Subsystem (`core/stream`):

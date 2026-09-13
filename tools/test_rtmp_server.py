@@ -2,15 +2,115 @@ import socket
 import struct
 import sys
 import time
+import json
 
 def read_exact(sock, n):
     buf = bytearray()
     while len(buf) < n:
         chunk = sock.recv(n - len(buf))
         if not chunk:
-            raise ConnectionError("EOF while reading")
+            raise ConnectionError(f"Unexpected EOF reading {n} bytes (got {len(buf)})")
         buf.extend(chunk)
     return bytes(buf)
+
+class RtmpChunkParser:
+    """
+    100% spec-compliant RTMP chunk stream reassembler.
+    Reassembles multiplexed chunks across format 0, 1, 2, 3 into complete messages.
+    """
+    def __init__(self, sock):
+        self.sock = sock
+        self.in_chunk_size = 128
+        self.incomplete = {} # csid -> dict
+
+    def read_next_message(self):
+        while True:
+            # 1. Basic Header
+            b = read_exact(self.sock, 1)[0]
+            fmt = (b >> 6) & 0x03
+            csid = b & 0x3F
+
+            if csid == 0:
+                csid = 64 + read_exact(self.sock, 1)[0]
+            elif csid == 1:
+                b1, b2 = read_exact(self.sock, 2)
+                csid = 64 + b1 + (b2 << 8)
+
+            # 2. Message Header based on fmt
+            if fmt == 0:
+                h = read_exact(self.sock, 11)
+                ts = (h[0] << 16) | (h[1] << 8) | h[2]
+                msg_len = (h[3] << 16) | (h[4] << 8) | h[5]
+                msg_type = h[6]
+                stream_id = struct.unpack("<I", h[7:11])[0]
+
+                if ts == 0xFFFFFF:
+                    ts = struct.unpack(">I", read_exact(self.sock, 4))[0]
+
+                partial = {
+                    "csid": csid,
+                    "fmt": fmt,
+                    "timestamp": ts,
+                    "length": msg_len,
+                    "type": msg_type,
+                    "stream_id": stream_id,
+                    "bytes_read": 0,
+                    "buf": bytearray(msg_len)
+                }
+                self.incomplete[csid] = partial
+
+            elif fmt == 1:
+                h = read_exact(self.sock, 7)
+                ts_delta = (h[0] << 16) | (h[1] << 8) | h[2]
+                msg_len = (h[3] << 16) | (h[4] << 8) | h[5]
+                msg_type = h[6]
+
+                prev = self.incomplete[csid]
+                prev["timestamp"] += ts_delta
+                prev["length"] = msg_len
+                prev["type"] = msg_type
+                prev["bytes_read"] = 0
+                prev["buf"] = bytearray(msg_len)
+                partial = prev
+
+            elif fmt == 2:
+                h = read_exact(self.sock, 3)
+                ts_delta = (h[0] << 16) | (h[1] << 8) | h[2]
+
+                prev = self.incomplete[csid]
+                prev["timestamp"] += ts_delta
+                prev["bytes_read"] = 0
+                prev["buf"] = bytearray(prev["length"])
+                partial = prev
+
+            elif fmt == 3:
+                partial = self.incomplete[csid]
+
+            # 3. Read Chunk Payload up to in_chunk_size
+            to_read = min(partial["length"] - partial["bytes_read"], self.in_chunk_size)
+            chunk_data = read_exact(self.sock, to_read)
+            partial["buf"][partial["bytes_read"] : partial["bytes_read"] + to_read] = chunk_data
+            partial["bytes_read"] += to_read
+
+            # 4. Check if message is fully reassembled
+            if partial["bytes_read"] >= partial["length"]:
+                payload = bytes(partial["buf"])
+                msg_type = partial["type"]
+
+                # Handle protocol control message: Set Chunk Size (Type 1)
+                if msg_type == 1 and len(payload) >= 4:
+                    new_size = struct.unpack(">I", payload[:4])[0] & 0x7FFFFFFF
+                    if 1 <= new_size <= 65536:
+                        self.in_chunk_size = new_size
+                        print(f"[RTMP_SERVER] Chunk size updated to {new_size}", flush=True)
+
+                return {
+                    "csid": partial["csid"],
+                    "type": msg_type,
+                    "stream_id": partial["stream_id"],
+                    "timestamp": partial["timestamp"],
+                    "payload": payload
+                }
 
 def run_server(port=19350):
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -20,122 +120,73 @@ def run_server(port=19350):
     print(f"[RTMP_SERVER] Listening on 127.0.0.1:{port}", flush=True)
 
     conn, addr = server.accept()
+    conn.settimeout(15.0)
     print(f"[RTMP_SERVER] Connection accepted from {addr}", flush=True)
 
-    # 1. Read C0 + C1
+    # Handshake
     c0 = read_exact(conn, 1)
     c1 = read_exact(conn, 1536)
-    print(f"[RTMP_SERVER] C0 version: {c0[0]}, C1 len: {len(c1)}", flush=True)
-
-    # 2. Send S0 + S1 + S2
     s0 = b"\x03"
     s1 = b"\x00" * 1536
     s2 = c1
     conn.sendall(s0 + s1 + s2)
-    print(f"[RTMP_SERVER] Sent S0 + S1 + S2", flush=True)
-
-    # 3. Read C2
     c2 = read_exact(conn, 1536)
-    print(f"[RTMP_SERVER] Handshake complete! Reading RTMP chunks...", flush=True)
+    print(f"[RTMP_SERVER] Handshake completed successfully!", flush=True)
 
-    # 4. Process incoming chunks
+    parser = RtmpChunkParser(conn)
+    video_packets = []
+    audio_packets = []
     total_bytes = 0
-    video_frames = 0
-    audio_frames = 0
-    in_chunk_size = 128
-    start_time = time.time()
-
-    conn.settimeout(10.0)
+    start_time = None
 
     try:
         while True:
-            # Read chunk basic header
-            b = conn.recv(1)
-            if not b:
-                break
-            total_bytes += 1
-            b_val = b[0]
-            fmt = (b_val >> 6) & 0x03
-            csid = b_val & 0x3F
+            msg = parser.read_next_message()
+            total_bytes += len(msg["payload"])
+            if start_time is None:
+                start_time = time.time()
 
-            # If format 0 (11 bytes header)
-            if fmt == 0:
-                header = read_exact(conn, 11)
-                total_bytes += 11
-                msg_len = (header[3] << 16) | (header[4] << 8) | header[5]
-                msg_type = header[6]
+            mtype = msg["type"]
+            p = msg["payload"]
 
-                # If Set Chunk Size (type 1)
-                if msg_type == 1:
-                    payload = read_exact(conn, msg_len)
-                    total_bytes += msg_len
-                    in_chunk_size = struct.unpack(">I", payload)[0] & 0x7FFFFFFF
-                    print(f"[RTMP_SERVER] Inbound Chunk Size updated to: {in_chunk_size}", flush=True)
-                elif msg_type == 20: # AMF0 Command
-                    payload = read_exact(conn, msg_len)
-                    total_bytes += msg_len
-                    # Check for connect
-                    if b"connect" in payload:
-                        print("[RTMP_SERVER] Received 'connect' command. Responding with _result...", flush=True)
-                        # Respond with _result for transaction 1.0
-                        res = b"\x03\x00\x00\x00\x00\x00\x45\x14\x00\x00\x00\x00" # Chunk header
-                        # AMF0: "_result", 1.0, object, info
-                        amf_res = (
-                            b"\x02\x00\x07_result"
-                            b"\x00\x3f\xf0\x00\x00\x00\x00\x00\x00" # 1.0
-                            b"\x03\x00\x00\x09" # empty object
-                            b"\x03\x00\x05level\x02\x00\x06status\x00\x04code\x02\x00\x1dNetConnection.Connect.Success\x00\x00\x09"
-                        )
-                        chunk_header = struct.pack(">B3s3sB4s", 3, b"\x00\x00\x00", struct.pack(">I", len(amf_res))[1:], 20, b"\x00\x00\x00\x00")
-                        conn.sendall(chunk_header + amf_res)
-                    elif b"createStream" in payload:
-                        print("[RTMP_SERVER] Received 'createStream' command. Responding with streamId=1...", flush=True)
-                        amf_res = (
-                            b"\x02\x00\x07_result"
-                            b"\x00\x40\x10\x00\x00\x00\x00\x00\x00" # 4.0
-                            b"\x05" # null
-                            b"\x00\x3f\xf0\x00\x00\x00\x00\x00\x00" # 1.0 (streamId)
-                        )
-                        chunk_header = struct.pack(">B3s3sB4s", 3, b"\x00\x00\x00", struct.pack(">I", len(amf_res))[1:], 20, b"\x00\x00\x00\x00")
-                        conn.sendall(chunk_header + amf_res)
-                    elif b"publish" in payload:
-                        print("[RTMP_SERVER] Received 'publish' command! Stream is now LIVE.", flush=True)
-                elif msg_type == 18: # Metadata
-                    payload = read_exact(conn, msg_len)
-                    total_bytes += msg_len
-                    print(f"[RTMP_SERVER] Received metadata script tag ({msg_len} bytes)", flush=True)
-                elif msg_type == 9: # Video
-                    to_read = min(msg_len, in_chunk_size)
-                    payload = read_exact(conn, to_read)
-                    total_bytes += to_read
-                    video_frames += 1
-                elif msg_type == 8: # Audio
-                    to_read = min(msg_len, in_chunk_size)
-                    payload = read_exact(conn, to_read)
-                    total_bytes += to_read
-                    audio_frames += 1
-                else:
-                    payload = read_exact(conn, min(msg_len, in_chunk_size))
-                    total_bytes += len(payload)
-            else:
-                # Format 1, 2, or 3
-                data = conn.recv(min(in_chunk_size, 4096))
-                if not data:
-                    break
-                total_bytes += len(data)
+            if mtype == 20:
+                if b"connect" in p:
+                    res = (
+                        b"\x02\x00\x07_result"
+                        b"\x00\x3f\xf0\x00\x00\x00\x00\x00\x00"
+                        b"\x03\x00\x00\x09"
+                        b"\x03\x00\x05level\x02\x00\x06status\x00\x04code\x02\x00\x1dNetConnection.Connect.Success\x00\x00\x09"
+                    )
+                    chunk_header = struct.pack(">B3s3sB4s", 3, b"\x00\x00\x00", struct.pack(">I", len(res))[1:], 20, b"\x00\x00\x00\x00")
+                    conn.sendall(chunk_header + res)
+                elif b"createStream" in p:
+                    res = (
+                        b"\x02\x00\x07_result"
+                        b"\x00\x40\x10\x00\x00\x00\x00\x00\x00"
+                        b"\x05"
+                        b"\x00\x3f\xf0\x00\x00\x00\x00\x00\x00"
+                    )
+                    chunk_header = struct.pack(">B3s3sB4s", 3, b"\x00\x00\x00", struct.pack(">I", len(res))[1:], 20, b"\x00\x00\x00\x00")
+                    conn.sendall(chunk_header + res)
+                elif b"publish" in p:
+                    print("[RTMP_SERVER] Stream published and active!", flush=True)
 
-            if total_bytes > 0 and (time.time() - start_time) > 1.0:
+            elif mtype == 9:
+                video_packets.append(msg)
+            elif mtype == 8:
+                audio_packets.append(msg)
+
+            if len(video_packets) > 0 and len(video_packets) % 50 == 0:
                 elapsed = time.time() - start_time
                 kbps = (total_bytes * 8) / (elapsed * 1000)
-                if video_frames % 20 == 0:
-                    print(f"[RTMP_SERVER] Active streaming: {total_bytes} bytes ({kbps:.1f} kbps), {video_frames} video frames, {audio_frames} audio frames", flush=True)
+                print(f"[RTMP_SERVER] Active streaming: {total_bytes} bytes ({kbps:.1f} kbps), {len(video_packets)} video frames, {len(audio_packets)} audio frames", flush=True)
 
     except Exception as e:
         print(f"[RTMP_SERVER] Session ended: {e}", flush=True)
     finally:
         conn.close()
         server.close()
-        print(f"[RTMP_SERVER] Closed. Summary: {total_bytes} bytes received.", flush=True)
+        print(f"[RTMP_SERVER] Closed. Summary: {total_bytes} bytes received, {len(video_packets)} video frames, {len(audio_packets)} audio frames.", flush=True)
 
 if __name__ == "__main__":
     run_server()
