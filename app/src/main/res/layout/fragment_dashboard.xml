@@ -12,6 +12,84 @@
         android:orientation="vertical"
         android:padding="16dp">
 
+        <!-- Creator Alert / Error Banner -->
+        <androidx.cardview.widget.CardView
+            android:id="@+id/card_creator_error"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            android:visibility="gone"
+            app:cardBackgroundColor="@color/bg_card"
+            app:cardCornerRadius="12dp"
+            app:cardElevation="3dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <ImageView
+                        android:layout_width="24dp"
+                        android:layout_height="24dp"
+                        android:src="@drawable/ic_warning" />
+
+                    <TextView
+                        android:id="@+id/tv_error_title"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="8dp"
+                        android:layout_weight="1"
+                        android:text="Stream Error"
+                        android:textColor="@color/status_red"
+                        android:textSize="16sp"
+                        android:textStyle="bold" />
+
+                    <ImageView
+                        android:id="@+id/btn_dismiss_error"
+                        android:layout_width="24dp"
+                        android:layout_height="24dp"
+                        android:clickable="true"
+                        android:focusable="true"
+                        android:src="@drawable/ic_stop" />
+                </LinearLayout>
+
+                <TextView
+                    android:id="@+id/tv_error_message"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:textColor="@color/text_primary"
+                    android:textSize="13sp" />
+
+                <TextView
+                    android:id="@+id/tv_error_resolution"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:textColor="@color/status_amber"
+                    android:textSize="12sp" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btn_error_action"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:backgroundTint="@color/bg_surface"
+                    android:text="Open Settings"
+                    android:textColor="@color/fairy_cyan"
+                    app:cornerRadius="8dp"
+                    app:strokeColor="@color/fairy_cyan"
+                    app:strokeWidth="1dp" />
+            </LinearLayout>
+        </androidx.cardview.widget.CardView>
+
         <!-- Card 1: Device Capability Overview -->
         <androidx.cardview.widget.CardView
             android:id="@+id/card_capability"
@@ -134,7 +212,7 @@
                         android:layout_height="wrap_content"
                         android:layout_marginStart="8dp"
                         android:layout_weight="1"
-                        android:text="Screen Capture Pipeline"
+                        android:text="Live Broadcast Studio"
                         android:textColor="@color/text_primary"
                         android:textSize="16sp"
                         android:textStyle="bold" />
@@ -146,7 +224,7 @@
                         android:background="@drawable/bg_status_badge"
                         android:paddingHorizontal="10dp"
                         android:paddingVertical="3dp"
-                        android:text="CAPTURE IDLE"
+                        android:text="OFFLINE"
                         android:textColor="@color/status_amber"
                         android:textSize="11sp"
                         android:textStyle="bold" />
@@ -156,7 +234,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="2dp"
-                    android:text="CPU-copy-free MediaProjection stream source"
+                    android:text="Unified screen capture, AAC audio &amp; live RTMP transport"
                     android:textColor="@color/text_muted"
                     android:textSize="11sp" />
 
@@ -182,8 +260,10 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="12dp"
                     android:backgroundTint="@color/fairy_purple"
-                    android:text="Start Screen &amp; Hardware Encoder"
+                    android:text="GO LIVE (START BROADCAST)"
                     android:textColor="@color/text_primary"
+                    android:textSize="15sp"
+                    android:textStyle="bold"
                     app:cornerRadius="8dp" />
 
                 <!-- Action Controls while Capturing (Pause & Stop) -->
@@ -613,6 +693,28 @@
                     android:text="Sent: 0 KB | 0 kbps | Q: 0 (Drops: 0) | RTT: 0ms | 00:00:00"
                     android:textColor="@color/fairy_cyan"
                     android:textSize="12sp" />
+
+                <TextView
+                    android:id="@+id/tv_stream_breakdown"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:fontFamily="monospace"
+                    android:text="Video: 0 kbps | Audio: 0 kbps | Protocol: &lt;0.05%"
+                    android:textColor="@color/text_muted"
+                    android:textSize="11sp" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btn_configure_destination"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:backgroundTint="@color/bg_surface"
+                    android:text="Configure Destination in Settings"
+                    android:textColor="@color/fairy_cyan"
+                    app:cornerRadius="8dp"
+                    app:strokeColor="@color/fairy_cyan"
+                    app:strokeWidth="1dp" />
 
             </LinearLayout>
         </androidx.cardview.widget.CardView>

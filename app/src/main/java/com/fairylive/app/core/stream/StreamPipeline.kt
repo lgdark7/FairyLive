@@ -162,6 +162,12 @@ class StreamPipeline(
                     }
                 } else {
                     Log.e(TAG, "Reconnection limit reached or stopped. Stream halted.")
+                    val creatorError = com.fairylive.app.core.common.CreatorErrorNotifier.mapNetworkException(e)
+                    com.fairylive.app.core.common.CreatorErrorNotifier.postError(
+                        creatorError.title,
+                        creatorError.message,
+                        creatorError.resolution
+                    )
                     break
                 }
             }

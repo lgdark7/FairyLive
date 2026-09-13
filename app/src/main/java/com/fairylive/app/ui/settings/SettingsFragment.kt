@@ -71,6 +71,14 @@ class SettingsFragment : Fragment() {
         val serverUrl = binding.etServerUrl.text?.toString()?.trim() ?: ""
         val streamKey = binding.etStreamKey.text?.toString()?.trim() ?: ""
 
+        val validation = com.fairylive.app.core.settings.StreamConfigurationValidator.validate(serverUrl, streamKey)
+        if (!validation.isValid) {
+            val err = validation as com.fairylive.app.core.settings.StreamConfigurationValidator.ValidationResult.Error
+            Toast.makeText(requireContext(), err.userMessage, Toast.LENGTH_LONG).show()
+        } else {
+            Toast.makeText(requireContext(), "Stream configuration valid & saved", Toast.LENGTH_SHORT).show()
+        }
+
         val newSettings = StreamSettings.fromProfile(
             profile = selectedProfile,
             serverUrl = serverUrl,
@@ -78,6 +86,5 @@ class SettingsFragment : Fragment() {
         )
 
         repo.saveSettings(newSettings)
-        Toast.makeText(requireContext(), "Stream configuration saved", Toast.LENGTH_SHORT).show()
     }
 }

@@ -13,7 +13,10 @@ import android.media.projection.MediaProjection
 import android.media.projection.MediaProjectionManager
 import android.os.Binder
 import android.os.Build
+import android.os.Handler
 import android.os.IBinder
+import android.os.Looper
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.fairylive.app.FairyLiveApplication
 import com.fairylive.app.MainActivity
@@ -53,6 +56,7 @@ class FairyStreamService : Service() {
     val streamPipeline = StreamPipeline()
 
     private var activeMediaProjection: MediaProjection? = null
+    private val mainHandler = Handler(Looper.getMainLooper())
 
     inner class LocalBinder : Binder() {
         fun getService(): FairyStreamService = this@FairyStreamService
@@ -145,6 +149,11 @@ class FairyStreamService : Service() {
 
         if (resultCode == 0 || resultData == null) {
             CaptureStateNotifier.updateState(CaptureState.ERROR)
+            com.fairylive.app.core.common.CreatorErrorNotifier.postError(
+                title = "Screen Capture Not Available",
+                message = "The screen capture session could not be established (no projection token).",
+                resolution = "Tap GO LIVE again and grant screen recording permission."
+            )
             return
         }
 
@@ -162,11 +171,17 @@ class FairyStreamService : Service() {
         val statusMsg = if (enableEncoding) "Live H.264/AAC Broadcast (${width}x${height})" else "Screen Capture (${width}x${height})"
         startStreamForeground(statusMsg, withMediaProjection = true)
 
+        // Consume projection token from foreground service context (required on API 34+)
         val projectionManager = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as? MediaProjectionManager
         val projection = projectionManager?.getMediaProjection(resultCode, resultData)
 
         if (projection == null) {
             CaptureStateNotifier.updateState(CaptureState.ERROR)
+            com.fairylive.app.core.common.CreatorErrorNotifier.postError(
+                title = "Screen Capture Not Available",
+                message = "The screen capture session could not be established (null MediaProjection).",
+                resolution = "Tap GO LIVE again and grant screen recording permission."
+            )
             return
         }
         this.activeMediaProjection = projection
@@ -192,8 +207,54 @@ class FairyStreamService : Service() {
             val encoderSurface = videoEncoder.initialize(encoderConfig)
             videoEncoder.start()
 
+            // Register projection lifecycle callback BEFORE creating the virtual display.
+            // Android 15 app-selector single-app recording stops the projection if no callback
+            // is registered — this is what causes the null VirtualDisplay on API 35.
+            projection.registerCallback(object : android.media.projection.MediaProjection.Callback() {
+                override fun onStop() {
+                    Log.w("FairyStreamService", "MediaProjection stopped by system — tearing down capture")
+                    mainHandler.post {
+                        captureEngine.stop()
+                        videoEncoder.stop()
+                        audioPipeline.stop()
+                        streamPipeline.stop()
+                        activeMediaProjection = null
+                        MediaClock.stopSession()
+                        StreamStateNotifier.updateState(StreamState.IDLE)
+                        CaptureStateNotifier.updateState(CaptureState.IDLE)
+                        AudioStateNotifier.updateState(AudioCaptureState.IDLE)
+                        StreamTelemetryNotifier.updateState(RtmpConnectionState.IDLE)
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                            stopForeground(STOP_FOREGROUND_REMOVE)
+                        } else {
+                            @Suppress("DEPRECATION")
+                            stopForeground(true)
+                        }
+                        stopSelf()
+                    }
+                }
+                override fun onCapturedContentResize(width: Int, height: Int) {
+                    Log.i("FairyStreamService", "Projection resized: ${width}x${height}")
+                }
+                override fun onCapturedContentVisibilityChanged(visible: Boolean) {
+                    Log.i("FairyStreamService", "Projection visibility changed: $visible")
+                }
+            }, mainHandler)
+
             // CPU-copy-free Surface pipeline: VirtualDisplay feeds directly into MediaCodec input surface!
             captureEngine.start(projection, encW, encH, dpi, customSurface = encoderSurface)
+
+            if (!captureEngine.isCapturing) {
+                // VirtualDisplay creation failed — do not publish a video-less stream.
+                Log.e("FairyStreamService", "Capture engine failed to start; aborting broadcast")
+                com.fairylive.app.core.common.CreatorErrorNotifier.postError(
+                    title = "Capture Failed to Start",
+                    message = "Android could not create the virtual display for screen capture.",
+                    resolution = "Tap GO LIVE again to retry. If this persists, force-stop and reopen the app."
+                )
+                stopStreamService()
+                return
+            }
 
             // Start audio pipeline concurrently if microphone permission is granted
             if (enableAudio && PermissionManager.hasAudioPermission(this)) {
@@ -207,11 +268,25 @@ class FairyStreamService : Service() {
             }
 
             // Start RTMP streaming transport if enabled
-            val enableRtmp = intent?.getBooleanExtra(EXTRA_ENABLE_RTMP, false) ?: false
-            val rtmpUrl = intent?.getStringExtra(EXTRA_RTMP_URL) ?: settings?.serverUrl ?: ""
-            val streamKey = intent?.getStringExtra(EXTRA_STREAM_KEY) ?: settings?.streamKey ?: ""
+            val enableRtmp = intent.getBooleanExtra(EXTRA_ENABLE_RTMP, false)
+            val rtmpUrl = intent.getStringExtra(EXTRA_RTMP_URL) ?: settings?.serverUrl ?: ""
+            val streamKey = intent.getStringExtra(EXTRA_STREAM_KEY) ?: settings?.streamKey ?: ""
 
-            if (enableRtmp && rtmpUrl.isNotEmpty()) {
+            if (enableRtmp) {
+                val validation = com.fairylive.app.core.settings.StreamConfigurationValidator.validate(rtmpUrl, streamKey)
+                if (!validation.isValid) {
+                    val err = validation as com.fairylive.app.core.settings.StreamConfigurationValidator.ValidationResult.Error
+                    com.fairylive.app.core.common.CreatorErrorNotifier.postError(
+                        "Invalid Stream Configuration",
+                        err.userMessage,
+                        "Configure a valid RTMP URL and stream key in Settings."
+                    )
+                    stopStreamService()
+                    return
+                }
+
+                StreamStateNotifier.updateState(StreamState.STARTING)
+
                 val endpoint = RtmpEndpoint.parse(rtmpUrl, streamKey)
                 videoEncoder.setEncodedFrameListener { frame ->
                     streamPipeline.onVideoFrame(frame)
@@ -219,6 +294,28 @@ class FairyStreamService : Service() {
                 audioPipeline.setEncodedAudioFrameListener { frame ->
                     streamPipeline.onAudioFrame(frame)
                 }
+
+                // Listen to transport state to reflect genuine LIVE status
+                StreamTelemetryNotifier.addStateListener(object : com.fairylive.app.core.stream.StreamTelemetryNotifier.StateListener {
+                    override fun onConnectionStateChanged(
+                        newState: RtmpConnectionState,
+                        previousState: RtmpConnectionState
+                    ) {
+                        when (newState) {
+                            RtmpConnectionState.PUBLISHING -> StreamStateNotifier.updateState(StreamState.STREAMING)
+                            RtmpConnectionState.ERROR -> StreamStateNotifier.updateState(StreamState.ERROR)
+                            RtmpConnectionState.RECONNECTING -> StreamStateNotifier.updateState(StreamState.STARTING)
+                            RtmpConnectionState.STOPPING -> StreamStateNotifier.updateState(StreamState.STOPPING)
+                            RtmpConnectionState.IDLE -> {
+                                if (!videoEncoder.isEncoding && !captureEngine.isCapturing) {
+                                    StreamStateNotifier.updateState(StreamState.IDLE)
+                                }
+                            }
+                            else -> {}
+                        }
+                    }
+                })
+
                 streamPipeline.start(
                     endpoint = endpoint,
                     videoWidth = encW,
@@ -229,12 +326,13 @@ class FairyStreamService : Service() {
                     audioBitrateKbps = 96,
                     audioChannels = 1
                 )
+            } else {
+                StreamStateNotifier.updateState(StreamState.STREAMING)
             }
         } else {
             captureEngine.start(projection, width, height, dpi)
+            StreamStateNotifier.updateState(StreamState.STREAMING)
         }
-
-        StreamStateNotifier.updateState(StreamState.STREAMING)
     }
 
     private fun handleStartAudio(intent: Intent?) {

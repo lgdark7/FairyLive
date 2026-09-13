@@ -41,7 +41,12 @@ Rebuild **FAIRY LIVE** from scratch as a high-performance, professional native A
   - **M5: Streaming Pipeline** (Revalidated on 2026-09-13)
     - Scope: Pure native Kotlin RTMP client, FLV multiplexer (H.264 Annex-B -> AVCDecoderConfigurationRecord / NALU + AAC AudioSpecificConfig / raw AAC), `@setDataFrame onMetaData` AMF0 script tag generation, bounded 4MB backpressure queue with non-keyframe delta frame eviction, live network telemetry (bitrate, bytes, latency, drops, queue depth), exponential backoff reconnection, integration into `FairyStreamService` and `DashboardFragment`, comprehensive unit test suite (44 tests) + on-device instrumented test suite (3 tests).
     - Status: **M5 REVALIDATION COMPLETE — WAITING FOR CHATGPT REVIEW AND AUTHORIZATION FOR M6**.
-- **Pending Milestones**: M6 through M15 (M6 strictly gated on M5 ChatGPT approval).
+  - **M6: Creator Experience, Error UX & Secure Config** (In Progress — implementation complete, on-device revalidation in progress)
+    - **Critical bug found & fixed**: Android 15 `createScreenCaptureIntent()` routes through the single-app selector, which fails to bind `RECORD_CONTENT_TASK` on API 35 emulators (`Content Recording: Stopped MediaProjection due to failing to set ContentRecordingSession - id=-1`), causing `createVirtualDisplay()` to return null → app previously showed "● LIVE" with **zero video frames** (silent failure).
+    - **Fix**: Use `MediaProjectionConfig.createConfigForDefaultDisplay()` (full-display capture) on API 34+, which triggers the reliable "Entire screen" dialog. Registered `MediaProjection.Callback` BEFORE `createVirtualDisplay`; added `createVirtualDisplay` null/SecurityException/IllegalStateException handling; abort broadcast + post creator error on capture failure instead of publishing a video-less stream.
+    - Also: `StreamConfigurationValidator` (endpoint/key validation + stream-key masking `li•••••••••••••56`), `CreatorErrorNotifier` (typed errors with title/message/resolution), error card UI in Dashboard, Settings navigation, config validation before MediaProjection consent & at save time.
+    - Test suite grew to **60 unit + 3 device tests**.
+- **Pending Milestones**: M7 through M15 (M6 strictly gated on M5 ChatGPT approval — authorized 2026-09-13 12:27).
 
 ---
 
@@ -64,7 +69,17 @@ Rebuild **FAIRY LIVE** from scratch as a high-performance, professional native A
   - **Issue**: Initial test server reported 4,074 audio frames for ~42 seconds of streaming, which contradicted the theoretical $42 \times 44100 / 1024 \approx 1,808$ access units.
   - **Root Cause**: The mock server script (`test_rtmp_server.py`) only read the first chunk (`min(msg_len, in_chunk_size)`) of large video messages (keyframes were up to 85 KB), leaving tens of thousands of unconsumed video payload bytes in the TCP stream. On subsequent iterations, the server read random bytes from the unconsumed video payload as chunk headers, misinterpreting any byte with upper bits `00` as a Format 0 header and any message type `8` as an audio frame.
   - **Fix**: Replaced with a fully spec-compliant RTMP chunk reassembler (`RtmpChunkParser`) that tracks chunks across Format 0, 1, 2, and 3 continuation chunks per `csid`.
-  - **Revalidation Result**: Real server verification recorded **860 actual AAC access units** over **19.946 seconds** ($43.11\text{ fps}$), exactly matching $19.946 \times 44100 / 1024 = 859.0$ expected units. Average audio delta was **23.22 ms** ($1024 / 44100 = 23.2199\text{ ms}$). Video recorded **459 frames** over **19.901 seconds** (**23.06 FPS**). A/V timeline difference was **45 ms** (drift-free).
+  - **Revalidation Result**: Real server verification recorded **860 actual AAC access units** over **19.946 seconds** (43.11 fps), exactly matching 19.946 x 44100 / 1024 = 859.0 expected units. Average audio delta was **23.22 ms** (1024 / 44100 = 23.2199 ms). Video recorded **459 frames** over **19.901 seconds** (**23.06 FPS**). A/V timeline difference was **45 ms** (drift-free).
+- **M6 Bug 1 (CRITICAL — Silent Zero-Video-Frame Broadcast)**:
+  - **Issue**: Android 15 `createScreenCaptureIntent()` routes through the single-app selector, which fails to bind `RECORD_CONTENT_TASK` on API 35 emulators (`Content Recording: Stopped MediaProjection due to failing to set ContentRecordingSession - id=-1`), causing `createVirtualDisplay()` to return null. The app falsely reported "● LIVE" while publishing **zero video frames**.
+  - **Root cause**: `ScreenCaptureEngine.start()` did not null-check the `createVirtualDisplay()` result; the service proceeded to publish RTMP with an encoder that had no frames.
+  - **Fix (capture)**: Switched to `MediaProjectionConfig.createConfigForDefaultDisplay()` on API 34+ (full-display capture, bypasses single-app selector); wrapped `createVirtualDisplay()` in try/catch for `SecurityException`/`IllegalStateException`; added explicit null result handling; `ScreenCaptureEngine` now returns `false` on failure.
+  - **Fix (service)**: After `captureEngine.start()`, check `captureEngine.isCapturing` before starting RTMP; post `CreatorErrorNotifier` error on failure; abort and stop service.
+  - **Fix (lifecycle)**: Registered `MediaProjection.Callback` BEFORE `createVirtualDisplay()` to prevent the projection from being stopped by the system before the callback is registered.
+  - **Fix (UI)**: Dashboard now shows an error card ("Capture Failed to Start") instead of false "● LIVE" state.
+- **M6 Bug 2 (Streamer UX — No Error Feedback)**:
+  - **Issue**: Any capture failure (projection denied, MediaProjection null, encoder failure) left the UI in "CAPTURING" state with no visible error message.
+  - **Fix**: Created `CreatorErrorNotifier` (title/message/resolution observer pattern) and wired it into the Dashboard as a full-width error card with Configure Destination action; applied to every failure path in `handleStartCapture()`.
 
 ---
 
@@ -89,4 +104,4 @@ Rebuild **FAIRY LIVE** from scratch as a high-performance, professional native A
 - **Measured Video Bitrate**: **1115.8 kbps** (Configured: 1200 kbps)
 - **Measured Audio Bitrate**: **96.8 kbps** (Configured: 96 kbps)
 - **Queue Memory Footprint**: Strictly capped at 4 MB / 90 packets.
-- **Test Suite**: **44 Unit Tests** + **3 On-Device Connected Tests** (100% Passing).
+- **Test Suite**: **60 Unit Tests** + **3 On-Device Connected Tests** (100% Passing).

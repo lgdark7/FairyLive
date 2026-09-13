@@ -9,6 +9,7 @@ import android.os.Build
 import android.os.Handler
 import android.os.HandlerThread
 import android.os.SystemClock
+import android.util.Log
 import android.view.Surface
 import com.fairylive.app.core.capture.model.CaptureMetrics
 import com.fairylive.app.core.capture.model.CaptureState
@@ -166,16 +167,38 @@ class ScreenCaptureEngine {
 
         val flags = DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR
 
-        virtualDisplay = projection.createVirtualDisplay(
-            VIRTUAL_DISPLAY_NAME,
-            alignedWidth,
-            alignedHeight,
-            dpi,
-            flags,
-            targetSurface,
-            virtualDisplayCallback,
-            handler
-        )
+        val vd = try {
+            projection.createVirtualDisplay(
+                VIRTUAL_DISPLAY_NAME,
+                alignedWidth,
+                alignedHeight,
+                dpi,
+                flags,
+                targetSurface,
+                virtualDisplayCallback,
+                handler
+            )
+        } catch (se: SecurityException) {
+            Log.e("FairyCapture", "createVirtualDisplay SecurityException: ${se.message}")
+            null
+        } catch (ie: IllegalStateException) {
+            Log.e("FairyCapture", "createVirtualDisplay IllegalStateException: ${ie.message}")
+            null
+        }
+
+        if (vd == null) {
+            // VirtualDisplay creation failed (e.g. projection stopped/task session not applied).
+            // Do NOT mark CAPTURING — surface a creator error and clean up instead.
+            Log.e("FairyCapture", "createVirtualDisplay returned null — projection likely stopped or ContentRecordingSession failed")
+            stop()
+            com.fairylive.app.core.common.CreatorErrorNotifier.postError(
+                title = "Screen Capture Could Not Start",
+                message = "Android could not create the capture display. The capture session may have been interrupted or the system did not grant the recording session.",
+                resolution = "Tap GO LIVE again to retry. If this persists, force-stop and reopen the app."
+            )
+            return
+        }
+        this.virtualDisplay = vd
 
         isCapturing = true
         CaptureStateNotifier.updateState(CaptureState.CAPTURING)

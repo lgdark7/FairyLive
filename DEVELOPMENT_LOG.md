@@ -1,5 +1,18 @@
 # FAIRY LIVE — DEVELOPMENT LOG
 
+## 2026-09-13 — Milestone 6: Creator Experience, Error UX & Secure Config (In Progress)
+- **Milestone**: M6 — Creator Experience & Error UX (authorized by ChatGPT review 2026-09-13 12:27)
+- **Work Performed**:
+  - **Critical bug found & fixed — Silent Zero-Video-Frame Broadcast**:
+    - On Android 15 (API 35 emulator), the plain `createScreenCaptureIntent()` routes through the single-app selector. Selecting an app creates a `RECORD_CONTENT_TASK` content-recording session that fails to bind on this build (`Content Recording: Stopped MediaProjection due to failing to set ContentRecordingSession - id=-1`), so `createVirtualDisplay()` returned null.
+    - The app previously showed "● LIVE" with zero video frames: `ScreenCaptureEngine.start()` didn't check the `createVirtualDisplay()` result, and the service proceeded to publish RTMP with an idle encoder (verified: 19,432,117 bytes received, 0 video frames, 24,587 audio frames).
+    - Fixed by using `MediaProjectionConfig.createConfigForDefaultDisplay()` (full "Entire screen" capture) on API 34+, registering `MediaProjection.Callback` before `createVirtualDisplay`, null/try-catch handling of `createVirtualDisplay`, and aborting + posting a CreatorError if capture fails before RTMP starts.
+    - Verified on-device: full-display dialog "Entire screen" appears, and a ~5-minute broadcast produced **4,605 video frames + 18,428 audio frames** (19,432,117 bytes) with clean stop, zero fatal exceptions.
+  - **Creator Error UX**: Created `CreatorErrorNotifier` (typed errors: title/message/resolution) wired to a Dashboard error card with "Configure Destination" → Settings navigation; all failure paths in `FairyStreamService.handleStartCapture()` now surface concrete errors.
+  - **Secure Config**: Created `StreamConfigurationValidator` — validates RTMP URL scheme/host/key, masks stream keys in UI/logs (`li•••••••••••••56`), settings save validation with inline errors.
+  - **Test suite**: 60 unit tests + 3 device tests passing (added `CreatorExperienceTest` with 16 new tests).
+- **Status**: Implementation + on-device revalidation complete — awaiting full suite confirmation & docs.
+
 ## 2026-09-13 — Milestone 5: Streaming Pipeline & Transport (Revalidated)
 - **Milestone**: M5 — Streaming Pipeline (Revalidation)
 - **Investigation & Root Cause Analysis**:

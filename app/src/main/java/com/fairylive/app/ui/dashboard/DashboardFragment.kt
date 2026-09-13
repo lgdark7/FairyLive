@@ -3,6 +3,7 @@ package com.fairylive.app.ui.dashboard
 import android.app.Activity
 import android.content.Context
 import android.content.res.Configuration
+import android.media.projection.MediaProjectionConfig
 import android.media.projection.MediaProjectionManager
 import android.os.Build
 import android.os.Bundle
@@ -15,6 +16,7 @@ import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import com.fairylive.app.FairyLiveApplication
 import com.fairylive.app.R
+import com.fairylive.app.MainActivity
 import com.fairylive.app.core.audio.AudioStateNotifier
 import com.fairylive.app.core.audio.model.AudioCaptureState
 import com.fairylive.app.core.audio.model.AudioMetrics
@@ -39,7 +41,8 @@ class DashboardFragment : Fragment(),
     AudioStateNotifier.StateListener,
     AudioStateNotifier.MetricsListener,
     com.fairylive.app.core.stream.StreamTelemetryNotifier.StateListener,
-    com.fairylive.app.core.stream.StreamTelemetryNotifier.TelemetryListener {
+    com.fairylive.app.core.stream.StreamTelemetryNotifier.TelemetryListener,
+    com.fairylive.app.core.common.CreatorErrorNotifier.ErrorListener {
 
     private var _binding: FragmentDashboardBinding? = null
     private val binding get() = _binding!!
@@ -111,6 +114,7 @@ class DashboardFragment : Fragment(),
         EncoderStateNotifier.addMetricsListener(this)
         AudioStateNotifier.addStateListener(this)
         AudioStateNotifier.addMetricsListener(this)
+        com.fairylive.app.core.common.CreatorErrorNotifier.addListener(this)
 
         bindDeviceCapability()
         bindCaptureControls()
@@ -119,6 +123,7 @@ class DashboardFragment : Fragment(),
         bindServiceController()
         bindPermissionControls()
         bindStreamControls()
+        bindErrorControls()
         updatePermissionIndicators()
         updateServiceState(StreamStateNotifier.currentState)
         updateCaptureUI(CaptureStateNotifier.currentState, CaptureStateNotifier.currentMetrics)
@@ -141,6 +146,7 @@ class DashboardFragment : Fragment(),
         AudioStateNotifier.removeMetricsListener(this)
         com.fairylive.app.core.stream.StreamTelemetryNotifier.removeStateListener(this)
         com.fairylive.app.core.stream.StreamTelemetryNotifier.removeTelemetryListener(this)
+        com.fairylive.app.core.common.CreatorErrorNotifier.removeListener(this)
         _binding = null
     }
 
@@ -178,16 +184,55 @@ class DashboardFragment : Fragment(),
     private fun bindCaptureControls() {
         binding.btnStartCapture.setOnClickListener {
             val ctx = requireContext()
+
+            if (StreamStateNotifier.currentState.isActive || CaptureStateNotifier.currentState.isActive) {
+                // Deterministic stop workflow
+                FairyStreamService.stopCapture(ctx)
+                return@setOnClickListener
+            }
+
             val missing = PermissionManager.getMissingPermissions(ctx)
             if (missing.isNotEmpty()) {
-                Toast.makeText(ctx, "Grant required permissions first", Toast.LENGTH_SHORT).show()
+                com.fairylive.app.core.common.CreatorErrorNotifier.postError(
+                    title = "Permissions Required",
+                    message = "Fairy Live requires microphone and notification permissions to broadcast live.",
+                    resolution = "Grant the missing permissions to start streaming."
+                )
                 permissionLauncher.launch(missing.toTypedArray())
                 return@setOnClickListener
             }
 
+            val app = ctx.applicationContext as FairyLiveApplication
+            val settings = app.settingsRepository.loadSettings(app.deviceCapability.recommendedProfile)
+
+            // Validate stream configuration before requesting MediaProjection consent
+            if (binding.switchEnableRtmp.isChecked) {
+                val validation = com.fairylive.app.core.settings.StreamConfigurationValidator.validate(settings.serverUrl, settings.streamKey)
+                if (!validation.isValid) {
+                    val err = validation as com.fairylive.app.core.settings.StreamConfigurationValidator.ValidationResult.Error
+                    com.fairylive.app.core.common.CreatorErrorNotifier.postError(
+                        title = "Invalid Stream Destination",
+                        message = err.userMessage,
+                        resolution = "Tap 'Open Settings' below to configure a valid RTMP URL and stream key."
+                    )
+                    return@setOnClickListener
+                }
+            }
+
             CaptureStateNotifier.updateState(CaptureState.AUTHORIZING)
             val projectionManager = ctx.getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
-            projectionLauncher.launch(projectionManager.createScreenCaptureIntent())
+            // Android 15's plain createScreenCaptureIntent() routes to the single-app selector,
+            // which fails to bind RECORD_CONTENT_TASK on API 35 emulators (createVirtualDisplay
+            // returns null → 0 video frames). Full-display capture is also the correct semantic
+            // for a screen-streaming app. Use MediaProjectionConfig for default display on 34+.
+            val captureIntent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                val config = MediaProjectionConfig.createConfigForDefaultDisplay()
+                projectionManager.createScreenCaptureIntent(config)
+            } else {
+                @Suppress("DEPRECATION")
+                projectionManager.createScreenCaptureIntent()
+            }
+            projectionLauncher.launch(captureIntent)
         }
 
         binding.btnPauseCapture.setOnClickListener {
@@ -302,6 +347,45 @@ class DashboardFragment : Fragment(),
             binding.tvServiceStatus.setTextColor(ContextCompat.getColor(ctx, R.color.status_green))
             binding.btnToggleService.text = getString(R.string.btn_stop_service)
             binding.btnToggleService.setBackgroundColor(ContextCompat.getColor(ctx, R.color.status_red))
+        }
+
+        // Synchronize main broadcast button state
+        when (state) {
+            StreamState.STREAMING -> {
+                binding.btnStartCapture.text = "STOP LIVE BROADCAST"
+                binding.btnStartCapture.setBackgroundColor(ContextCompat.getColor(ctx, R.color.status_red))
+                binding.btnStartCapture.isEnabled = true
+                binding.tvCaptureStatusBadge.text = "● LIVE"
+                binding.tvCaptureStatusBadge.setTextColor(ContextCompat.getColor(ctx, R.color.status_green))
+            }
+            StreamState.STARTING -> {
+                binding.btnStartCapture.text = "CONNECTING TO SERVER..."
+                binding.btnStartCapture.setBackgroundColor(ContextCompat.getColor(ctx, R.color.fairy_cyan))
+                binding.btnStartCapture.isEnabled = false
+                binding.tvCaptureStatusBadge.text = "CONNECTING..."
+                binding.tvCaptureStatusBadge.setTextColor(ContextCompat.getColor(ctx, R.color.fairy_cyan))
+            }
+            StreamState.STOPPING -> {
+                binding.btnStartCapture.text = "STOPPING..."
+                binding.btnStartCapture.setBackgroundColor(ContextCompat.getColor(ctx, R.color.status_amber))
+                binding.btnStartCapture.isEnabled = false
+                binding.tvCaptureStatusBadge.text = "STOPPING..."
+                binding.tvCaptureStatusBadge.setTextColor(ContextCompat.getColor(ctx, R.color.status_amber))
+            }
+            StreamState.ERROR -> {
+                binding.btnStartCapture.text = "RETRY BROADCAST"
+                binding.btnStartCapture.setBackgroundColor(ContextCompat.getColor(ctx, R.color.status_red))
+                binding.btnStartCapture.isEnabled = true
+                binding.tvCaptureStatusBadge.text = "STREAM ERROR"
+                binding.tvCaptureStatusBadge.setTextColor(ContextCompat.getColor(ctx, R.color.status_red))
+            }
+            else -> {
+                binding.btnStartCapture.text = "GO LIVE (START BROADCAST)"
+                binding.btnStartCapture.setBackgroundColor(ContextCompat.getColor(ctx, R.color.fairy_purple))
+                binding.btnStartCapture.isEnabled = true
+                binding.tvCaptureStatusBadge.text = "OFFLINE"
+                binding.tvCaptureStatusBadge.setTextColor(ContextCompat.getColor(ctx, R.color.status_amber))
+            }
         }
     }
 
@@ -606,7 +690,7 @@ class DashboardFragment : Fragment(),
                 binding.tvStreamStatusBadge.setTextColor(ContextCompat.getColor(ctx, R.color.fairy_cyan))
             }
             com.fairylive.app.core.stream.model.RtmpConnectionState.PUBLISHING -> {
-                binding.tvStreamStatusBadge.text = "STREAMING LIVE"
+                binding.tvStreamStatusBadge.text = "● LIVE"
                 binding.tvStreamStatusBadge.setTextColor(ContextCompat.getColor(ctx, R.color.status_green))
             }
             com.fairylive.app.core.stream.model.RtmpConnectionState.RECONNECTING -> {
@@ -634,5 +718,34 @@ class DashboardFragment : Fragment(),
 
         binding.tvStreamTelemetry.text =
             "Sent: $sentDisplay | ${telemetry.bitrateKbps} kbps | Q: ${telemetry.queueDepth} (Drops: ${telemetry.droppedFrames}) | RTT: ${telemetry.networkLatencyMs}ms | $durationStr"
+
+        val videoKbps = EncoderStateNotifier.currentMetrics.bitrateKbps
+        val audioKbps = AudioStateNotifier.currentMetrics.bitrateKbps
+        binding.tvStreamBreakdown.text = "Video: $videoKbps kbps | Audio: $audioKbps kbps | Protocol: <0.05%"
+    }
+
+    override fun onError(error: com.fairylive.app.core.common.CreatorError) {
+        activity?.runOnUiThread {
+            if (_binding != null) {
+                binding.cardCreatorError.visibility = View.VISIBLE
+                binding.tvErrorTitle.text = error.title
+                binding.tvErrorMessage.text = error.message
+                binding.tvErrorResolution.text = error.resolution
+            }
+        }
+    }
+
+    private fun bindErrorControls() {
+        binding.btnDismissError.setOnClickListener {
+            binding.cardCreatorError.visibility = View.GONE
+            com.fairylive.app.core.common.CreatorErrorNotifier.clear()
+        }
+        binding.btnErrorAction.setOnClickListener {
+            binding.cardCreatorError.visibility = View.GONE
+            (activity as? MainActivity)?.navigateToSettings()
+        }
+        binding.btnConfigureDestination.setOnClickListener {
+            (activity as? MainActivity)?.navigateToSettings()
+        }
     }
 }

@@ -61,31 +61,39 @@ class MainActivity : AppCompatActivity(), StreamStateNotifier.Listener {
             .commit()
     }
 
+    fun navigateToSettings() {
+        binding.bottomNavigation.selectedItemId = R.id.nav_settings
+    }
+
     private fun updateHeaderStatusBadge(state: StreamState) {
         when (state) {
             StreamState.IDLE -> {
-                binding.headerStatusBadge.text = getString(R.string.status_idle)
-                binding.headerStatusBadge.setTextColor(ContextCompat.getColor(this, R.color.status_green))
+                binding.headerStatusBadge.text = "OFFLINE"
+                binding.headerStatusBadge.setTextColor(ContextCompat.getColor(this, R.color.status_amber))
+            }
+            StreamState.STARTING -> {
+                binding.headerStatusBadge.text = "CONNECTING..."
+                binding.headerStatusBadge.setTextColor(ContextCompat.getColor(this, R.color.fairy_cyan))
             }
             StreamState.READY -> {
                 binding.headerStatusBadge.text = "SERVICE ACTIVE"
                 binding.headerStatusBadge.setTextColor(ContextCompat.getColor(this, R.color.fairy_cyan))
             }
             StreamState.STREAMING -> {
-                binding.headerStatusBadge.text = getString(R.string.status_streaming)
-                binding.headerStatusBadge.setTextColor(ContextCompat.getColor(this, R.color.status_red))
+                binding.headerStatusBadge.text = "● LIVE"
+                binding.headerStatusBadge.setTextColor(ContextCompat.getColor(this, R.color.status_green))
             }
             StreamState.PAUSED -> {
                 binding.headerStatusBadge.text = "PAUSED"
                 binding.headerStatusBadge.setTextColor(ContextCompat.getColor(this, R.color.status_amber))
             }
-            StreamState.ERROR -> {
-                binding.headerStatusBadge.text = "ERROR"
-                binding.headerStatusBadge.setTextColor(ContextCompat.getColor(this, R.color.status_red))
-            }
-            else -> {
-                binding.headerStatusBadge.text = state.name
+            StreamState.STOPPING -> {
+                binding.headerStatusBadge.text = "STOPPING..."
                 binding.headerStatusBadge.setTextColor(ContextCompat.getColor(this, R.color.status_amber))
+            }
+            StreamState.ERROR -> {
+                binding.headerStatusBadge.text = "STREAM ERROR"
+                binding.headerStatusBadge.setTextColor(ContextCompat.getColor(this, R.color.status_red))
             }
         }
     }
