@@ -182,7 +182,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="12dp"
                     android:backgroundTint="@color/fairy_purple"
-                    android:text="Start Screen Capture"
+                    android:text="Start Screen &amp; Hardware Encoder"
                     android:textColor="@color/text_primary"
                     app:cornerRadius="8dp" />
 
@@ -225,7 +225,96 @@
             </LinearLayout>
         </androidx.cardview.widget.CardView>
 
-        <!-- Card 3: Foreground Service & Lifecycle Controller -->
+        <!-- Card 3: Hardware Video Encoder Telemetry (Milestone 3) -->
+        <androidx.cardview.widget.CardView
+            android:id="@+id/card_encoder"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            app:cardBackgroundColor="@color/bg_card"
+            app:cardCornerRadius="12dp"
+            app:cardElevation="2dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <ImageView
+                        android:layout_width="24dp"
+                        android:layout_height="24dp"
+                        android:src="@drawable/ic_chip" />
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="8dp"
+                        android:layout_weight="1"
+                        android:text="Hardware Video Encoder"
+                        android:textColor="@color/text_primary"
+                        android:textSize="16sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/tv_encoder_status_badge"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:background="@drawable/bg_status_badge"
+                        android:paddingHorizontal="10dp"
+                        android:paddingVertical="3dp"
+                        android:text="ENCODER IDLE"
+                        android:textColor="@color/status_amber"
+                        android:textSize="11sp"
+                        android:textStyle="bold" />
+                </LinearLayout>
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:text="Native MediaCodec H.264/AVC Surface-to-Surface encoder"
+                    android:textColor="@color/text_muted"
+                    android:textSize="11sp" />
+
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:layout_marginVertical="12dp"
+                    android:background="@color/divider_color" />
+
+                <TextView
+                    android:id="@+id/tv_encoder_telemetry"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:fontFamily="monospace"
+                    android:text="Enc: 0 (Keys: 0) | 0 kbps | 0.0 FPS | Standby"
+                    android:textColor="@color/fairy_cyan"
+                    android:textSize="12sp" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btn_request_keyframe"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:backgroundTint="@color/bg_surface"
+                    android:text="Request Keyframe (IDR Sync)"
+                    android:textColor="@color/fairy_cyan"
+                    android:visibility="gone"
+                    app:cornerRadius="8dp"
+                    app:strokeColor="@color/fairy_cyan"
+                    app:strokeWidth="1dp" />
+
+            </LinearLayout>
+        </androidx.cardview.widget.CardView>
+
+        <!-- Card 4: Foreground Service & Lifecycle Controller -->
         <androidx.cardview.widget.CardView
             android:id="@+id/card_service"
             android:layout_width="match_parent"
@@ -285,7 +374,7 @@
             </LinearLayout>
         </androidx.cardview.widget.CardView>
 
-        <!-- Card 4: Permissions Foundation -->
+        <!-- Card 5: Permissions Foundation -->
         <androidx.cardview.widget.CardView
             android:id="@+id/card_permissions"
             android:layout_width="match_parent"

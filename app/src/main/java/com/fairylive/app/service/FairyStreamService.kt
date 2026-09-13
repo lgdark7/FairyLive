@@ -20,9 +20,12 @@ import com.fairylive.app.core.capture.ScreenCaptureEngine
 import com.fairylive.app.core.capture.model.CaptureState
 import com.fairylive.app.core.lifecycle.StreamState
 import com.fairylive.app.core.lifecycle.StreamStateNotifier
+import com.fairylive.app.core.video.HardwareVideoEncoder
+import com.fairylive.app.core.video.model.VideoEncoderConfig
 
 /**
- * Foreground service hosting the capture engine and managing the ongoing broadcast lifecycle.
+ * Foreground service hosting the capture engine and hardware video encoder.
+ * Implements the direct Zero-Copy Surface-to-Surface pipeline for low-end Android efficiency.
  */
 class FairyStreamService : Service() {
 
@@ -30,6 +33,7 @@ class FairyStreamService : Service() {
     private var startTimeMs: Long = 0L
 
     val captureEngine = ScreenCaptureEngine()
+    val videoEncoder = HardwareVideoEncoder()
 
     inner class LocalBinder : Binder() {
         fun getService(): FairyStreamService = this@FairyStreamService
@@ -56,13 +60,23 @@ class FairyStreamService : Service() {
             }
             ACTION_PAUSE_CAPTURE -> {
                 captureEngine.pause()
+                videoEncoder.pause()
             }
             ACTION_RESUME_CAPTURE -> {
                 captureEngine.resume()
+                videoEncoder.resume()
             }
             ACTION_STOP_CAPTURE -> {
                 captureEngine.stop()
-                updateNotificationContent("Screen capture stopped")
+                videoEncoder.stop()
+                updateNotificationContent("Screen capture & encoder stopped")
+            }
+            ACTION_REQUEST_KEYFRAME -> {
+                videoEncoder.requestKeyFrame()
+            }
+            ACTION_ADJUST_BITRATE -> {
+                val newBitrate = intent?.getIntExtra(EXTRA_BITRATE_KBPS, 1200) ?: 1200
+                videoEncoder.adjustBitrate(newBitrate)
             }
             ACTION_UPDATE_RESOLUTION -> {
                 val w = intent?.getIntExtra(EXTRA_WIDTH, 0) ?: 0
@@ -95,12 +109,18 @@ class FairyStreamService : Service() {
             return
         }
 
-        val width = intent.getIntExtra(EXTRA_WIDTH, 1080)
-        val height = intent.getIntExtra(EXTRA_HEIGHT, 1920)
+        val rawW = intent.getIntExtra(EXTRA_WIDTH, 1080)
+        val rawH = intent.getIntExtra(EXTRA_HEIGHT, 1920)
+        val width = (rawW / 2) * 2
+        val height = (rawH / 2) * 2
         val dpi = intent.getIntExtra(EXTRA_DPI, 420)
+        val enableEncoding = intent.getBooleanExtra(EXTRA_ENABLE_ENCODING, true)
+        val bitrateKbps = intent.getIntExtra(EXTRA_BITRATE_KBPS, 1200)
+        val fps = intent.getIntExtra(EXTRA_FPS, 24)
 
         // Ensure foreground service is running with MediaProjection type before creating VirtualDisplay
-        startStreamForeground("Screen Capture Active (${width}x${height})", withMediaProjection = true)
+        val statusMsg = if (enableEncoding) "Live H.264 Encoding (${width}x${height})" else "Screen Capture (${width}x${height})"
+        startStreamForeground(statusMsg, withMediaProjection = true)
 
         val projectionManager = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as? MediaProjectionManager
         val projection = projectionManager?.getMediaProjection(resultCode, resultData)
@@ -110,7 +130,22 @@ class FairyStreamService : Service() {
             return
         }
 
-        captureEngine.start(projection, width, height, dpi)
+        if (enableEncoding) {
+            val encoderConfig = VideoEncoderConfig(
+                width = width,
+                height = height,
+                bitrateKbps = bitrateKbps,
+                fps = fps
+            )
+            val encoderSurface = videoEncoder.initialize(encoderConfig)
+            videoEncoder.start()
+
+            // Zero-copy Path B: VirtualDisplay feeds directly into MediaCodec input surface!
+            captureEngine.start(projection, width, height, dpi, customSurface = encoderSurface)
+        } else {
+            captureEngine.start(projection, width, height, dpi)
+        }
+
         StreamStateNotifier.updateState(StreamState.STREAMING)
     }
 
@@ -144,6 +179,7 @@ class FairyStreamService : Service() {
 
     private fun stopStreamService() {
         captureEngine.stop()
+        videoEncoder.stop()
         StreamStateNotifier.updateState(StreamState.IDLE)
         CaptureStateNotifier.updateState(CaptureState.IDLE)
 
@@ -159,6 +195,7 @@ class FairyStreamService : Service() {
     override fun onDestroy() {
         super.onDestroy()
         captureEngine.stop()
+        videoEncoder.stop()
         StreamStateNotifier.updateState(StreamState.IDLE)
         CaptureStateNotifier.updateState(CaptureState.IDLE)
     }
@@ -229,12 +266,17 @@ class FairyStreamService : Service() {
         const val ACTION_RESUME_CAPTURE = "com.fairylive.app.action.RESUME_CAPTURE"
         const val ACTION_STOP_CAPTURE = "com.fairylive.app.action.STOP_CAPTURE"
         const val ACTION_UPDATE_RESOLUTION = "com.fairylive.app.action.UPDATE_RESOLUTION"
+        const val ACTION_REQUEST_KEYFRAME = "com.fairylive.app.action.REQUEST_KEYFRAME"
+        const val ACTION_ADJUST_BITRATE = "com.fairylive.app.action.ADJUST_BITRATE"
 
         const val EXTRA_RESULT_CODE = "extra_result_code"
         const val EXTRA_RESULT_DATA = "extra_result_data"
         const val EXTRA_WIDTH = "extra_width"
         const val EXTRA_HEIGHT = "extra_height"
         const val EXTRA_DPI = "extra_dpi"
+        const val EXTRA_ENABLE_ENCODING = "extra_enable_encoding"
+        const val EXTRA_BITRATE_KBPS = "extra_bitrate_kbps"
+        const val EXTRA_FPS = "extra_fps"
 
         fun start(context: Context) {
             val intent = Intent(context, FairyStreamService::class.java).apply {
@@ -257,7 +299,17 @@ class FairyStreamService : Service() {
             context.startService(intent)
         }
 
-        fun startCapture(context: Context, resultCode: Int, data: Intent, width: Int, height: Int, dpi: Int) {
+        fun startCapture(
+            context: Context,
+            resultCode: Int,
+            data: Intent,
+            width: Int,
+            height: Int,
+            dpi: Int,
+            enableEncoding: Boolean = true,
+            bitrateKbps: Int = 1200,
+            fps: Int = 24
+        ) {
             val intent = Intent(context, FairyStreamService::class.java).apply {
                 action = ACTION_START_CAPTURE
                 putExtra(EXTRA_RESULT_CODE, resultCode)
@@ -265,12 +317,30 @@ class FairyStreamService : Service() {
                 putExtra(EXTRA_WIDTH, width)
                 putExtra(EXTRA_HEIGHT, height)
                 putExtra(EXTRA_DPI, dpi)
+                putExtra(EXTRA_ENABLE_ENCODING, enableEncoding)
+                putExtra(EXTRA_BITRATE_KBPS, bitrateKbps)
+                putExtra(EXTRA_FPS, fps)
             }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 context.startForegroundService(intent)
             } else {
                 context.startService(intent)
             }
+        }
+
+        fun requestKeyFrame(context: Context) {
+            val intent = Intent(context, FairyStreamService::class.java).apply {
+                action = ACTION_REQUEST_KEYFRAME
+            }
+            context.startService(intent)
+        }
+
+        fun adjustBitrate(context: Context, newBitrateKbps: Int) {
+            val intent = Intent(context, FairyStreamService::class.java).apply {
+                action = ACTION_ADJUST_BITRATE
+                putExtra(EXTRA_BITRATE_KBPS, newBitrateKbps)
+            }
+            context.startService(intent)
         }
 
         fun pauseCapture(context: Context) {

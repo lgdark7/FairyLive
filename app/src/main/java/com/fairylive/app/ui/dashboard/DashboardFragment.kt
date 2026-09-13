@@ -4,6 +4,7 @@ import android.app.Activity
 import android.content.Context
 import android.content.res.Configuration
 import android.media.projection.MediaProjectionManager
+import android.os.Build
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
@@ -20,13 +21,18 @@ import com.fairylive.app.core.capture.model.CaptureState
 import com.fairylive.app.core.lifecycle.StreamState
 import com.fairylive.app.core.lifecycle.StreamStateNotifier
 import com.fairylive.app.core.permission.PermissionManager
+import com.fairylive.app.core.video.EncoderStateNotifier
+import com.fairylive.app.core.video.model.EncoderMetrics
+import com.fairylive.app.core.video.model.EncoderState
 import com.fairylive.app.databinding.FragmentDashboardBinding
 import com.fairylive.app.service.FairyStreamService
 
 class DashboardFragment : Fragment(),
     StreamStateNotifier.Listener,
     CaptureStateNotifier.StateListener,
-    CaptureStateNotifier.MetricsListener {
+    CaptureStateNotifier.MetricsListener,
+    EncoderStateNotifier.StateListener,
+    EncoderStateNotifier.MetricsListener {
 
     private var _binding: FragmentDashboardBinding? = null
     private val binding get() = _binding!!
@@ -42,7 +48,10 @@ class DashboardFragment : Fragment(),
     ) { result ->
         if (result.resultCode == Activity.RESULT_OK && result.data != null) {
             val ctx = requireContext()
-            val windowMetrics = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+            val app = ctx.applicationContext as FairyLiveApplication
+            val settings = app.settingsRepository.loadSettings(app.deviceCapability.recommendedProfile)
+
+            val windowMetrics = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                 requireActivity().windowManager.currentWindowMetrics
             } else {
                 null
@@ -60,7 +69,10 @@ class DashboardFragment : Fragment(),
                 data = result.data!!,
                 width = safeWidth,
                 height = safeHeight,
-                dpi = dpi
+                dpi = dpi,
+                enableEncoding = true,
+                bitrateKbps = settings.videoBitrateKbps,
+                fps = settings.fps
             )
         } else {
             Toast.makeText(requireContext(), "Screen capture permission denied", Toast.LENGTH_SHORT).show()
@@ -82,14 +94,18 @@ class DashboardFragment : Fragment(),
         StreamStateNotifier.addListener(this)
         CaptureStateNotifier.addStateListener(this)
         CaptureStateNotifier.addMetricsListener(this)
+        EncoderStateNotifier.addStateListener(this)
+        EncoderStateNotifier.addMetricsListener(this)
 
         bindDeviceCapability()
         bindCaptureControls()
+        bindEncoderControls()
         bindServiceController()
         bindPermissionControls()
         updatePermissionIndicators()
         updateServiceState(StreamStateNotifier.currentState)
         updateCaptureUI(CaptureStateNotifier.currentState, CaptureStateNotifier.currentMetrics)
+        updateEncoderUI(EncoderStateNotifier.currentState, EncoderStateNotifier.currentMetrics)
     }
 
     override fun onDestroyView() {
@@ -97,6 +113,8 @@ class DashboardFragment : Fragment(),
         StreamStateNotifier.removeListener(this)
         CaptureStateNotifier.removeStateListener(this)
         CaptureStateNotifier.removeMetricsListener(this)
+        EncoderStateNotifier.removeStateListener(this)
+        EncoderStateNotifier.removeMetricsListener(this)
         _binding = null
     }
 
@@ -157,6 +175,13 @@ class DashboardFragment : Fragment(),
 
         binding.btnStopCapture.setOnClickListener {
             FairyStreamService.stopCapture(requireContext())
+        }
+    }
+
+    private fun bindEncoderControls() {
+        binding.btnRequestKeyframe.setOnClickListener {
+            FairyStreamService.requestKeyFrame(requireContext())
+            Toast.makeText(requireContext(), "Sync Keyframe (IDR) Requested", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -280,6 +305,48 @@ class DashboardFragment : Fragment(),
         }
     }
 
+    private fun updateEncoderUI(state: EncoderState, metrics: EncoderMetrics) {
+        val ctx = context ?: return
+
+        when (state) {
+            EncoderState.IDLE -> {
+                binding.tvEncoderStatusBadge.text = "ENCODER IDLE"
+                binding.tvEncoderStatusBadge.setTextColor(ContextCompat.getColor(ctx, R.color.status_amber))
+                binding.btnRequestKeyframe.visibility = View.GONE
+                binding.tvEncoderTelemetry.text = "Enc: 0 (Keys: 0) | 0 kbps | 0.0 FPS | Standby"
+            }
+            EncoderState.CONFIGURING -> {
+                binding.tvEncoderStatusBadge.text = "CONFIGURING"
+                binding.tvEncoderStatusBadge.setTextColor(ContextCompat.getColor(ctx, R.color.status_amber))
+                binding.btnRequestKeyframe.visibility = View.GONE
+            }
+            EncoderState.ENCODING -> {
+                binding.tvEncoderStatusBadge.text = "ENCODING"
+                binding.tvEncoderStatusBadge.setTextColor(ContextCompat.getColor(ctx, R.color.status_green))
+                binding.btnRequestKeyframe.visibility = View.VISIBLE
+
+                val fpsFormatted = String.format("%.1f", metrics.outputFps)
+                binding.tvEncoderTelemetry.text = "Enc: ${metrics.framesEncoded} (Keys: ${metrics.keyframesEncoded}) | ${metrics.bitrateKbps} kbps | $fpsFormatted FPS | ${metrics.codecName}"
+            }
+            EncoderState.PAUSED -> {
+                binding.tvEncoderStatusBadge.text = "PAUSED"
+                binding.tvEncoderStatusBadge.setTextColor(ContextCompat.getColor(ctx, R.color.status_amber))
+                binding.btnRequestKeyframe.visibility = View.GONE
+                binding.tvEncoderTelemetry.text = "Enc: ${metrics.framesEncoded} (Keys: ${metrics.keyframesEncoded}) | PAUSED | ${metrics.codecName}"
+            }
+            EncoderState.STOPPING -> {
+                binding.tvEncoderStatusBadge.text = "STOPPING"
+                binding.tvEncoderStatusBadge.setTextColor(ContextCompat.getColor(ctx, R.color.status_amber))
+                binding.btnRequestKeyframe.visibility = View.GONE
+            }
+            EncoderState.ERROR -> {
+                binding.tvEncoderStatusBadge.text = "ENCODER ERROR"
+                binding.tvEncoderStatusBadge.setTextColor(ContextCompat.getColor(ctx, R.color.status_red))
+                binding.btnRequestKeyframe.visibility = View.GONE
+            }
+        }
+    }
+
     override fun onStateChanged(newState: StreamState, previousState: StreamState) {
         activity?.runOnUiThread {
             if (_binding != null) {
@@ -300,6 +367,22 @@ class DashboardFragment : Fragment(),
         activity?.runOnUiThread {
             if (_binding != null) {
                 updateCaptureUI(CaptureStateNotifier.currentState, metrics)
+            }
+        }
+    }
+
+    override fun onEncoderStateChanged(newState: EncoderState, previousState: EncoderState) {
+        activity?.runOnUiThread {
+            if (_binding != null) {
+                updateEncoderUI(newState, EncoderStateNotifier.currentMetrics)
+            }
+        }
+    }
+
+    override fun onEncoderMetricsUpdated(metrics: EncoderMetrics) {
+        activity?.runOnUiThread {
+            if (_binding != null) {
+                updateEncoderUI(EncoderStateNotifier.currentState, metrics)
             }
         }
     }

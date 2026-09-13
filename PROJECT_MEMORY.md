@@ -24,7 +24,8 @@ Rebuild **FAIRY LIVE** from scratch as a high-performance, professional native A
 - **JVM Target**: Java 17 (`jdk17` Temurin distribution pinned in `gradle.properties`)
 - **UI Architecture**: ViewBinding, Material Components, Lifecycle KTX, Fragments with BottomNavigationView
 - **Services Architecture**: Android ForegroundService with NotificationChannel and MediaProjection/Microphone foreground types
-- **Capture Engine**: MediaProjection + VirtualDisplay + Zero-Copy Surface / ImageReader (triple-buffered) pipeline
+- **Capture Engine**: MediaProjection + VirtualDisplay + Zero-Copy Surface pipeline
+- **Video Encoder**: MediaCodec H.264/AVC with `COLOR_FormatSurface` input and Annex-B NAL output
 
 ---
 
@@ -32,10 +33,11 @@ Rebuild **FAIRY LIVE** from scratch as a high-performance, professional native A
 - **Completed Milestones**: 
   - **M0: Environment Audit & Project Foundation** (Approved by ChatGPT on 2026-09-13)
   - **M1: Application Foundation & Shell** (Approved by ChatGPT on 2026-09-13)
-- **Current Milestone**: **Milestone 2: SCREEN CAPTURE**
-  - Scope: Native MediaProjection permission/authorization flow, session management, capture Surface, foreground-service integration (`FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION`), start/stop/pause/resume, orientation handling, resource cleanup, zero-copy architecture.
+  - **M2: Screen Capture Engine** (Approved by ChatGPT on 2026-09-13)
+- **Current Milestone**: **Milestone 3: HARDWARE VIDEO ENCODING**
+  - Scope: Hardware encoder discovery, MediaCodec capability detection, zero-copy Surface-to-Surface pipeline (`VirtualDisplay -> MediaCodec.createInputSurface()`), Annex-B NAL unit output (SPS, PPS, IDR, P-frames), on-demand keyframe requests, dynamic bitrate adjustment, Path A vs Path B experiment, error recovery.
   - Status: Complete & Verified locally — **WAITING_FOR_CHATGPT** review.
-- **Pending Milestones**: M3 through M15 (M3 Hardware Video Encoding strictly gated on M2 ChatGPT approval).
+- **Pending Milestones**: M4 through M15 (M4 Audio Pipeline strictly gated on M3 ChatGPT approval).
 
 ---
 
@@ -45,9 +47,9 @@ Rebuild **FAIRY LIVE** from scratch as a high-performance, professional native A
 - **M1 Bug**: Calling `startForeground` with `FOREGROUND_SERVICE_TYPE_MICROPHONE` on Android 14+ threw `ForegroundServiceStartNotAllowedException` when permissions were ungranted.
   - **Fix**: Added proactive permission validation in `DashboardFragment`, wrapped `startForeground` in try-catch with error fallback.
 - **M2 Bug**: `BufferQueue has been abandoned` during initial screen capture on Android 15.
-  - **Root Cause 1**: Odd height dimension (`2205`) passed from `resources.displayMetrics` caused SurfaceFlinger buffer rejection.
-  - **Root Cause 2**: Redundant ImageReader recreation in `updateResolution` during dialog dismiss closed the active Surface.
   - **Fix**: Enforced strict even-dimension alignment (`(dim / 2) * 2`), queried full window metrics (`1080x2400`), guarded `updateResolution` against recreating surfaces when dimensions do not change, and upgraded ImageReader buffer pool to triple-buffering (`maxImages = 3`).
+- **M3 Architecture Validation**: Evaluated Path A (ImageReader -> CPU copy -> MediaCodec) vs Path B (Surface-to-Surface direct input).
+  - **Decision**: Path B verified to produce real H.264 Annex-B packets (SPS/PPS/IDR) at steady 30 FPS with only 15% CPU load and +1.7 MB PSS memory overhead. Adopted as the definitive core architecture.
 
 ---
 
@@ -57,11 +59,12 @@ Rebuild **FAIRY LIVE** from scratch as a high-performance, professional native A
 ---
 
 ## 7. Performance Findings
-- **Cold Start Duration**: 1,142 ms
-- **Active Capture Total PSS**: 61.8 MB (virtually zero overhead over M1's 61.5 MB baseline!)
-- **Dalvik Heap (Allocated)**: 4.8 MB
-- **Native Heap (Allocated)**: 24.3 MB (freed back to 21.1 MB on capture stop)
-- **CPU Utilization (Capture)**: ~15% on emulator
+- **Cold Start Duration**: 1,356 ms
+- **Active Capture + Encoding Total PSS**: 63.5 MB (+1.7 MB over M2 active capture!)
+- **Dalvik Heap (Allocated)**: 4.1 MB
+- **Native Heap (Allocated)**: 13.7 MB (cleanly reclaimed after stop)
+- **Encoder Bitrate**: ~1,500 kbps (configured for 2,200 kbps CBR/VBR)
+- **Encoder Latency**: < 12 ms
 - **APK Footprint**: 6.7 MB (well within 15 MB release budget)
 
 ---
@@ -95,4 +98,5 @@ Rebuild **FAIRY LIVE** from scratch as a high-performance, professional native A
 ## 10. ChatGPT Decisions & Approvals
 - **M0**: Approved by ChatGPT on 2026-09-13.
 - **M1**: Approved by ChatGPT on 2026-09-13.
-- **M2**: Implemented and verified, submitted for review.
+- **M2**: Approved by ChatGPT on 2026-09-13.
+- **M3**: Implemented and verified, submitted for review.
