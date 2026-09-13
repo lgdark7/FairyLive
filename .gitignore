@@ -22,3 +22,4 @@ out/
 /jdk17
 *.log
 screenshot_*.png
+tools/__pycache__/
