@@ -8,6 +8,8 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
+import android.media.AudioFormat
+import android.media.projection.MediaProjection
 import android.media.projection.MediaProjectionManager
 import android.os.Binder
 import android.os.Build
@@ -16,18 +18,24 @@ import androidx.core.app.NotificationCompat
 import com.fairylive.app.FairyLiveApplication
 import com.fairylive.app.MainActivity
 import com.fairylive.app.R
+import com.fairylive.app.core.audio.AudioPipeline
+import com.fairylive.app.core.audio.AudioStateNotifier
+import com.fairylive.app.core.audio.model.AudioCaptureConfig
+import com.fairylive.app.core.audio.model.AudioCaptureState
+import com.fairylive.app.core.audio.model.AudioSourceType
 import com.fairylive.app.core.capture.CaptureStateNotifier
 import com.fairylive.app.core.capture.ScreenCaptureEngine
 import com.fairylive.app.core.capture.model.CaptureState
 import com.fairylive.app.core.lifecycle.StreamState
 import com.fairylive.app.core.lifecycle.StreamStateNotifier
+import com.fairylive.app.core.permission.PermissionManager
 import com.fairylive.app.core.video.HardwareVideoEncoder
 import com.fairylive.app.core.video.VideoEncoderCapabilityManager
 import com.fairylive.app.core.video.model.VideoEncoderConfig
 
 /**
- * Foreground service hosting the capture engine and hardware video encoder.
- * Implements the direct Zero-Copy Surface-to-Surface pipeline for low-end Android efficiency.
+ * Foreground service hosting the capture engine, hardware video encoder, and audio pipeline.
+ * Manages CPU-copy-free Surface pipeline and low-latency audio synchronization.
  */
 class FairyStreamService : Service() {
 
@@ -36,6 +44,9 @@ class FairyStreamService : Service() {
 
     val captureEngine = ScreenCaptureEngine()
     val videoEncoder = HardwareVideoEncoder()
+    val audioPipeline = AudioPipeline()
+
+    private var activeMediaProjection: MediaProjection? = null
 
     inner class LocalBinder : Binder() {
         fun getService(): FairyStreamService = this@FairyStreamService
@@ -71,7 +82,20 @@ class FairyStreamService : Service() {
             ACTION_STOP_CAPTURE -> {
                 captureEngine.stop()
                 videoEncoder.stop()
-                updateNotificationContent("Screen capture & encoder stopped")
+                audioPipeline.stop()
+                updateNotificationContent("Capture and encoders stopped")
+            }
+            ACTION_START_AUDIO -> {
+                handleStartAudio(intent)
+            }
+            ACTION_MUTE_AUDIO -> {
+                audioPipeline.mute()
+            }
+            ACTION_UNMUTE_AUDIO -> {
+                audioPipeline.unmute()
+            }
+            ACTION_STOP_AUDIO -> {
+                audioPipeline.stop()
             }
             ACTION_REQUEST_KEYFRAME -> {
                 videoEncoder.requestKeyFrame()
@@ -117,11 +141,12 @@ class FairyStreamService : Service() {
         val height = (rawH / 2) * 2
         val dpi = intent.getIntExtra(EXTRA_DPI, 420)
         val enableEncoding = intent.getBooleanExtra(EXTRA_ENABLE_ENCODING, true)
+        val enableAudio = intent.getBooleanExtra(EXTRA_ENABLE_AUDIO, true)
         val bitrateKbps = intent.getIntExtra(EXTRA_BITRATE_KBPS, 1200)
         val fps = intent.getIntExtra(EXTRA_FPS, 24)
 
-        // Ensure foreground service is running with MediaProjection type before creating VirtualDisplay
-        val statusMsg = if (enableEncoding) "Live H.264 Encoding (${width}x${height})" else "Screen Capture (${width}x${height})"
+        // Ensure foreground service is running with MediaProjection & Microphone types
+        val statusMsg = if (enableEncoding) "Live H.264/AAC Broadcast (${width}x${height})" else "Screen Capture (${width}x${height})"
         startStreamForeground(statusMsg, withMediaProjection = true)
 
         val projectionManager = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as? MediaProjectionManager
@@ -131,6 +156,7 @@ class FairyStreamService : Service() {
             CaptureStateNotifier.updateState(CaptureState.ERROR)
             return
         }
+        this.activeMediaProjection = projection
 
         if (enableEncoding) {
             val selection = VideoEncoderCapabilityManager.findOptimalEncoder()
@@ -150,11 +176,48 @@ class FairyStreamService : Service() {
 
             // CPU-copy-free Surface pipeline: VirtualDisplay feeds directly into MediaCodec input surface!
             captureEngine.start(projection, encW, encH, dpi, customSurface = encoderSurface)
+
+            // Start audio pipeline concurrently if microphone permission is granted
+            if (enableAudio && PermissionManager.hasAudioPermission(this)) {
+                val audioConfig = AudioCaptureConfig(
+                    sampleRate = 44100,
+                    channelConfig = AudioFormat.CHANNEL_IN_MONO,
+                    bitrateKbps = 96,
+                    sourceType = AudioSourceType.MIC
+                )
+                audioPipeline.start(audioConfig, projection)
+            }
         } else {
             captureEngine.start(projection, width, height, dpi)
         }
 
         StreamStateNotifier.updateState(StreamState.STREAMING)
+    }
+
+    private fun handleStartAudio(intent: Intent?) {
+        if (!PermissionManager.hasAudioPermission(this)) {
+            AudioStateNotifier.updateState(AudioCaptureState.ERROR)
+            return
+        }
+
+        val sampleRate = intent?.getIntExtra(EXTRA_AUDIO_SAMPLE_RATE, 44100) ?: 44100
+        val bitrate = intent?.getIntExtra(EXTRA_AUDIO_BITRATE_KBPS, 96) ?: 96
+        val isInternal = intent?.getBooleanExtra(EXTRA_AUDIO_INTERNAL, false) ?: false
+
+        val sourceType = if (isInternal && activeMediaProjection != null) {
+            AudioSourceType.INTERNAL_PLAYBACK
+        } else {
+            AudioSourceType.MIC
+        }
+
+        val config = AudioCaptureConfig(
+            sampleRate = sampleRate,
+            channelConfig = AudioFormat.CHANNEL_IN_MONO,
+            bitrateKbps = bitrate,
+            sourceType = sourceType
+        )
+
+        audioPipeline.start(config, activeMediaProjection)
     }
 
     private fun startStreamForeground(statusText: String, withMediaProjection: Boolean = false) {
@@ -188,8 +251,12 @@ class FairyStreamService : Service() {
     private fun stopStreamService() {
         captureEngine.stop()
         videoEncoder.stop()
+        audioPipeline.stop()
+        activeMediaProjection = null
+
         StreamStateNotifier.updateState(StreamState.IDLE)
         CaptureStateNotifier.updateState(CaptureState.IDLE)
+        AudioStateNotifier.updateState(AudioCaptureState.IDLE)
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
             stopForeground(STOP_FOREGROUND_REMOVE)
@@ -204,8 +271,12 @@ class FairyStreamService : Service() {
         super.onDestroy()
         captureEngine.stop()
         videoEncoder.stop()
+        audioPipeline.stop()
+        activeMediaProjection = null
+
         StreamStateNotifier.updateState(StreamState.IDLE)
         CaptureStateNotifier.updateState(CaptureState.IDLE)
+        AudioStateNotifier.updateState(AudioCaptureState.IDLE)
     }
 
     fun getUptimeMillis(): Long {
@@ -276,6 +347,10 @@ class FairyStreamService : Service() {
         const val ACTION_UPDATE_RESOLUTION = "com.fairylive.app.action.UPDATE_RESOLUTION"
         const val ACTION_REQUEST_KEYFRAME = "com.fairylive.app.action.REQUEST_KEYFRAME"
         const val ACTION_ADJUST_BITRATE = "com.fairylive.app.action.ADJUST_BITRATE"
+        const val ACTION_START_AUDIO = "com.fairylive.app.action.START_AUDIO"
+        const val ACTION_MUTE_AUDIO = "com.fairylive.app.action.MUTE_AUDIO"
+        const val ACTION_UNMUTE_AUDIO = "com.fairylive.app.action.UNMUTE_AUDIO"
+        const val ACTION_STOP_AUDIO = "com.fairylive.app.action.STOP_AUDIO"
 
         const val EXTRA_RESULT_CODE = "extra_result_code"
         const val EXTRA_RESULT_DATA = "extra_result_data"
@@ -283,8 +358,12 @@ class FairyStreamService : Service() {
         const val EXTRA_HEIGHT = "extra_height"
         const val EXTRA_DPI = "extra_dpi"
         const val EXTRA_ENABLE_ENCODING = "extra_enable_encoding"
+        const val EXTRA_ENABLE_AUDIO = "extra_enable_audio"
         const val EXTRA_BITRATE_KBPS = "extra_bitrate_kbps"
         const val EXTRA_FPS = "extra_fps"
+        const val EXTRA_AUDIO_BITRATE_KBPS = "extra_audio_bitrate_kbps"
+        const val EXTRA_AUDIO_SAMPLE_RATE = "extra_audio_sample_rate"
+        const val EXTRA_AUDIO_INTERNAL = "extra_audio_internal"
 
         fun start(context: Context) {
             val intent = Intent(context, FairyStreamService::class.java).apply {
@@ -315,6 +394,7 @@ class FairyStreamService : Service() {
             height: Int,
             dpi: Int,
             enableEncoding: Boolean = true,
+            enableAudio: Boolean = true,
             bitrateKbps: Int = 1200,
             fps: Int = 24
         ) {
@@ -326,6 +406,7 @@ class FairyStreamService : Service() {
                 putExtra(EXTRA_HEIGHT, height)
                 putExtra(EXTRA_DPI, dpi)
                 putExtra(EXTRA_ENABLE_ENCODING, enableEncoding)
+                putExtra(EXTRA_ENABLE_AUDIO, enableAudio)
                 putExtra(EXTRA_BITRATE_KBPS, bitrateKbps)
                 putExtra(EXTRA_FPS, fps)
             }
@@ -334,6 +415,37 @@ class FairyStreamService : Service() {
             } else {
                 context.startService(intent)
             }
+        }
+
+        fun startAudio(context: Context, sampleRate: Int = 44100, bitrateKbps: Int = 96, isInternal: Boolean = false) {
+            val intent = Intent(context, FairyStreamService::class.java).apply {
+                action = ACTION_START_AUDIO
+                putExtra(EXTRA_AUDIO_SAMPLE_RATE, sampleRate)
+                putExtra(EXTRA_AUDIO_BITRATE_KBPS, bitrateKbps)
+                putExtra(EXTRA_AUDIO_INTERNAL, isInternal)
+            }
+            context.startService(intent)
+        }
+
+        fun muteAudio(context: Context) {
+            val intent = Intent(context, FairyStreamService::class.java).apply {
+                action = ACTION_MUTE_AUDIO
+            }
+            context.startService(intent)
+        }
+
+        fun unmuteAudio(context: Context) {
+            val intent = Intent(context, FairyStreamService::class.java).apply {
+                action = ACTION_UNMUTE_AUDIO
+            }
+            context.startService(intent)
+        }
+
+        fun stopAudio(context: Context) {
+            val intent = Intent(context, FairyStreamService::class.java).apply {
+                action = ACTION_STOP_AUDIO
+            }
+            context.startService(intent)
         }
 
         fun requestKeyFrame(context: Context) {

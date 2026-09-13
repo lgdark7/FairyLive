@@ -1,41 +1,61 @@
 # FAIRY LIVE — DEVELOPMENT LOG
 
-## 2026-09-13 — Milestone 3: Hardware Video Encoding (Verification Pass)
-- **Milestone**: M3 — Hardware Video Encoding (Verification & Codec Classification)
+## 2026-09-13 — Milestone 4: Audio Pipeline
+- **Milestone**: M4 — Audio Pipeline
 - **Work Performed**:
-  - Executed on-device instrumentation test (`CodecInspectionTest.kt`) to audit every video encoder exposed on the Pixel 8 Android 15 emulator.
-  - Determined that the emulator BSP exposes zero hardware-accelerated video encoders (`isHardwareAccelerated = false`, `isSoftwareOnly = true`). Available platform codecs: `c2.android.avc.encoder` (Google Codec2) and `OMX.google.h264.encoder`.
-  - Introduced explicit `EncoderType` enum (`HARDWARE`, `SOFTWARE`, `UNKNOWN`) to prevent false claims of hardware acceleration.
-  - Upgraded `VideoEncoderCapabilityManager` with strict priority selection (Hardware H.264 surface -> Compatible hardware -> Software H.264 fallback).
-  - Investigated portrait resolution handling: source display is 1080x2400 (aspect ratio 9:20 = 0.45). Confirmed that 1080x2400 exceeds the 2048 height limit of `c2.android.avc.encoder` (`isSizeSupported(1080, 2400) == false`).
-  - Implemented `AdaptiveResolutionResolver`: dynamically computes aspect-ratio-preserving dimensions scaled proportionally to target profiles (e.g. 720x1600 for Balanced, 480x1056 for Low), strictly aligned to 16-pixel macroblocks, completely eliminating distortion and accidental square cropping.
-  - Updated UI: badge explicitly displays `SOFTWARE ENCODER (FALLBACK)` in amber when software codec is active, and telemetry prints `[SW] c2.android.avc.encoder`.
-  - Verified live on Pixel 8 emulator:
-    * Adaptive resolution configured to 480x1056 @ 24fps (1200 kbps).
-    * Streamed over 120+ frames via CPU-copy-free Surface pipeline.
-    * Real-time on-demand IDR keyframe generation verified (Frame #114 size 20,244B).
-    * Total PSS 63.5 MB during active encoding, returning cleanly to 61.6 MB after teardown.
-- **Files Created / Modified**:
-  - `app/src/androidTest/java/com/fairylive/app/CodecInspectionTest.kt`
-  - `app/src/main/java/com/fairylive/app/core/capability/model/EncoderCapability.kt`
-  - `app/src/main/java/com/fairylive/app/core/capability/DeviceCapabilityDetector.kt`
-  - `app/src/main/java/com/fairylive/app/core/video/VideoEncoderCapabilityManager.kt`
-  - `app/src/main/java/com/fairylive/app/core/video/model/VideoEncoderConfig.kt`
-  - `app/src/main/java/com/fairylive/app/core/video/model/EncoderState.kt`
-  - `app/src/main/java/com/fairylive/app/core/video/HardwareVideoEncoder.kt`
-  - `app/src/main/java/com/fairylive/app/service/FairyStreamService.kt`
-  - `app/src/main/java/com/fairylive/app/ui/dashboard/DashboardFragment.kt`
-  - `app/src/test/java/com/fairylive/app/HardwareVideoEncoderTest.kt`
+  - Implemented Native Audio Subsystem (`core/audio`): `AudioCaptureEngine`, `HardwareAudioEncoder`, `AudioPipeline`, `AudioPlaybackCaptureHelper`, `AudioCaptureConfig`, `AudioCaptureState`, `AudioMetrics`, `EncodedAudioFrame`, `AudioStateNotifier`.
+  - Configured native `AudioRecord` capture supporting standard microphone input and Android 10+ (API 29+) internal device audio capture via `AudioPlaybackCaptureConfiguration` with runtime detection.
+  - Implemented sample-accurate monotonic timestamping ($t = t_0 + \text{totalSamples} \times 10^6 / \text{sampleRate}$), eliminating clock drift and maintaining lip-sync with video presentation timestamps.
+  - Implemented native `MediaCodec` AAC-LC audio encoder (`audio/mp4a-latm`, `c2.android.aac.encoder`) producing real compressed AAC audio frames with `csd-0` AudioSpecificConfig parameter headers.
+  - Implemented mute and unmute with continuous silence generation, preserving timestamp continuity so the audio track does not desynchronize from video during stream muting.
+  - Built real-time audio amplitude monitoring (RMS amplitude calculation) displayed via a live VU progress bar and percent indicator on the Dashboard.
+  - Extended `FairyStreamService` with audio controls (`ACTION_START_AUDIO`, `ACTION_MUTE_AUDIO`, `ACTION_UNMUTE_AUDIO`, `ACTION_STOP_AUDIO`) and integrated concurrent video + audio broadcast.
+  - Added unit test suite `AudioPipelineTest.kt` (29/29 unit tests passing across project).
+  - Validated live on Google Pixel 8 Android 15 emulator:
+    * Standalone audio capture and AAC encoding (over 500+ frames encoded at steady 95 kbps).
+    * Mute / unmute toggling (verified silence generation and PTS preservation).
+    * Concurrent full-screen capture + H.264 video encoding + microphone capture + AAC audio encoding.
+    * Memory and CPU benchmarking (Combined Total PSS: 65.1 MB, 0 graphics leaks, clean post-stop teardown).
+- **Files Created**:
+  - `app/src/main/java/com/fairylive/app/core/audio/model/AudioSourceType.kt`
+  - `app/src/main/java/com/fairylive/app/core/audio/model/AudioCaptureConfig.kt`
+  - `app/src/main/java/com/fairylive/app/core/audio/model/AudioCaptureState.kt`
+  - `app/src/main/java/com/fairylive/app/core/audio/model/EncodedAudioFrame.kt`
+  - `app/src/main/java/com/fairylive/app/core/audio/AudioStateNotifier.kt`
+  - `app/src/main/java/com/fairylive/app/core/audio/AudioPlaybackCaptureHelper.kt`
+  - `app/src/main/java/com/fairylive/app/core/audio/HardwareAudioEncoder.kt`
+  - `app/src/main/java/com/fairylive/app/core/audio/AudioCaptureEngine.kt`
+  - `app/src/main/java/com/fairylive/app/core/audio/AudioPipeline.kt`
+  - `app/src/main/res/drawable/ic_mic.xml`
+  - `app/src/test/java/com/fairylive/app/AudioPipelineTest.kt`
+- **Files Modified**:
+  - `app/src/main/java/com/fairylive/app/service/FairyStreamService.kt` (integrated AudioPipeline with video stream engine)
+  - `app/src/main/java/com/fairylive/app/ui/dashboard/DashboardFragment.kt` (added audio controls, VU meter, and telemetry)
+  - `app/src/main/res/layout/fragment_dashboard.xml` (added Audio Subsystem card, level meter, and buttons)
+  - `PROJECT_MEMORY.md`
+  - `ARCHITECTURE.md`
+  - `TESTING.md`
+  - `PERFORMANCE.md`
 - **Tests**:
-  - Unit Tests: 22/22 passing
-  - On-Device Instrumentation Test: PASS (`inspectAllDeviceVideoEncoders`)
-  - Codec Classification: PASS (`c2.android.avc.encoder` correctly tagged as `SOFTWARE`)
-  - Adaptive 9:20 Resolution: PASS (`480x1056`, 0.45 ratio preserved)
-  - Live Encoding: PASS (120+ frames encoded with Annex-B NAL output)
-  - Keyframe Insertion: PASS (On-demand IDR keyframe verified)
-  - Memory & Cleanup: PASS (Returned to 61.6 MB, zero leaks)
+  - Unit Tests: 29/29 passing
+  - AudioRecord Init: PASS (44,100 Hz, 1-channel 16-bit PCM, buffer 2816B)
+  - Audio Capture: PASS (Continuous zero-allocation PCM ingestion)
+  - AAC Encoder Init: PASS (`c2.android.aac.encoder`, 44.1kHz, 96 kbps, profile 2)
+  - Encoded AAC Output: PASS (500+ frames encoded with csd-0=2B)
+  - Mute & Unmute: PASS (Silence generated, PTS continuity preserved)
+  - Monotonic PTS: PASS (Sample-count accumulation verified drift-free)
+  - Concurrent Video + Audio: PASS (Simultaneous H.264 + AAC live encoding)
+  - Resource Cleanup: PASS (Clean deallocation on stop, zero leaks)
 - **ChatGPT Feedback**:
-  - Verification pass complete, awaiting final M3 approval.
+  - M3 approved on 2026-09-13. M4 ready for external review (`WAITING_FOR_CHATGPT`).
+
+---
+
+## 2026-09-13 — Milestone 3: Hardware Video Encoding
+- **Milestone**: M3 — Hardware Video Encoding
+- **Work Performed**:
+  - Implemented CPU-copy-free Surface-to-Surface pipeline, MediaCodec H.264/AVC encoding, adaptive 9:20 resolution scaling, and on-demand keyframe generation.
+  - Approved by ChatGPT on 2026-09-13.
 
 ---
 

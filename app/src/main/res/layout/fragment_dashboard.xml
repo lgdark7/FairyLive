@@ -156,7 +156,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="2dp"
-                    android:text="Zero-copy MediaProjection &amp; VirtualDisplay stream source"
+                    android:text="CPU-copy-free MediaProjection stream source"
                     android:textColor="@color/text_muted"
                     android:textSize="11sp" />
 
@@ -314,7 +314,154 @@
             </LinearLayout>
         </androidx.cardview.widget.CardView>
 
-        <!-- Card 4: Foreground Service & Lifecycle Controller -->
+        <!-- Card 4: Audio Subsystem (Milestone 4) -->
+        <androidx.cardview.widget.CardView
+            android:id="@+id/card_audio"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            app:cardBackgroundColor="@color/bg_card"
+            app:cardCornerRadius="12dp"
+            app:cardElevation="2dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <ImageView
+                        android:layout_width="24dp"
+                        android:layout_height="24dp"
+                        android:src="@drawable/ic_mic" />
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="8dp"
+                        android:layout_weight="1"
+                        android:text="Native Audio Subsystem"
+                        android:textColor="@color/text_primary"
+                        android:textSize="16sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/tv_audio_status_badge"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:background="@drawable/bg_status_badge"
+                        android:paddingHorizontal="10dp"
+                        android:paddingVertical="3dp"
+                        android:text="AUDIO IDLE"
+                        android:textColor="@color/status_amber"
+                        android:textSize="11sp"
+                        android:textStyle="bold" />
+                </LinearLayout>
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:text="AudioRecord &amp; MediaCodec AAC-LC pipeline"
+                    android:textColor="@color/text_muted"
+                    android:textSize="11sp" />
+
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:layout_marginVertical="12dp"
+                    android:background="@color/divider_color" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <TextView
+                        android:id="@+id/tv_audio_level_label"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Input Level: 0%"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="12sp" />
+
+                    <ProgressBar
+                        android:id="@+id/pb_audio_level"
+                        style="?android:attr/progressBarStyleHorizontal"
+                        android:layout_width="match_parent"
+                        android:layout_height="8dp"
+                        android:layout_marginStart="12dp"
+                        android:max="100"
+                        android:progress="0"
+                        android:progressTint="@color/status_green" />
+                </LinearLayout>
+
+                <TextView
+                    android:id="@+id/tv_audio_telemetry"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:fontFamily="monospace"
+                    android:text="Enc: 0 | 0 kbps | 44.1kHz Mono PCM | PTS Sync: Ready"
+                    android:textColor="@color/fairy_cyan"
+                    android:textSize="12sp" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btn_start_audio"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:backgroundTint="@color/fairy_purple"
+                    android:text="Start Audio Subsystem"
+                    android:textColor="@color/text_primary"
+                    app:cornerRadius="8dp" />
+
+                <LinearLayout
+                    android:id="@+id/layout_audio_controls"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:orientation="horizontal"
+                    android:visibility="gone">
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btn_mute_audio"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginEnd="6dp"
+                        android:layout_weight="1"
+                        android:backgroundTint="@color/bg_surface"
+                        android:text="Mute"
+                        android:textColor="@color/status_amber"
+                        app:cornerRadius="8dp"
+                        app:strokeColor="@color/status_amber"
+                        app:strokeWidth="1dp" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btn_stop_audio"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="6dp"
+                        android:layout_weight="1"
+                        android:backgroundTint="@color/bg_surface"
+                        android:text="Stop"
+                        android:textColor="@color/status_red"
+                        app:cornerRadius="8dp"
+                        app:strokeColor="@color/status_red"
+                        app:strokeWidth="1dp" />
+                </LinearLayout>
+
+            </LinearLayout>
+        </androidx.cardview.widget.CardView>
+
+        <!-- Card 5: Foreground Service & Lifecycle Controller -->
         <androidx.cardview.widget.CardView
             android:id="@+id/card_service"
             android:layout_width="match_parent"
@@ -374,7 +521,7 @@
             </LinearLayout>
         </androidx.cardview.widget.CardView>
 
-        <!-- Card 5: Permissions Foundation -->
+        <!-- Card 6: Permissions Foundation -->
         <androidx.cardview.widget.CardView
             android:id="@+id/card_permissions"
             android:layout_width="match_parent"

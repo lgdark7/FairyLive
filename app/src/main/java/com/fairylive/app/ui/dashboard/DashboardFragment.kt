@@ -15,6 +15,9 @@ import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import com.fairylive.app.FairyLiveApplication
 import com.fairylive.app.R
+import com.fairylive.app.core.audio.AudioStateNotifier
+import com.fairylive.app.core.audio.model.AudioCaptureState
+import com.fairylive.app.core.audio.model.AudioMetrics
 import com.fairylive.app.core.capture.CaptureStateNotifier
 import com.fairylive.app.core.capture.model.CaptureMetrics
 import com.fairylive.app.core.capture.model.CaptureState
@@ -32,7 +35,9 @@ class DashboardFragment : Fragment(),
     CaptureStateNotifier.StateListener,
     CaptureStateNotifier.MetricsListener,
     EncoderStateNotifier.StateListener,
-    EncoderStateNotifier.MetricsListener {
+    EncoderStateNotifier.MetricsListener,
+    AudioStateNotifier.StateListener,
+    AudioStateNotifier.MetricsListener {
 
     private var _binding: FragmentDashboardBinding? = null
     private val binding get() = _binding!!
@@ -71,6 +76,7 @@ class DashboardFragment : Fragment(),
                 height = safeHeight,
                 dpi = dpi,
                 enableEncoding = true,
+                enableAudio = true,
                 bitrateKbps = settings.videoBitrateKbps,
                 fps = settings.fps
             )
@@ -96,16 +102,20 @@ class DashboardFragment : Fragment(),
         CaptureStateNotifier.addMetricsListener(this)
         EncoderStateNotifier.addStateListener(this)
         EncoderStateNotifier.addMetricsListener(this)
+        AudioStateNotifier.addStateListener(this)
+        AudioStateNotifier.addMetricsListener(this)
 
         bindDeviceCapability()
         bindCaptureControls()
         bindEncoderControls()
+        bindAudioControls()
         bindServiceController()
         bindPermissionControls()
         updatePermissionIndicators()
         updateServiceState(StreamStateNotifier.currentState)
         updateCaptureUI(CaptureStateNotifier.currentState, CaptureStateNotifier.currentMetrics)
         updateEncoderUI(EncoderStateNotifier.currentState, EncoderStateNotifier.currentMetrics)
+        updateAudioUI(AudioStateNotifier.currentState, AudioStateNotifier.currentMetrics)
     }
 
     override fun onDestroyView() {
@@ -115,6 +125,8 @@ class DashboardFragment : Fragment(),
         CaptureStateNotifier.removeMetricsListener(this)
         EncoderStateNotifier.removeStateListener(this)
         EncoderStateNotifier.removeMetricsListener(this)
+        AudioStateNotifier.removeStateListener(this)
+        AudioStateNotifier.removeMetricsListener(this)
         _binding = null
     }
 
@@ -182,6 +194,31 @@ class DashboardFragment : Fragment(),
         binding.btnRequestKeyframe.setOnClickListener {
             FairyStreamService.requestKeyFrame(requireContext())
             Toast.makeText(requireContext(), "Sync Keyframe (IDR) Requested", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun bindAudioControls() {
+        binding.btnStartAudio.setOnClickListener {
+            val ctx = requireContext()
+            if (!PermissionManager.hasAudioPermission(ctx)) {
+                Toast.makeText(ctx, "Grant microphone permission first", Toast.LENGTH_SHORT).show()
+                permissionLauncher.launch(arrayOf(android.Manifest.permission.RECORD_AUDIO))
+                return@setOnClickListener
+            }
+            FairyStreamService.startAudio(ctx)
+        }
+
+        binding.btnMuteAudio.setOnClickListener {
+            val ctx = requireContext()
+            if (AudioStateNotifier.currentState == AudioCaptureState.MUTED) {
+                FairyStreamService.unmuteAudio(ctx)
+            } else {
+                FairyStreamService.muteAudio(ctx)
+            }
+        }
+
+        binding.btnStopAudio.setOnClickListener {
+            FairyStreamService.stopAudio(requireContext())
         }
     }
 
@@ -357,6 +394,62 @@ class DashboardFragment : Fragment(),
         }
     }
 
+    private fun updateAudioUI(state: AudioCaptureState, metrics: AudioMetrics) {
+        val ctx = context ?: return
+
+        when (state) {
+            AudioCaptureState.IDLE -> {
+                binding.tvAudioStatusBadge.text = "AUDIO IDLE"
+                binding.tvAudioStatusBadge.setTextColor(ContextCompat.getColor(ctx, R.color.status_amber))
+                binding.btnStartAudio.visibility = View.VISIBLE
+                binding.layoutAudioControls.visibility = View.GONE
+                binding.pbAudioLevel.progress = 0
+                binding.tvAudioLevelLabel.text = "Input Level: 0%"
+                binding.tvAudioTelemetry.text = "Enc: 0 | 0 kbps | 44.1kHz Mono PCM | PTS Sync: Ready"
+            }
+            AudioCaptureState.INITIALIZING -> {
+                binding.tvAudioStatusBadge.text = "INITIALIZING"
+                binding.tvAudioStatusBadge.setTextColor(ContextCompat.getColor(ctx, R.color.status_amber))
+            }
+            AudioCaptureState.RECORDING -> {
+                binding.tvAudioStatusBadge.text = "RECORDING (LIVE)"
+                binding.tvAudioStatusBadge.setTextColor(ContextCompat.getColor(ctx, R.color.status_green))
+                binding.btnStartAudio.visibility = View.GONE
+                binding.layoutAudioControls.visibility = View.VISIBLE
+                binding.btnMuteAudio.text = "Mute"
+                binding.btnMuteAudio.setTextColor(ContextCompat.getColor(ctx, R.color.status_amber))
+
+                binding.pbAudioLevel.progress = metrics.peakAmplitudePercent
+                binding.tvAudioLevelLabel.text = "Input Level: ${metrics.peakAmplitudePercent}%"
+
+                val sourceText = if (metrics.isDeviceAudio) "Device Audio" else "Microphone"
+                binding.tvAudioTelemetry.text = "Enc: ${metrics.encodedFrames} frames | ${metrics.bitrateKbps} kbps | ${metrics.sampleRate}Hz ${metrics.channels}ch | $sourceText | PTS Sync: OK"
+            }
+            AudioCaptureState.MUTED -> {
+                binding.tvAudioStatusBadge.text = "MUTED"
+                binding.tvAudioStatusBadge.setTextColor(ContextCompat.getColor(ctx, R.color.status_amber))
+                binding.btnStartAudio.visibility = View.GONE
+                binding.layoutAudioControls.visibility = View.VISIBLE
+                binding.btnMuteAudio.text = "Unmute"
+                binding.btnMuteAudio.setTextColor(ContextCompat.getColor(ctx, R.color.status_green))
+
+                binding.pbAudioLevel.progress = 0
+                binding.tvAudioLevelLabel.text = "Input Level: MUTED"
+                binding.tvAudioTelemetry.text = "Enc: ${metrics.encodedFrames} frames | MUTED (Silence Gen) | PTS Sync: Preserved"
+            }
+            AudioCaptureState.PAUSED, AudioCaptureState.STOPPING -> {
+                binding.tvAudioStatusBadge.text = state.name
+                binding.tvAudioStatusBadge.setTextColor(ContextCompat.getColor(ctx, R.color.status_amber))
+            }
+            AudioCaptureState.ERROR -> {
+                binding.tvAudioStatusBadge.text = "AUDIO ERROR"
+                binding.tvAudioStatusBadge.setTextColor(ContextCompat.getColor(ctx, R.color.status_red))
+                binding.btnStartAudio.visibility = View.VISIBLE
+                binding.layoutAudioControls.visibility = View.GONE
+            }
+        }
+    }
+
     override fun onStateChanged(newState: StreamState, previousState: StreamState) {
         activity?.runOnUiThread {
             if (_binding != null) {
@@ -393,6 +486,22 @@ class DashboardFragment : Fragment(),
         activity?.runOnUiThread {
             if (_binding != null) {
                 updateEncoderUI(EncoderStateNotifier.currentState, metrics)
+            }
+        }
+    }
+
+    override fun onAudioStateChanged(newState: AudioCaptureState, previousState: AudioCaptureState) {
+        activity?.runOnUiThread {
+            if (_binding != null) {
+                updateAudioUI(newState, AudioStateNotifier.currentMetrics)
+            }
+        }
+    }
+
+    override fun onAudioMetricsUpdated(metrics: AudioMetrics) {
+        activity?.runOnUiThread {
+            if (_binding != null) {
+                updateAudioUI(AudioStateNotifier.currentState, metrics)
             }
         }
     }
