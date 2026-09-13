@@ -1,5 +1,57 @@
 # FAIRY LIVE — DEVELOPMENT LOG
 
+## 2026-09-13 — Milestone 5: Streaming Pipeline & Transport
+- **Milestone**: M5 — Streaming Pipeline
+- **Work Performed**:
+  - Implemented Pure Native Streaming Transport Subsystem (`core/stream`):
+    * FLV Multiplexer (`core/stream/flv`): `H264FlvPacketizer`, `AacFlvPacketizer`, `FlvMetadataBuilder`.
+    * RTMP Protocol Engine (`core/stream/rtmp`): `RtmpHandshake` (C0/C1 -> S0/S1 -> C2 -> S2), `RtmpChunkWriter` (4096-byte chunk negotiation), `RtmpChunkReader`, `RtmpClient`, `RtmpEndpoint`.
+    * AMF0 Codec (`core/stream/rtmp/amf`): `Amf0Codec` supporting Number, Boolean, String, Object, and ECMA Array serialization/deserialization.
+    * Bounded Backpressure Queue (`core/stream/queue`): `BoundedStreamQueue` capping memory at 4 MB / 90 packets and selectively dropping non-keyframe delta video packets while strictly preserving sequence headers and keyframes.
+    * Top-Level Pipeline Orchestrator (`StreamPipeline`): coordinates FLV muxing, queueing, network transmission, exponential backoff reconnection, and real-time telemetry.
+    * Real-Time Telemetry Notifier (`StreamTelemetryNotifier`): reports live bytes sent, upload bitrate, packets sent, video/audio frames sent, dropped frames, queue depth, network latency, duration, and connection states.
+  - Extended `FairyStreamService` with RTMP broadcast orchestration:
+    * Bound `HardwareVideoEncoder` and `AudioPipeline` output streams directly into `StreamPipeline`.
+    * Integrated settings repository credentials (`serverUrl`, `streamKey`) with automatic stream key masking in logs and UI.
+  - Updated `DashboardFragment` and `fragment_dashboard.xml`:
+    * Added Card 5: RTMP Streaming Transport with live status badge, enable switch, masked endpoint info, and real-time telemetry counter.
+  - Tested end-to-end:
+    * 44 Unit Tests passing (including AMF0, FLV packetization, backpressure eviction, and mock RTMP loopback server).
+    * 3 On-Device Connected Android Tests passing on Google Pixel 8 Android 15 emulator (`StreamPipelineInstrumentedTest`).
+    * Full Live Broadcast verified on Pixel 8 emulator connected to local RTMP ingest server: 988+ video frames + 1000+ audio frames transmitted live.
+    * Active broadcast memory: 68.8 MB PSS; CPU: 25.9%; Debug APK: 6.7 MB.
+- **Files Created**:
+  - `app/src/main/java/com/fairylive/app/core/stream/model/RtmpConnectionState.kt`
+  - `app/src/main/java/com/fairylive/app/core/stream/model/StreamTelemetry.kt`
+  - `app/src/main/java/com/fairylive/app/core/stream/model/FlvPacket.kt`
+  - `app/src/main/java/com/fairylive/app/core/stream/StreamTelemetryNotifier.kt`
+  - `app/src/main/java/com/fairylive/app/core/stream/flv/H264FlvPacketizer.kt`
+  - `app/src/main/java/com/fairylive/app/core/stream/flv/AacFlvPacketizer.kt`
+  - `app/src/main/java/com/fairylive/app/core/stream/flv/FlvMetadataBuilder.kt`
+  - `app/src/main/java/com/fairylive/app/core/stream/rtmp/amf/Amf0Codec.kt`
+  - `app/src/main/java/com/fairylive/app/core/stream/rtmp/RtmpHandshake.kt`
+  - `app/src/main/java/com/fairylive/app/core/stream/rtmp/RtmpChunkWriter.kt`
+  - `app/src/main/java/com/fairylive/app/core/stream/rtmp/RtmpChunkReader.kt`
+  - `app/src/main/java/com/fairylive/app/core/stream/rtmp/RtmpClient.kt`
+  - `app/src/main/java/com/fairylive/app/core/stream/queue/BoundedStreamQueue.kt`
+  - `app/src/main/java/com/fairylive/app/core/stream/StreamPipeline.kt`
+  - `app/src/main/res/drawable/ic_stream.xml`
+  - `app/src/test/java/com/fairylive/app/StreamPipelineTest.kt`
+  - `app/src/androidTest/java/com/fairylive/app/StreamPipelineInstrumentedTest.kt`
+  - `tools/test_rtmp_server.py`
+- **Files Modified**:
+  - `app/src/main/java/com/fairylive/app/service/FairyStreamService.kt`
+  - `app/src/main/java/com/fairylive/app/ui/dashboard/DashboardFragment.kt`
+  - `app/src/main/res/layout/fragment_dashboard.xml`
+  - `ARCHITECTURE.md`
+  - `PROJECT_MEMORY.md`
+  - `TESTING.md`
+  - `PERFORMANCE.md`
+- **Tests**:
+  - Unit Tests: 44/44 passing
+  - Instrumented Tests: 3/3 passing on Pixel 8 Android 15 AVD
+- **Status**: Complete — Waiting for ChatGPT review.
+
 ## 2026-09-13 — Milestone 4: Audio Pipeline
 - **Milestone**: M4 — Audio Pipeline
 - **Work Performed**:

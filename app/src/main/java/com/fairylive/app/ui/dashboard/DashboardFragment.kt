@@ -37,7 +37,9 @@ class DashboardFragment : Fragment(),
     EncoderStateNotifier.StateListener,
     EncoderStateNotifier.MetricsListener,
     AudioStateNotifier.StateListener,
-    AudioStateNotifier.MetricsListener {
+    AudioStateNotifier.MetricsListener,
+    com.fairylive.app.core.stream.StreamTelemetryNotifier.StateListener,
+    com.fairylive.app.core.stream.StreamTelemetryNotifier.TelemetryListener {
 
     private var _binding: FragmentDashboardBinding? = null
     private val binding get() = _binding!!
@@ -68,6 +70,8 @@ class DashboardFragment : Fragment(),
             val safeHeight = (rawH / 2) * 2
             val dpi = resources.configuration.densityDpi
 
+            val isRtmpEnabled = binding.switchEnableRtmp.isChecked
+
             FairyStreamService.startCapture(
                 context = ctx,
                 resultCode = result.resultCode,
@@ -77,6 +81,9 @@ class DashboardFragment : Fragment(),
                 dpi = dpi,
                 enableEncoding = true,
                 enableAudio = true,
+                enableRtmp = isRtmpEnabled,
+                rtmpUrl = settings.serverUrl,
+                streamKey = settings.streamKey,
                 bitrateKbps = settings.videoBitrateKbps,
                 fps = settings.fps
             )
@@ -111,11 +118,16 @@ class DashboardFragment : Fragment(),
         bindAudioControls()
         bindServiceController()
         bindPermissionControls()
+        bindStreamControls()
         updatePermissionIndicators()
         updateServiceState(StreamStateNotifier.currentState)
         updateCaptureUI(CaptureStateNotifier.currentState, CaptureStateNotifier.currentMetrics)
         updateEncoderUI(EncoderStateNotifier.currentState, EncoderStateNotifier.currentMetrics)
         updateAudioUI(AudioStateNotifier.currentState, AudioStateNotifier.currentMetrics)
+        updateStreamUI(
+            com.fairylive.app.core.stream.StreamTelemetryNotifier.currentState,
+            com.fairylive.app.core.stream.StreamTelemetryNotifier.currentTelemetry
+        )
     }
 
     override fun onDestroyView() {
@@ -127,6 +139,8 @@ class DashboardFragment : Fragment(),
         EncoderStateNotifier.removeMetricsListener(this)
         AudioStateNotifier.removeStateListener(this)
         AudioStateNotifier.removeMetricsListener(this)
+        com.fairylive.app.core.stream.StreamTelemetryNotifier.removeStateListener(this)
+        com.fairylive.app.core.stream.StreamTelemetryNotifier.removeTelemetryListener(this)
         _binding = null
     }
 
@@ -515,5 +529,110 @@ class DashboardFragment : Fragment(),
                 updateAudioUI(AudioStateNotifier.currentState, metrics)
             }
         }
+    }
+
+    override fun onConnectionStateChanged(
+        newState: com.fairylive.app.core.stream.model.RtmpConnectionState,
+        previousState: com.fairylive.app.core.stream.model.RtmpConnectionState
+    ) {
+        activity?.runOnUiThread {
+            if (_binding != null) {
+                updateStreamUI(newState, com.fairylive.app.core.stream.StreamTelemetryNotifier.currentTelemetry)
+            }
+        }
+    }
+
+    override fun onTelemetryUpdated(telemetry: com.fairylive.app.core.stream.model.StreamTelemetry) {
+        activity?.runOnUiThread {
+            if (_binding != null) {
+                updateStreamUI(telemetry.connectionState, telemetry)
+            }
+        }
+    }
+
+    private fun bindStreamControls() {
+        val app = requireContext().applicationContext as FairyLiveApplication
+        val settings = app.settingsRepository.loadSettings(app.deviceCapability.recommendedProfile)
+
+        binding.switchEnableRtmp.isChecked = settings.serverUrl.isNotEmpty()
+        updateEndpointDisplay(settings.serverUrl, settings.streamKey)
+
+        binding.switchEnableRtmp.setOnCheckedChangeListener { _, isChecked ->
+            if (isChecked && settings.serverUrl.isEmpty()) {
+                binding.tvStreamEndpointInfo.text = "Warning: Configure Server URL in Settings first!"
+            } else {
+                updateEndpointDisplay(settings.serverUrl, settings.streamKey)
+            }
+        }
+    }
+
+    private fun updateEndpointDisplay(url: String, key: String) {
+        if (url.isEmpty()) {
+            binding.tvStreamEndpointInfo.text = "Endpoint: Standby (Not configured in Settings)"
+        } else {
+            val maskedKey = if (key.length > 4) {
+                key.take(2) + "•".repeat(key.length - 4) + key.takeLast(2)
+            } else if (key.isNotEmpty()) {
+                "••••"
+            } else {
+                "none"
+            }
+            binding.tvStreamEndpointInfo.text = "Target: $url | Key: $maskedKey"
+        }
+    }
+
+    private fun updateStreamUI(
+        state: com.fairylive.app.core.stream.model.RtmpConnectionState,
+        telemetry: com.fairylive.app.core.stream.model.StreamTelemetry
+    ) {
+        val ctx = context ?: return
+
+        when (state) {
+            com.fairylive.app.core.stream.model.RtmpConnectionState.IDLE -> {
+                binding.tvStreamStatusBadge.text = "DISCONNECTED"
+                binding.tvStreamStatusBadge.setTextColor(ContextCompat.getColor(ctx, R.color.status_amber))
+            }
+            com.fairylive.app.core.stream.model.RtmpConnectionState.CONNECTING -> {
+                binding.tvStreamStatusBadge.text = "CONNECTING..."
+                binding.tvStreamStatusBadge.setTextColor(ContextCompat.getColor(ctx, R.color.fairy_cyan))
+            }
+            com.fairylive.app.core.stream.model.RtmpConnectionState.HANDSHAKING -> {
+                binding.tvStreamStatusBadge.text = "HANDSHAKING..."
+                binding.tvStreamStatusBadge.setTextColor(ContextCompat.getColor(ctx, R.color.fairy_cyan))
+            }
+            com.fairylive.app.core.stream.model.RtmpConnectionState.CONNECTED,
+            com.fairylive.app.core.stream.model.RtmpConnectionState.CREATING_STREAM -> {
+                binding.tvStreamStatusBadge.text = "ESTABLISHING..."
+                binding.tvStreamStatusBadge.setTextColor(ContextCompat.getColor(ctx, R.color.fairy_cyan))
+            }
+            com.fairylive.app.core.stream.model.RtmpConnectionState.PUBLISHING -> {
+                binding.tvStreamStatusBadge.text = "STREAMING LIVE"
+                binding.tvStreamStatusBadge.setTextColor(ContextCompat.getColor(ctx, R.color.status_green))
+            }
+            com.fairylive.app.core.stream.model.RtmpConnectionState.RECONNECTING -> {
+                binding.tvStreamStatusBadge.text = "RECONNECTING (${telemetry.reconnectAttempts}/3)"
+                binding.tvStreamStatusBadge.setTextColor(ContextCompat.getColor(ctx, R.color.status_amber))
+            }
+            com.fairylive.app.core.stream.model.RtmpConnectionState.STOPPING -> {
+                binding.tvStreamStatusBadge.text = "STOPPING..."
+                binding.tvStreamStatusBadge.setTextColor(ContextCompat.getColor(ctx, R.color.status_amber))
+            }
+            com.fairylive.app.core.stream.model.RtmpConnectionState.ERROR -> {
+                binding.tvStreamStatusBadge.text = "STREAM ERROR"
+                binding.tvStreamStatusBadge.setTextColor(ContextCompat.getColor(ctx, R.color.status_red))
+            }
+        }
+
+        val kbSent = telemetry.bytesSent / 1024L
+        val mbSent = kbSent / 1024.0
+        val sentDisplay = if (mbSent >= 1.0) String.format(java.util.Locale.US, "%.1f MB", mbSent) else "$kbSent KB"
+
+        val seconds = (telemetry.durationMs / 1000) % 60
+        val minutes = (telemetry.durationMs / (1000 * 60)) % 60
+        val hours = (telemetry.durationMs / (1000 * 60 * 60))
+        val durationStr = String.format(java.util.Locale.US, "%02d:%02d:%02d", hours, minutes, seconds)
+
+        binding.tvStreamTelemetry.text =
+            "Sent: $sentDisplay | ${telemetry.bitrateKbps} kbps | Q: ${telemetry.queueDepth} (Drops: ${telemetry.droppedFrames}) | RTT: ${telemetry.networkLatencyMs}ms | $durationStr"
     }
 }

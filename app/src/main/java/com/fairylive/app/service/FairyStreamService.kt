@@ -30,13 +30,17 @@ import com.fairylive.app.core.common.MediaClock
 import com.fairylive.app.core.lifecycle.StreamState
 import com.fairylive.app.core.lifecycle.StreamStateNotifier
 import com.fairylive.app.core.permission.PermissionManager
+import com.fairylive.app.core.stream.StreamPipeline
+import com.fairylive.app.core.stream.StreamTelemetryNotifier
+import com.fairylive.app.core.stream.model.RtmpConnectionState
+import com.fairylive.app.core.stream.rtmp.RtmpEndpoint
 import com.fairylive.app.core.video.HardwareVideoEncoder
 import com.fairylive.app.core.video.VideoEncoderCapabilityManager
 import com.fairylive.app.core.video.model.VideoEncoderConfig
 
 /**
  * Foreground service hosting the capture engine, hardware video encoder, and audio pipeline.
- * Manages CPU-copy-free Surface pipeline and low-latency audio synchronization.
+ * Manages CPU-copy-free Surface pipeline, low-latency audio synchronization, and RTMP streaming transport.
  */
 class FairyStreamService : Service() {
 
@@ -46,6 +50,7 @@ class FairyStreamService : Service() {
     val captureEngine = ScreenCaptureEngine()
     val videoEncoder = HardwareVideoEncoder()
     val audioPipeline = AudioPipeline()
+    val streamPipeline = StreamPipeline()
 
     private var activeMediaProjection: MediaProjection? = null
 
@@ -84,8 +89,11 @@ class FairyStreamService : Service() {
                 captureEngine.stop()
                 videoEncoder.stop()
                 audioPipeline.stop()
+                streamPipeline.stop()
+                videoEncoder.setEncodedFrameListener(null)
+                audioPipeline.setEncodedAudioFrameListener(null)
                 MediaClock.stopSession()
-                updateNotificationContent("Capture and encoders stopped")
+                updateNotificationContent("Capture, encoders, and stream stopped")
             }
             ACTION_START_AUDIO -> {
                 handleStartAudio(intent)
@@ -171,8 +179,8 @@ class FairyStreamService : Service() {
         if (enableEncoding) {
             val selection = VideoEncoderCapabilityManager.findOptimalEncoder()
             val app = applicationContext as? FairyLiveApplication
-            val profile = app?.settingsRepository?.loadSettings(app.deviceCapability.recommendedProfile)?.profile
-                ?: com.fairylive.app.core.capability.model.StreamProfile.LOW
+            val settings = app?.let { it.settingsRepository.loadSettings(it.deviceCapability.recommendedProfile) }
+            val profile = settings?.profile ?: com.fairylive.app.core.capability.model.StreamProfile.LOW
             val (encW, encH) = VideoEncoderCapabilityManager.resolveAdaptiveDimensions(width, height, profile, selection)
 
             val encoderConfig = VideoEncoderConfig(
@@ -196,6 +204,31 @@ class FairyStreamService : Service() {
                     sourceType = AudioSourceType.MIC
                 )
                 audioPipeline.start(audioConfig, projection)
+            }
+
+            // Start RTMP streaming transport if enabled
+            val enableRtmp = intent?.getBooleanExtra(EXTRA_ENABLE_RTMP, false) ?: false
+            val rtmpUrl = intent?.getStringExtra(EXTRA_RTMP_URL) ?: settings?.serverUrl ?: ""
+            val streamKey = intent?.getStringExtra(EXTRA_STREAM_KEY) ?: settings?.streamKey ?: ""
+
+            if (enableRtmp && rtmpUrl.isNotEmpty()) {
+                val endpoint = RtmpEndpoint.parse(rtmpUrl, streamKey)
+                videoEncoder.setEncodedFrameListener { frame ->
+                    streamPipeline.onVideoFrame(frame)
+                }
+                audioPipeline.setEncodedAudioFrameListener { frame ->
+                    streamPipeline.onAudioFrame(frame)
+                }
+                streamPipeline.start(
+                    endpoint = endpoint,
+                    videoWidth = encW,
+                    videoHeight = encH,
+                    videoFps = fps,
+                    videoBitrateKbps = bitrateKbps,
+                    audioSampleRate = 44100,
+                    audioBitrateKbps = 96,
+                    audioChannels = 1
+                )
             }
         } else {
             captureEngine.start(projection, width, height, dpi)
@@ -266,12 +299,16 @@ class FairyStreamService : Service() {
         captureEngine.stop()
         videoEncoder.stop()
         audioPipeline.stop()
+        streamPipeline.stop()
+        videoEncoder.setEncodedFrameListener(null)
+        audioPipeline.setEncodedAudioFrameListener(null)
         activeMediaProjection = null
         MediaClock.stopSession()
 
         StreamStateNotifier.updateState(StreamState.IDLE)
         CaptureStateNotifier.updateState(CaptureState.IDLE)
         AudioStateNotifier.updateState(AudioCaptureState.IDLE)
+        StreamTelemetryNotifier.updateState(RtmpConnectionState.IDLE)
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
             stopForeground(STOP_FOREGROUND_REMOVE)
@@ -287,12 +324,16 @@ class FairyStreamService : Service() {
         captureEngine.stop()
         videoEncoder.stop()
         audioPipeline.stop()
+        streamPipeline.stop()
+        videoEncoder.setEncodedFrameListener(null)
+        audioPipeline.setEncodedAudioFrameListener(null)
         activeMediaProjection = null
         MediaClock.stopSession()
 
         StreamStateNotifier.updateState(StreamState.IDLE)
         CaptureStateNotifier.updateState(CaptureState.IDLE)
         AudioStateNotifier.updateState(AudioCaptureState.IDLE)
+        StreamTelemetryNotifier.updateState(RtmpConnectionState.IDLE)
     }
 
     fun getUptimeMillis(): Long {
@@ -375,6 +416,9 @@ class FairyStreamService : Service() {
         const val EXTRA_DPI = "extra_dpi"
         const val EXTRA_ENABLE_ENCODING = "extra_enable_encoding"
         const val EXTRA_ENABLE_AUDIO = "extra_enable_audio"
+        const val EXTRA_ENABLE_RTMP = "extra_enable_rtmp"
+        const val EXTRA_RTMP_URL = "extra_rtmp_url"
+        const val EXTRA_STREAM_KEY = "extra_stream_key"
         const val EXTRA_BITRATE_KBPS = "extra_bitrate_kbps"
         const val EXTRA_FPS = "extra_fps"
         const val EXTRA_AUDIO_BITRATE_KBPS = "extra_audio_bitrate_kbps"
@@ -411,6 +455,9 @@ class FairyStreamService : Service() {
             dpi: Int,
             enableEncoding: Boolean = true,
             enableAudio: Boolean = true,
+            enableRtmp: Boolean = false,
+            rtmpUrl: String = "",
+            streamKey: String = "",
             bitrateKbps: Int = 1200,
             fps: Int = 24
         ) {
@@ -423,6 +470,9 @@ class FairyStreamService : Service() {
                 putExtra(EXTRA_DPI, dpi)
                 putExtra(EXTRA_ENABLE_ENCODING, enableEncoding)
                 putExtra(EXTRA_ENABLE_AUDIO, enableAudio)
+                putExtra(EXTRA_ENABLE_RTMP, enableRtmp)
+                putExtra(EXTRA_RTMP_URL, rtmpUrl)
+                putExtra(EXTRA_STREAM_KEY, streamKey)
                 putExtra(EXTRA_BITRATE_KBPS, bitrateKbps)
                 putExtra(EXTRA_FPS, fps)
             }
