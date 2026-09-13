@@ -44,6 +44,14 @@ class StreamPipeline(
         private set
     var audioFramesSent: Long = 0L
         private set
+
+    // Stage-audit counters (M6 final review: per-stage FPS trace).
+    // Muxer-tag counters: FLV tags produced by the packetizers (encoder output consumers).
+    private var muxedVideoTags: Long = 0L
+    private var muxedAudioTags: Long = 0L
+    private var lastAuditLogTime: Long = 0L
+    private var auditStartElapsed: Long = 0L
+
     private var lastBitrateCalcTime: Long = 0L
     private var lastBytesCount: Long = 0L
     private var currentBitrateBps: Long = 0L
@@ -76,6 +84,10 @@ class StreamPipeline(
         this.totalPacketsSent = 0L
         this.videoFramesSent = 0L
         this.audioFramesSent = 0L
+        this.muxedVideoTags = 0L
+        this.muxedAudioTags = 0L
+        this.lastAuditLogTime = 0L
+        this.auditStartElapsed = 0L
         this.currentBitrateBps = 0L
         this.lastBytesCount = 0L
         this.lastBitrateCalcTime = SystemClock.elapsedRealtime()
@@ -224,10 +236,13 @@ class StreamPipeline(
             ptsMs = ptsMs,
             isKeyFrameHint = frame.isKeyFrame
         )
+        muxedVideoTags += packets.size
 
         for (p in packets) {
             packetQueue.offer(p)
         }
+
+        emitStageAudit()
     }
 
     /**
@@ -243,14 +258,40 @@ class StreamPipeline(
         } else {
             audioPacketizer.processAacFrame(frame.data, ptsMs)
         }
+        muxedAudioTags += packets.size
 
         for (p in packets) {
             packetQueue.offer(p)
         }
+
+        emitStageAudit()
     }
 
     fun setSpsPps(sps: ByteArray, pps: ByteArray) {
         videoPacketizer.setSpsPps(sps, pps)
+    }
+
+    /**
+     * Stage-audit log (M6 final review): every ~5 s, log encoder-output (muxer tag) counts vs
+     * RTMP-sent counts vs dropped counts, so the frame-rate at each stage can be traced.
+     * Instrumentation only — no behavior change.
+     */
+    private fun emitStageAudit() {
+        val now = SystemClock.elapsedRealtime()
+        if (lastAuditLogTime == 0L) {
+            lastAuditLogTime = now
+            auditStartElapsed = now
+        }
+        if (now - lastAuditLogTime < 5_000L) return
+        lastAuditLogTime = now
+        val elapsedSec = (now - auditStartElapsed) / 1000.0
+        Log.i(
+            TAG,
+            "STAGE-AUDIT muxedV=$muxedVideoTags muxedA=$muxedAudioTags sentV=$videoFramesSent sentA=$audioFramesSent " +
+                "drops=${packetQueue.droppedCount.get()} qDepth=${packetQueue.size} elapsed=${"%.1f".format(elapsedSec)}s " +
+                "muxVfps=${"%.1f".format(muxedVideoTags / elapsedSec)} muxAfps=${"%.1f".format(muxedAudioTags / elapsedSec)} " +
+                "sentVfps=${"%.1f".format(videoFramesSent / elapsedSec)} sentAfps=${"%.1f".format(audioFramesSent / elapsedSec)}"
+        )
     }
 
     fun stop() {

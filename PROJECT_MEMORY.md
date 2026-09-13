@@ -45,8 +45,9 @@ Rebuild **FAIRY LIVE** from scratch as a high-performance, professional native A
       - **Critical bug found & fixed**: Android 15 `createScreenCaptureIntent()` routes through the single-app selector, which fails to bind `RECORD_CONTENT_TASK` on API 35 emulators (`Content Recording: Stopped MediaProjection due to failing to set ContentRecordingSession - id=-1`), causing `createVirtualDisplay()` to return null → app previously showed "● LIVE" with **zero video frames** (silent failure).
       - **Fix**: Use `MediaProjectionConfig.createConfigForDefaultDisplay()` (full-display capture) on API 34+, which triggers the reliable "Entire screen" dialog. Registered `MediaProjection.Callback` BEFORE `createVirtualDisplay`; added `createVirtualDisplay` null/SecurityException/IllegalStateException handling; abort broadcast + post creator error on capture failure instead of publishing a video-less stream.
       - Also: `StreamConfigurationValidator` (endpoint/key validation + stream-key masking `li•••••••••••••56`), `CreatorErrorNotifier` (typed errors with title/message/resolution), error card UI in Dashboard, Settings navigation, config validation before MediaProjection consent & at save time.
-      - Test suite grew to **70 unit + 3 device tests** (added `CaptureFailureRegressionTest` 10 tests for failure-path: null VD, ERROR state, notifier reset, error bus, no false LIVE).
-      - **M6 revalidation (2026-09-13 13:45 review response)**: Tests A–F passed on-device (full-screen dialog, fresh state, repeated auth cancel/accept, clean stop→restart streams again). Success stream verified: **14,679,930 bytes, 3,129 video + 11,326 audio AUs** over 263s (audio 43.07 AU/s = theory; video ~11.9 fps — full-display swiftshader throttle, M5 single-app was 23 fps). Credential masking verified in UI (masked key `li•••••••••••••••••••••yz`) and zero plaintext in logcat.
+      - Test suite grew to **71 unit + 3 device tests** (added `CaptureFailureRegressionTest` 10 + `testProjectionDeniedCreatorErrorCard` for failure-path and error UX).
+      - **M6 revalidation (2026-09-13 13:45 review response)**: Tests A–F passed on-device (full-screen dialog, fresh state, repeated auth cancel/accept, clean stop→restart streams again). Success stream verified: **14,679,930 bytes, 3,129 video + 11,326 audio AUs** over 263s (audio 43.07 AU/s = theory; video ~11.9 fps — full-display swiftshader throttle, M5 single-app was 23 fps).
+      - **M6 final review (2026-09-13 14:35)**: per-stage FPS trace added (`STAGE-AUDIT` log in StreamPipeline; 492.56s run: encoder output = muxer tags = RTMP-sent at every sample, drops=0 — zero pipeline loss; fps ceiling upstream VirtualDisplay, not transport). Projection-denied path posts typed CreatorError card (verified on-device: error card + OFFLINE/CAPTURE IDLE + 0 bytes to server). Credential masking verified in UI and logcat.
 - **Pending Milestones**: M7 through M15 (M6 strictly gated on M5 ChatGPT approval — authorized 2026-09-13 12:27).
 
 ---
@@ -105,4 +106,4 @@ Rebuild **FAIRY LIVE** from scratch as a high-performance, professional native A
 - **Measured Video Bitrate**: **1115.8 kbps** (Configured: 1200 kbps)
 - **Measured Audio Bitrate**: **96.8 kbps** (Configured: 96 kbps)
 - **Queue Memory Footprint**: Strictly capped at 4 MB / 90 packets.
-- **Test Suite**: **70 Unit Tests** + **3 On-Device Connected Tests** (100% Passing).
+- **Test Suite**: **71 Unit Tests** + **3 On-Device Connected Tests** (100% Passing).

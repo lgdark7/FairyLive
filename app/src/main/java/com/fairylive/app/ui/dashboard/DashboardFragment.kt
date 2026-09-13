@@ -92,6 +92,11 @@ class DashboardFragment : Fragment(),
             )
         } else {
             Toast.makeText(requireContext(), "Screen capture permission denied", Toast.LENGTH_SHORT).show()
+            com.fairylive.app.core.common.CreatorErrorNotifier.postError(
+                title = "Screen Recording Permission Denied",
+                message = "You did not grant screen recording permission, so the broadcast was not started.",
+                resolution = "Tap GO LIVE again and select 'Start' (or 'Entire screen') on the permission dialog."
+            )
             CaptureStateNotifier.updateState(CaptureState.IDLE)
         }
     }

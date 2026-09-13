@@ -10,7 +10,7 @@ Testing covers unit tests, instrumentation, system-level execution, memory stabi
 | Category | Test Case | Target / Command | Result | Evidence |
 |---|---|---|---|---|
 | **Build** | Clean & Assemble | `./gradlew clean assembleDebug` | **PASS** | `BUILD SUCCESSFUL`, 5.8 MB APK |
-| **Unit Tests** | Complete Suite | `./gradlew testDebugUnitTest` | **PASS** | **70/70 unit tests pass** (9 classes, incl. `CreatorExperienceTest` 16 + `CaptureFailureRegressionTest` 10) |
+| **Unit Tests** | Complete Suite | `./gradlew testDebugUnitTest` | **PASS** | **71/71 unit tests pass** (10 classes, incl. `CreatorExperienceTest` 17 + `CaptureFailureRegressionTest` 10) |
 | **Device Tests** | On-Device Instrumentation | `connectedDebugAndroidTest` | **PASS** | **3/3 pass** on Pixel 8 Android 15 AVD (`CodecInspectionTest`) |
 | **Failure Path** | Null VirtualDisplay → ERROR, no false LIVE | `CaptureFailureRegressionTest` | **PASS** | Engine never reports CAPTURING on null VD; `CaptureState.ERROR` reachable; notifiers reset to IDLE; error bus fires; rapid errors don't crash |
 | **Test A** | Current M6 flow (full-display) | On-device GO LIVE | **PASS** | "Entire screen" dialog → LIVE → video + audio flowing (263s success run) |
@@ -20,6 +20,8 @@ Testing covers unit tests, instrumentation, system-level execution, memory stabi
 | **Test E** | Repeated authorization | GO LIVE → Cancel → GO LIVE → Start | **PASS** | Cancel → OFFLINE/CAPTURE IDLE (no false LIVE); accept → streams |
 | **Test F** | Clean stop → restart | Stop via notification → GO LIVE | **PASS** | Stop → OFFLINE + Frames:0; restart → streams again (128s run, 1,317 video + 5,512 audio) |
 | **Success Path** | V+A both present at server | Verified server | **PASS** | Audio 43.07 AU/s (= theory 43.066); video ~11.9 fps (full-display swiftshader throttle); A/V first/last diff ≤ 82ms |
+| **Per-Stage FPS Trace** | Encoder → muxer → RTMP | `STAGE-AUDIT` log | **PASS** | 492.56s run: muxedV≈sentV at every 5s sample, drops=0, qDepth=1 — zero pipeline loss; fps ceiling is upstream (VirtualDisplay), evidence in `tools/m6_final_audit.log` |
+| **Denial-Path Error UX** | GO LIVE → Cancel projection | On-device + unit test | **PASS** | Error card "Screen Recording Permission Denied" + OPEN SETTINGS; OFFLINE/CAPTURE IDLE; server receives 0 bytes; `testProjectionDeniedCreatorErrorCard` |
 | **Credential Masking** | Plaintext key concealment | UI + Logcat Audit | **PASS** | Dashboard `Key: li•••••••••••••••••••••yz`; Settings EditText `password=true`; **zero** plaintext in logcat |
 
 ---

@@ -178,6 +178,31 @@ class CreatorExperienceTest {
         CreatorErrorNotifier.removeListener(listener)
     }
 
+    @Test
+    fun testProjectionDeniedCreatorErrorCard() {
+        // The Dashboard projection-launcher denial path posts a typed CreatorError
+        // (title/message/resolution) instead of only a Toast, so the creator sees
+        // a useful error card and knows the broadcast did NOT start.
+        val receivedError = AtomicReference<CreatorError?>(null)
+        val listener = CreatorErrorNotifier.ErrorListener { error ->
+            receivedError.set(error)
+        }
+
+        CreatorErrorNotifier.addListener(listener)
+        CreatorErrorNotifier.postError(
+            title = "Screen Recording Permission Denied",
+            message = "You did not grant screen recording permission, so the broadcast was not started.",
+            resolution = "Tap GO LIVE again and select 'Start' (or 'Entire screen') on the permission dialog."
+        )
+
+        assertNotNull(receivedError.get())
+        assertEquals("Screen Recording Permission Denied", receivedError.get()?.title)
+        assertTrue(receivedError.get()!!.message.contains("not start", ignoreCase = true))
+        assertTrue(receivedError.get()!!.resolution.contains("GO LIVE", ignoreCase = true))
+
+        CreatorErrorNotifier.removeListener(listener)
+    }
+
     // --- 4. STATE MACHINE & DETERMINISTIC WORKFLOW TESTS ---
 
     @Test
