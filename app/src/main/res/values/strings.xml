@@ -1,3 +1,38 @@
 <resources>
     <string name="app_name">Fairy Live</string>
+    <string name="tagline">Low-End Native Live Streaming Studio</string>
+
+    <!-- Navigation -->
+    <string name="nav_dashboard">Dashboard</string>
+    <string name="nav_settings">Settings</string>
+    <string name="nav_diagnostics">Diagnostics</string>
+
+    <!-- Dashboard -->
+    <string name="status_idle">IDLE / READY</string>
+    <string name="status_streaming">LIVE STREAMING</string>
+    <string name="status_service_running">FOREGROUND SERVICE ACTIVE</string>
+    <string name="status_service_stopped">SERVICE IDLE</string>
+    <string name="btn_start_service">Start Stream Service</string>
+    <string name="btn_stop_service">Stop Stream Service</string>
+    <string name="btn_grant_permissions">Grant Missing Permissions</string>
+    <string name="permissions_all_granted">All Essential Permissions Granted</string>
+    <string name="permissions_missing">Permissions Required (Audio/Notify/Camera)</string>
+
+    <!-- Settings -->
+    <string name="settings_title">Stream Configuration</string>
+    <string name="stream_url_label">RTMP Ingest URL</string>
+    <string name="stream_key_label">Stream Key</string>
+    <string name="profile_label">Encoder Profile Preset</string>
+    <string name="resolution_label">Resolution</string>
+    <string name="fps_label">Frame Rate (FPS)</string>
+    <string name="bitrate_label">Video Bitrate (kbps)</string>
+    <string name="audio_bitrate_label">Audio Bitrate (kbps)</string>
+    <string name="btn_save_settings">Save Settings</string>
+
+    <!-- Notifications -->
+    <string name="notification_channel_name">Fairy Live Stream Service</string>
+    <string name="notification_channel_desc">Active stream and background service notification</string>
+    <string name="notification_title">Fairy Live Engine</string>
+    <string name="notification_text_active">Streaming service foundation is active</string>
+    <string name="notification_action_stop">Stop Service</string>
 </resources>

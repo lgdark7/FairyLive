@@ -1,47 +1,83 @@
 # FAIRY LIVE — DEVELOPMENT LOG
 
+## 2026-09-13 — Milestone 1: Application Foundation
+- **Milestone**: M1 — Application Foundation
+- **Work Performed**:
+  - Implemented Device Capability Foundation (`core/capability`): `RamMetrics`, `CpuMetrics`, `EncoderCapability`, `DeviceCapability`, `StreamProfile`, and `DeviceCapabilityDetector`.
+  - Created device tier recommendation logic enforcing the `LOW` (480p @ 24fps) profile on constrained hardware (< 3GB RAM, <= 4 CPU cores, or software-only video encoder).
+  - Implemented Lifecycle Foundation (`core/lifecycle`): `StreamState` state machine (`IDLE`, `STARTING`, `READY`, `STREAMING`, `PAUSED`, `STOPPING`, `ERROR`) and thread-safe `StreamStateNotifier`.
+  - Implemented Permission Foundation (`core/permission`): `PermissionManager` covering `POST_NOTIFICATIONS`, `RECORD_AUDIO`, and `CAMERA`.
+  - Implemented Settings Foundation (`core/settings`): `StreamSettings` data model with encoder-safe dimensional clamping and `StreamSettingsRepository` backed by SharedPreferences.
+  - Implemented Service Foundation (`service`): `FairyStreamService` foreground service with `NotificationChannel`, ongoing status notification, stop action PendingIntent, and Android 14/15 foreground type handling.
+  - Implemented Base UI & Application Shell (`ui`):
+    - `MainActivity` with bottom navigation between Dashboard, Settings, and Diagnostics.
+    - `DashboardFragment`: Hardware profiling card, service lifecycle controller, permission status indicators with request action.
+    - `SettingsFragment`: RTMP ingest URL, stream key, preset selector, and configuration persistence.
+    - `DiagnosticsFragment`: Full hardware breakdown, codec list, memory statistics, and OS properties.
+  - Added unit test suites (`DeviceCapabilityTest`, `StreamSettingsTest`, `StreamLifecycleTest`) — 12/12 unit tests passing.
+  - Installed and verified live on Google Pixel 8 Android 15 emulator.
+  - Validated foreground service startup and teardown, notification display, and settings round-trip storage.
+- **Files Created**:
+  - `app/src/main/java/com/fairylive/app/FairyLiveApplication.kt`
+  - `app/src/main/java/com/fairylive/app/core/capability/model/StreamProfile.kt`
+  - `app/src/main/java/com/fairylive/app/core/capability/model/RamMetrics.kt`
+  - `app/src/main/java/com/fairylive/app/core/capability/model/CpuMetrics.kt`
+  - `app/src/main/java/com/fairylive/app/core/capability/model/EncoderCapability.kt`
+  - `app/src/main/java/com/fairylive/app/core/capability/model/DeviceCapability.kt`
+  - `app/src/main/java/com/fairylive/app/core/capability/DeviceCapabilityDetector.kt`
+  - `app/src/main/java/com/fairylive/app/core/lifecycle/StreamState.kt`
+  - `app/src/main/java/com/fairylive/app/core/lifecycle/StreamStateNotifier.kt`
+  - `app/src/main/java/com/fairylive/app/core/permission/PermissionManager.kt`
+  - `app/src/main/java/com/fairylive/app/core/settings/StreamSettings.kt`
+  - `app/src/main/java/com/fairylive/app/core/settings/StreamSettingsRepository.kt`
+  - `app/src/main/java/com/fairylive/app/service/FairyStreamService.kt`
+  - `app/src/main/java/com/fairylive/app/ui/dashboard/DashboardFragment.kt`
+  - `app/src/main/java/com/fairylive/app/ui/settings/SettingsFragment.kt`
+  - `app/src/main/java/com/fairylive/app/ui/diagnostics/DiagnosticsFragment.kt`
+  - `app/src/main/res/menu/bottom_nav_menu.xml`
+  - `app/src/main/res/layout/fragment_dashboard.xml`
+  - `app/src/main/res/layout/fragment_settings.xml`
+  - `app/src/main/res/layout/fragment_diagnostics.xml`
+  - `app/src/main/res/drawable/ic_dashboard.xml`
+  - `app/src/main/res/drawable/ic_settings.xml`
+  - `app/src/main/res/drawable/ic_diagnostics.xml`
+  - `app/src/main/res/drawable/ic_play.xml`
+  - `app/src/main/res/drawable/ic_stop.xml`
+  - `app/src/main/res/drawable/ic_check_circle.xml`
+  - `app/src/main/res/drawable/ic_warning.xml`
+  - `app/src/main/res/drawable/ic_chip.xml`
+  - `app/src/main/res/drawable/bg_card_rounded.xml`
+  - `app/src/main/res/drawable/bg_status_badge.xml`
+  - `app/src/main/res/drawable/bg_tag_rounded.xml`
+  - `app/src/test/java/com/fairylive/app/DeviceCapabilityTest.kt`
+  - `app/src/test/java/com/fairylive/app/StreamSettingsTest.kt`
+  - `app/src/test/java/com/fairylive/app/StreamLifecycleTest.kt`
+- **Files Modified**:
+  - `app/build.gradle.kts` (added lifecycle-ktx, fragment-ktx dependencies)
+  - `app/src/main/AndroidManifest.xml` (added foreground service, permissions, application class)
+  - `app/src/main/java/com/fairylive/app/MainActivity.kt` (navigation and status integration)
+  - `app/src/main/res/layout/activity_main.xml` (top bar, container, bottom navigation)
+  - `app/src/main/res/values/colors.xml` (dark studio theme colors)
+  - `app/src/main/res/values/themes.xml` (NoActionBar theme)
+  - `app/src/main/res/values/strings.xml` (M1 strings)
+- **Tests**:
+  - JVM Unit Tests: 12/12 passing (`BaselineUnitTest`, `DeviceCapabilityTest`, `StreamSettingsTest`, `StreamLifecycleTest`)
+  - Assemble: PASS (`app-debug.apk`, 5.7 MB)
+  - Install: PASS (`adb install -r`)
+  - Cold Launch: PASS (1,148 ms)
+  - Service Lifecycle: PASS (foreground service started, verified in dumpsys, notification displayed, stopped cleanly)
+  - Settings Persistence: PASS (round-trip saved in SharedPreferences)
+- **ChatGPT Feedback**:
+  - M0 approved. M1 waiting for external review (`WAITING_FOR_CHATGPT`).
+
+---
+
 ## 2026-09-13 — Milestone 0: Environment Audit & Project Foundation
 - **Milestone**: M0 — Environment Audit & Project Foundation
 - **Work Performed**:
   - Inspected Windows host development environment (Android Studio, JDK, Android SDK, ADB, Emulators, storage).
-  - Identified compatible JDK 17 (`jdk17`) to resolve incompatibility between Gradle 8.10 and host Java 25/26.
-  - Configured `gradle.properties` with explicit `org.gradle.java.home`.
-  - Configured native Android project with Kotlin 1.9.22, AGP 8.2.2, compileSdk 34, minSdk 24, targetSdk 34.
-  - Added baseline unit test (`BaselineUnitTest.kt`) to establish JVM test execution verification.
-  - Established Git repository (`main` branch) with comprehensive `.gitignore` filtering build artifacts and large local tools.
-  - Authored foundational engineering specifications: `PROJECT_MEMORY.md`, `ARCHITECTURE.md`, `REQUIREMENTS.md`, `TESTING.md`, `PERFORMANCE.md`.
-  - Booted Android 15 (API 35) emulator `Pixel_8` via ADB tooling.
-  - Installed and launched `com.fairylive.app`.
-  - Captured cold launch latency, memory footprint, logcat diagnostics, and visual screenshot.
-- **Files Created**:
-  - `.gitignore`
-  - `app/src/test/java/com/fairylive/app/BaselineUnitTest.kt`
-  - `PROJECT_MEMORY.md`
-  - `ARCHITECTURE.md`
-  - `REQUIREMENTS.md`
-  - `TESTING.md`
-  - `PERFORMANCE.md`
-  - `DEVELOPMENT_LOG.md`
-- **Files Modified**:
-  - `gradle.properties` (added `org.gradle.java.home`)
-- **Tests Executed**:
-  - Build test: `./gradlew assembleDebug` -> PASS (apk generated, 5.5MB)
-  - Unit test: `./gradlew testDebugUnitTest` -> PASS (2/2 passed)
-  - Install test: `adb install -r app/build/outputs/apk/debug/app-debug.apk` -> PASS (Success)
-  - Cold Launch test: `adb shell am start -n com.fairylive.app/.MainActivity -W` -> PASS (TotalTime: 2419ms)
-  - Memory audit: `adb shell dumpsys meminfo com.fairylive.app` -> PASS (PSS: 47.9MB)
-  - Runtime logcat error audit: `adb logcat -d -s AndroidRuntime:E` -> PASS (0 errors)
-- **Errors Encountered**:
-  - Gradle 8.10 threw exception with Java 25.0.2 launcher.
-- **Fixes Applied**:
-  - Pinned `org.gradle.java.home=C:/Users/benny/Desktop/FAIRY LIVE/jdk17` and set `JAVA_HOME`.
-- **Performance Results**:
-  - Cold launch time: 2,419 ms
-  - Total PSS: 47,972 kB (~47.9 MB)
-  - Private dirty memory: 34,888 kB
-  - APK size: 5.5 MB
-- **Architecture Decisions**:
-  - Decoupled stream rendering from UI layouts.
-  - Zero-copy Surface-to-Surface pipeline with MediaCodec for low-end device optimization.
+  - Pinned `org.gradle.java.home=C:/Users/benny/Desktop/FAIRY LIVE/jdk17`.
+  - Configured native Android project with Kotlin 1.9.22, AGP 8.2.2.
+  - Booted Android 15 emulator, built, installed, launched, profiled, and captured baseline.
 - **ChatGPT Feedback**:
-  - Status: Milestone 0 report ready for external ChatGPT review (`WAITING_FOR_CHATGPT`).
+  - Approved by ChatGPT on 2026-09-13.
