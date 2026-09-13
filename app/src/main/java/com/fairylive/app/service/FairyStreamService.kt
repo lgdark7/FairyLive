@@ -13,6 +13,7 @@ import android.os.Binder
 import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
+import com.fairylive.app.FairyLiveApplication
 import com.fairylive.app.MainActivity
 import com.fairylive.app.R
 import com.fairylive.app.core.capture.CaptureStateNotifier
@@ -21,6 +22,7 @@ import com.fairylive.app.core.capture.model.CaptureState
 import com.fairylive.app.core.lifecycle.StreamState
 import com.fairylive.app.core.lifecycle.StreamStateNotifier
 import com.fairylive.app.core.video.HardwareVideoEncoder
+import com.fairylive.app.core.video.VideoEncoderCapabilityManager
 import com.fairylive.app.core.video.model.VideoEncoderConfig
 
 /**
@@ -131,17 +133,23 @@ class FairyStreamService : Service() {
         }
 
         if (enableEncoding) {
+            val selection = VideoEncoderCapabilityManager.findOptimalEncoder()
+            val app = applicationContext as? FairyLiveApplication
+            val profile = app?.settingsRepository?.loadSettings(app.deviceCapability.recommendedProfile)?.profile
+                ?: com.fairylive.app.core.capability.model.StreamProfile.LOW
+            val (encW, encH) = VideoEncoderCapabilityManager.resolveAdaptiveDimensions(width, height, profile, selection)
+
             val encoderConfig = VideoEncoderConfig(
-                width = width,
-                height = height,
+                width = encW,
+                height = encH,
                 bitrateKbps = bitrateKbps,
                 fps = fps
             )
             val encoderSurface = videoEncoder.initialize(encoderConfig)
             videoEncoder.start()
 
-            // Zero-copy Path B: VirtualDisplay feeds directly into MediaCodec input surface!
-            captureEngine.start(projection, width, height, dpi, customSurface = encoderSurface)
+            // CPU-copy-free Surface pipeline: VirtualDisplay feeds directly into MediaCodec input surface!
+            captureEngine.start(projection, encW, encH, dpi, customSurface = encoderSurface)
         } else {
             captureEngine.start(projection, width, height, dpi)
         }

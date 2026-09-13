@@ -1,5 +1,7 @@
 package com.fairylive.app.core.video.model
 
+import com.fairylive.app.core.capability.model.EncoderType
+
 enum class EncoderState {
     IDLE,
     CONFIGURING,
@@ -22,8 +24,14 @@ data class EncoderMetrics(
     val bitrateKbps: Long = 0L,
     val lastLatencyMs: Long = 0L,
     val codecName: String = "",
-    val isHardwareAccelerated: Boolean = false,
+    val encoderType: EncoderType = EncoderType.UNKNOWN,
     val width: Int = 0,
     val height: Int = 0,
     val isPaused: Boolean = false
-)
+) {
+    val isHardwareAccelerated: Boolean
+        get() = encoderType == EncoderType.HARDWARE
+
+    val isSoftwareOnly: Boolean
+        get() = encoderType == EncoderType.SOFTWARE
+}

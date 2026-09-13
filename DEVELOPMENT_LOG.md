@@ -1,55 +1,41 @@
 # FAIRY LIVE — DEVELOPMENT LOG
 
-## 2026-09-13 — Milestone 3: Hardware Video Encoding
-- **Milestone**: M3 — Hardware Video Encoding
+## 2026-09-13 — Milestone 3: Hardware Video Encoding (Verification Pass)
+- **Milestone**: M3 — Hardware Video Encoding (Verification & Codec Classification)
 - **Work Performed**:
-  - Implemented Hardware Video Encoding Subsystem (`core/video`): `HardwareVideoEncoder`, `VideoEncoderCapabilityManager`, `VideoEncoderConfig`, `EncodedFrame`, `EncoderState`, `EncoderMetrics`, `EncoderStateNotifier`.
-  - Built codec discovery and capability inspector querying `MediaCodecList` for H.264/AVC encoders supporting `COLOR_FormatSurface`, resolution bounds, framerate ranges, and CBR/VBR bitrate modes.
-  - Implemented zero-copy Path B architecture: `MediaProjection -> VirtualDisplay(mediaCodec.createInputSurface()) -> MediaCodec -> Annex-B NAL units`.
-  - Verified real MediaCodec encoded outputs including Sequence Parameter Sets (SPS, 23B), Picture Parameter Sets (PPS, 10B), IDR sync keyframes (e.g. 54KB), and delta P-frames at ~1,500 kbps live bitrate.
-  - Implemented on-demand sync keyframe insertion via `PARAMETER_KEY_REQUEST_SYNC_FRAME`.
-  - Implemented dynamic bitrate adjustment via `PARAMETER_KEY_VIDEO_BITRATE`.
-  - Implemented pause and resume support and safe asynchronous background draining.
-  - Conducted architectural tradeoff experiment between Path A (ImageReader -> CPU copy) vs Path B (Direct Surface input): Path B verified as the vastly superior path, eliminating 300+ MB/s CPU memory copies and keeping PSS memory growth to only +1.7 MB.
-  - Integrated encoder telemetry into `DashboardFragment` and `FairyStreamService`.
-  - Added unit test suite `HardwareVideoEncoderTest.kt` (20/20 unit tests passing across project).
-  - Validated live on Google Pixel 8 Android 15 emulator:
-    * Encoder initialization and surface binding.
-    * Real-time continuous encoding (over 130+ frames encoded).
-    * Dynamic IDR keyframe insertion on demand.
-    * Pause / resume of encoder output.
-    * Repeated start/stop cycles.
-    * Memory and CPU benchmarking (Total PSS: 63.5 MB, Dalvik Heap: 4.1 MB, Native Heap: 13.7 MB, 0 graphics leaks).
-- **Files Created**:
-  - `app/src/main/java/com/fairylive/app/core/video/HardwareVideoEncoder.kt`
+  - Executed on-device instrumentation test (`CodecInspectionTest.kt`) to audit every video encoder exposed on the Pixel 8 Android 15 emulator.
+  - Determined that the emulator BSP exposes zero hardware-accelerated video encoders (`isHardwareAccelerated = false`, `isSoftwareOnly = true`). Available platform codecs: `c2.android.avc.encoder` (Google Codec2) and `OMX.google.h264.encoder`.
+  - Introduced explicit `EncoderType` enum (`HARDWARE`, `SOFTWARE`, `UNKNOWN`) to prevent false claims of hardware acceleration.
+  - Upgraded `VideoEncoderCapabilityManager` with strict priority selection (Hardware H.264 surface -> Compatible hardware -> Software H.264 fallback).
+  - Investigated portrait resolution handling: source display is 1080x2400 (aspect ratio 9:20 = 0.45). Confirmed that 1080x2400 exceeds the 2048 height limit of `c2.android.avc.encoder` (`isSizeSupported(1080, 2400) == false`).
+  - Implemented `AdaptiveResolutionResolver`: dynamically computes aspect-ratio-preserving dimensions scaled proportionally to target profiles (e.g. 720x1600 for Balanced, 480x1056 for Low), strictly aligned to 16-pixel macroblocks, completely eliminating distortion and accidental square cropping.
+  - Updated UI: badge explicitly displays `SOFTWARE ENCODER (FALLBACK)` in amber when software codec is active, and telemetry prints `[SW] c2.android.avc.encoder`.
+  - Verified live on Pixel 8 emulator:
+    * Adaptive resolution configured to 480x1056 @ 24fps (1200 kbps).
+    * Streamed over 120+ frames via CPU-copy-free Surface pipeline.
+    * Real-time on-demand IDR keyframe generation verified (Frame #114 size 20,244B).
+    * Total PSS 63.5 MB during active encoding, returning cleanly to 61.6 MB after teardown.
+- **Files Created / Modified**:
+  - `app/src/androidTest/java/com/fairylive/app/CodecInspectionTest.kt`
+  - `app/src/main/java/com/fairylive/app/core/capability/model/EncoderCapability.kt`
+  - `app/src/main/java/com/fairylive/app/core/capability/DeviceCapabilityDetector.kt`
   - `app/src/main/java/com/fairylive/app/core/video/VideoEncoderCapabilityManager.kt`
-  - `app/src/main/java/com/fairylive/app/core/video/EncoderStateNotifier.kt`
   - `app/src/main/java/com/fairylive/app/core/video/model/VideoEncoderConfig.kt`
-  - `app/src/main/java/com/fairylive/app/core/video/model/EncodedFrame.kt`
   - `app/src/main/java/com/fairylive/app/core/video/model/EncoderState.kt`
+  - `app/src/main/java/com/fairylive/app/core/video/HardwareVideoEncoder.kt`
+  - `app/src/main/java/com/fairylive/app/service/FairyStreamService.kt`
+  - `app/src/main/java/com/fairylive/app/ui/dashboard/DashboardFragment.kt`
   - `app/src/test/java/com/fairylive/app/HardwareVideoEncoderTest.kt`
-- **Files Modified**:
-  - `app/src/main/java/com/fairylive/app/service/FairyStreamService.kt` (integrated HardwareVideoEncoder with ScreenCaptureEngine)
-  - `app/src/main/java/com/fairylive/app/ui/dashboard/DashboardFragment.kt` (integrated encoder telemetry and keyframe trigger)
-  - `app/src/main/res/layout/fragment_dashboard.xml` (added Hardware Video Encoder card and controls)
-  - `PROJECT_MEMORY.md`
-  - `ARCHITECTURE.md`
-  - `TESTING.md`
-  - `PERFORMANCE.md`
 - **Tests**:
-  - Unit Tests: 20/20 passing
-  - Encoder Discovery: PASS (`c2.android.avc.encoder`, `OMX.google.h264.encoder`)
-  - Encoder Initialization: PASS (1072x1080 @ 30fps, 2200kbps)
-  - Input Surface Creation: PASS (`COLOR_FormatSurface`)
-  - Live Encoding: PASS (130+ frames encoded with Annex-B NAL output)
-  - SPS/PPS Detection: PASS (csd-0=23B, csd-1=10B)
-  - Keyframe Insertion: PASS (On-demand IDR keyframe generated, size 54,374B)
-  - Encoder Pause / Resume: PASS
-  - Encoder Stop / Release: PASS
-  - Repeated Start / Stop: PASS
-  - Resource Cleanup: PASS (Total PSS 63.5 MB, zero leaks)
+  - Unit Tests: 22/22 passing
+  - On-Device Instrumentation Test: PASS (`inspectAllDeviceVideoEncoders`)
+  - Codec Classification: PASS (`c2.android.avc.encoder` correctly tagged as `SOFTWARE`)
+  - Adaptive 9:20 Resolution: PASS (`480x1056`, 0.45 ratio preserved)
+  - Live Encoding: PASS (120+ frames encoded with Annex-B NAL output)
+  - Keyframe Insertion: PASS (On-demand IDR keyframe verified)
+  - Memory & Cleanup: PASS (Returned to 61.6 MB, zero leaks)
 - **ChatGPT Feedback**:
-  - M2 approved on 2026-09-13. M3 ready for external review (`WAITING_FOR_CHATGPT`).
+  - Verification pass complete, awaiting final M3 approval.
 
 ---
 

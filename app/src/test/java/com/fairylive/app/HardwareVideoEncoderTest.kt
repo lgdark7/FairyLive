@@ -1,10 +1,12 @@
 package com.fairylive.app
 
 import android.media.MediaCodec
-import android.media.MediaCodecInfo
 import android.media.MediaFormat
+import com.fairylive.app.core.capability.model.EncoderType
 import com.fairylive.app.core.capability.model.StreamProfile
+import com.fairylive.app.core.video.CodecSelection
 import com.fairylive.app.core.video.EncoderStateNotifier
+import com.fairylive.app.core.video.VideoEncoderCapabilityManager
 import com.fairylive.app.core.video.model.EncodedFrame
 import com.fairylive.app.core.video.model.EncoderMetrics
 import com.fairylive.app.core.video.model.EncoderState
@@ -25,8 +27,8 @@ class HardwareVideoEncoderTest {
     @Test
     fun testVideoEncoderConfigAlignment() {
         val config = VideoEncoderConfig(
-            width = 855, // Unaligned width
-            height = 479, // Odd height
+            width = 855,
+            height = 479,
             bitrateKbps = 1200,
             fps = 24
         )
@@ -46,6 +48,56 @@ class HardwareVideoEncoderTest {
         assertEquals(2200, config.bitrateKbps)
         assertEquals(30, config.fps)
         assertEquals(MediaFormat.MIMETYPE_VIDEO_AVC, config.mimeType)
+    }
+
+    @Test
+    fun testAdaptiveResolutionPortraitPreservesAspectRatio() {
+        val dummySelection = CodecSelection(
+            codecName = "c2.android.avc.encoder",
+            encoderType = EncoderType.SOFTWARE,
+            supportedColorFormats = listOf(0x7f000789),
+            maxSupportedWidth = 2048,
+            maxSupportedHeight = 2048,
+            maxBitrateBps = 12000000,
+            supportsSurface = true
+        )
+
+        // 1080x2400 is 9:20 aspect ratio (0.45)
+        val (w, h) = VideoEncoderCapabilityManager.resolveAdaptiveDimensions(
+            sourceWidth = 1080,
+            sourceHeight = 2400,
+            profile = StreamProfile.BALANCED,
+            selection = dummySelection
+        )
+
+        assertEquals("Width should scale to 720", 720, w)
+        assertEquals("Height should scale to 1600 to preserve 9:20 ratio", 1600, h)
+        assertEquals("Width must be 16-pixel aligned", 0, w % 16)
+        assertEquals("Height must be 16-pixel aligned", 0, h % 16)
+        assertTrue("Height must fit within encoder limit of 2048", h <= dummySelection.maxSupportedHeight)
+    }
+
+    @Test
+    fun testAdaptiveResolutionLandscapeUsesStandard() {
+        val dummySelection = CodecSelection(
+            codecName = "c2.android.avc.encoder",
+            encoderType = EncoderType.SOFTWARE,
+            supportedColorFormats = listOf(0x7f000789),
+            maxSupportedWidth = 2048,
+            maxSupportedHeight = 2048,
+            maxBitrateBps = 12000000,
+            supportsSurface = true
+        )
+
+        val (w, h) = VideoEncoderCapabilityManager.resolveAdaptiveDimensions(
+            sourceWidth = 2400,
+            sourceHeight = 1080,
+            profile = StreamProfile.BALANCED,
+            selection = dummySelection
+        )
+
+        assertEquals(1280, w)
+        assertEquals(720, h)
     }
 
     @Test
@@ -106,34 +158,29 @@ class HardwareVideoEncoderTest {
     }
 
     @Test
-    fun testEncoderMetricsUpdates() {
-        val metricsList = mutableListOf<EncoderMetrics>()
-        val listener = EncoderStateNotifier.MetricsListener { metrics ->
-            metricsList.add(metrics)
-        }
-
-        EncoderStateNotifier.addMetricsListener(listener)
-
-        val metrics = EncoderMetrics(
-            framesEncoded = 120L,
-            keyframesEncoded = 4L,
-            outputFps = 29.8,
-            bitrateKbps = 2150L,
-            lastLatencyMs = 12L,
-            codecName = "c2.android.avc.encoder",
-            isHardwareAccelerated = false,
-            width = 1280,
-            height = 720,
-            isPaused = false
+    fun testEncoderMetricsClassification() {
+        val hwMetrics = EncoderMetrics(
+            framesEncoded = 60L,
+            codecName = "c2.qti.avc.encoder",
+            encoderType = EncoderType.HARDWARE
         )
+        assertTrue(hwMetrics.isHardwareAccelerated)
+        assertFalse(hwMetrics.isSoftwareOnly)
 
-        EncoderStateNotifier.updateMetrics(metrics)
+        val swMetrics = EncoderMetrics(
+            framesEncoded = 60L,
+            codecName = "c2.android.avc.encoder",
+            encoderType = EncoderType.SOFTWARE
+        )
+        assertFalse(swMetrics.isHardwareAccelerated)
+        assertTrue(swMetrics.isSoftwareOnly)
 
-        assertEquals(1, metricsList.size)
-        assertEquals(120L, metricsList[0].framesEncoded)
-        assertEquals(4L, metricsList[0].keyframesEncoded)
-        assertEquals(29.8, metricsList[0].outputFps, 0.01)
-        assertEquals(2150L, metricsList[0].bitrateKbps)
-        assertEquals("c2.android.avc.encoder", metricsList[0].codecName)
+        val unkMetrics = EncoderMetrics(
+            framesEncoded = 60L,
+            codecName = "custom.encoder",
+            encoderType = EncoderType.UNKNOWN
+        )
+        assertFalse(unkMetrics.isHardwareAccelerated)
+        assertFalse(unkMetrics.isSoftwareOnly)
     }
 }

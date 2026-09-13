@@ -8,6 +8,7 @@ import android.os.Build
 import com.fairylive.app.core.capability.model.CpuMetrics
 import com.fairylive.app.core.capability.model.DeviceCapability
 import com.fairylive.app.core.capability.model.EncoderCapability
+import com.fairylive.app.core.capability.model.EncoderType
 import com.fairylive.app.core.capability.model.RamMetrics
 import com.fairylive.app.core.capability.model.StreamProfile
 
@@ -77,16 +78,23 @@ class DeviceCapabilityDetector(private val context: Context? = null) {
 
                 for (type in info.supportedTypes) {
                     if (type.equals("video/avc", ignoreCase = true) || type.equals("video/hevc", ignoreCase = true)) {
-                        val isHw = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                            info.isHardwareAccelerated
+                        val encoderType = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                            when {
+                                info.isHardwareAccelerated -> EncoderType.HARDWARE
+                                info.isSoftwareOnly -> EncoderType.SOFTWARE
+                                !info.isVendor && (info.name.startsWith("c2.android.") || info.name.startsWith("OMX.google.")) -> EncoderType.SOFTWARE
+                                else -> EncoderType.UNKNOWN
+                            }
                         } else {
-                            isLegacyHardwareCodec(info.name)
+                            classifyLegacyCodec(info.name)
                         }
 
                         var maxWidth = 1920
                         var maxHeight = 1080
+                        var hasSurface = false
                         try {
                             val caps = info.getCapabilitiesForType(type)
+                            hasSurface = caps.colorFormats.contains(MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface)
                             val videoCaps = caps.videoCapabilities
                             if (videoCaps != null) {
                                 maxWidth = videoCaps.supportedWidths.upper
@@ -100,9 +108,10 @@ class DeviceCapabilityDetector(private val context: Context? = null) {
                             EncoderCapability(
                                 codecName = info.name,
                                 mimeType = type,
-                                isHardwareAccelerated = isHw,
+                                encoderType = encoderType,
                                 maxSupportedWidth = maxWidth,
-                                maxSupportedHeight = maxHeight
+                                maxSupportedHeight = maxHeight,
+                                supportsSurfaceInput = hasSurface
                             )
                         )
                     }
@@ -114,12 +123,13 @@ class DeviceCapabilityDetector(private val context: Context? = null) {
         return list
     }
 
-    private fun isLegacyHardwareCodec(codecName: String): Boolean {
+    private fun classifyLegacyCodec(codecName: String): EncoderType {
         val lower = codecName.lowercase()
-        return !lower.startsWith("omx.google.") &&
-                !lower.startsWith("c2.android.") &&
-                !lower.contains(".sw.") &&
-                !lower.contains("software")
+        return when {
+            lower.startsWith("omx.google.") || lower.startsWith("c2.android.") || lower.contains(".sw.") || lower.contains("software") -> EncoderType.SOFTWARE
+            lower.startsWith("omx.qcom.") || lower.startsWith("c2.qti.") || lower.startsWith("omx.exynos.") || lower.startsWith("c2.exynos.") || lower.startsWith("omx.mtk.") || lower.startsWith("c2.mtk.") -> EncoderType.HARDWARE
+            else -> EncoderType.UNKNOWN
+        }
     }
 
     internal fun calculateRecommendedProfile(

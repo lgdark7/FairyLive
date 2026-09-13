@@ -94,7 +94,7 @@ class HardwareVideoEncoder {
                 outputFps = 0.0,
                 bitrateKbps = 0L,
                 codecName = selection.codecName,
-                isHardwareAccelerated = selection.isHardwareAccelerated,
+                encoderType = selection.encoderType,
                 width = clampedConfig.alignedWidth,
                 height = clampedConfig.alignedHeight,
                 isPaused = false
@@ -201,7 +201,7 @@ class HardwareVideoEncoder {
                         outputFps = currentFps,
                         bitrateKbps = currentBitrateKbps,
                         codecName = codecSelection?.codecName ?: "unknown",
-                        isHardwareAccelerated = codecSelection?.isHardwareAccelerated ?: false,
+                        encoderType = codecSelection?.encoderType ?: com.fairylive.app.core.capability.model.EncoderType.UNKNOWN,
                         width = currentConfig?.alignedWidth ?: 0,
                         height = currentConfig?.alignedHeight ?: 0,
                         isPaused = isPaused

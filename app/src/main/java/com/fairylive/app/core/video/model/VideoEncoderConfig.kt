@@ -22,10 +22,10 @@ data class VideoEncoderConfig(
         get() = bitrateKbps * 1000
 
     val alignedWidth: Int
-        get() = (width.coerceIn(320, 1920) / 16) * 16
+        get() = (width.coerceIn(240, 2048) / 16) * 16
 
     val alignedHeight: Int
-        get() = (height.coerceIn(240, 1080) / 2) * 2
+        get() = (height.coerceIn(240, 2048) / 2) * 2
 
     fun toMediaFormat(): MediaFormat {
         val format = MediaFormat.createVideoFormat(mimeType, alignedWidth, alignedHeight)

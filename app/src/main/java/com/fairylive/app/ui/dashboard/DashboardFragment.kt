@@ -321,12 +321,22 @@ class DashboardFragment : Fragment(),
                 binding.btnRequestKeyframe.visibility = View.GONE
             }
             EncoderState.ENCODING -> {
-                binding.tvEncoderStatusBadge.text = "ENCODING"
-                binding.tvEncoderStatusBadge.setTextColor(ContextCompat.getColor(ctx, R.color.status_green))
+                if (metrics.isHardwareAccelerated) {
+                    binding.tvEncoderStatusBadge.text = "HARDWARE ENCODING"
+                    binding.tvEncoderStatusBadge.setTextColor(ContextCompat.getColor(ctx, R.color.status_green))
+                } else {
+                    binding.tvEncoderStatusBadge.text = "SOFTWARE ENCODER (FALLBACK)"
+                    binding.tvEncoderStatusBadge.setTextColor(ContextCompat.getColor(ctx, R.color.status_amber))
+                }
                 binding.btnRequestKeyframe.visibility = View.VISIBLE
 
+                val typeLabel = when (metrics.encoderType) {
+                    com.fairylive.app.core.capability.model.EncoderType.HARDWARE -> "[HW]"
+                    com.fairylive.app.core.capability.model.EncoderType.SOFTWARE -> "[SW]"
+                    com.fairylive.app.core.capability.model.EncoderType.UNKNOWN -> "[UNK]"
+                }
                 val fpsFormatted = String.format("%.1f", metrics.outputFps)
-                binding.tvEncoderTelemetry.text = "Enc: ${metrics.framesEncoded} (Keys: ${metrics.keyframesEncoded}) | ${metrics.bitrateKbps} kbps | $fpsFormatted FPS | ${metrics.codecName}"
+                binding.tvEncoderTelemetry.text = "Enc: ${metrics.framesEncoded} (Keys: ${metrics.keyframesEncoded}) | ${metrics.bitrateKbps} kbps | $fpsFormatted FPS | ${metrics.width}x${metrics.height} $typeLabel ${metrics.codecName}"
             }
             EncoderState.PAUSED -> {
                 binding.tvEncoderStatusBadge.text = "PAUSED"
