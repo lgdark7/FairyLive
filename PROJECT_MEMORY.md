@@ -26,7 +26,7 @@ Rebuild **FAIRY LIVE** from scratch as a high-performance, professional native A
 - **Services Architecture**: Android ForegroundService with NotificationChannel and MediaProjection/Microphone foreground types
 - **Capture Engine**: MediaProjection + VirtualDisplay + CPU-copy-free Surface pipeline
 - **Video Encoder**: MediaCodec H.264/AVC with `COLOR_FormatSurface` input and Annex-B NAL output
-- **Audio Engine**: AudioRecord (Microphone + Android 10+ AudioPlaybackCapture) + MediaCodec AAC-LC encoder (`audio/mp4a-latm`) with monotonic sample-count timestamping
+- **Audio Engine**: AudioRecord (Microphone + Android 10+ AudioPlaybackCapture) + MediaCodec AAC-LC encoder (`audio/mp4a-latm`, `c2.android.aac.encoder`) with canonical monotonic media clock (`MediaClock`)
 
 ---
 
@@ -36,9 +36,9 @@ Rebuild **FAIRY LIVE** from scratch as a high-performance, professional native A
   - **M1: Application Foundation & Shell** (Approved by ChatGPT on 2026-09-13)
   - **M2: Screen Capture Engine** (Approved by ChatGPT on 2026-09-13)
   - **M3: Hardware Video Encoding** (Approved by ChatGPT on 2026-09-13)
-- **Current Milestone**: **Milestone 4: AUDIO PIPELINE**
-  - Scope: AudioRecord microphone capture, Android 10+ internal device audio investigation/helper (`AudioPlaybackCaptureConfiguration`), MediaCodec AAC-LC encoder (`c2.android.aac.encoder`), mute/unmute with timestamp continuity, sample-accurate monotonic PTS generation, foreground-service integration, standalone & concurrent video+audio execution.
-  - Status: Complete & Verified locally — **WAITING_FOR_CHATGPT** review.
+- **Current Milestone**: **Milestone 4: AUDIO PIPELINE (REVALIDATED)**
+  - Scope: AudioRecord microphone capture, Android 10+ internal device audio helper (`AudioPlaybackCaptureConfiguration`), MediaCodec AAC-LC encoder (`AacMediaCodecEncoder`), mute/unmute with silence-preserving timestamp continuity, canonical monotonic session clock (`MediaClock`) anchoring video and audio PTS to the same monotonic origin $t_0$, explicit codec classification, foreground-service integration, standalone & concurrent video+audio execution.
+  - Status: Complete & Revalidated locally — **WAITING_FOR_CHATGPT** review.
 - **Pending Milestones**: M5 through M15 (M5 Streaming Pipeline strictly gated on M4 ChatGPT approval).
 
 ---
@@ -52,8 +52,13 @@ Rebuild **FAIRY LIVE** from scratch as a high-performance, professional native A
   - **Fix**: Enforced strict even-dimension alignment (`(dim / 2) * 2`), queried full window metrics (`1080x2400`), guarded `updateResolution` against recreating surfaces when dimensions do not change, and upgraded ImageReader buffer pool to triple-buffering (`maxImages = 3`).
 - **M3 Resolution Clamping Issue**: Initial test clamped portrait 1080x2400 to 1072x1080 due to a hardcoded 1080 ceiling.
   - **Fix**: Built `AdaptiveResolutionResolver` preserving exact 9:20 aspect ratio (720x1600 for Balanced, 480x1056 for Low), strictly aligned to 16-pixel macroblocks, and verified within encoder max height limits (2048).
-- **M4 Timestamping Strategy**: Wall-clock timestamping is vulnerable to clock jumps and thread scheduling jitter.
-  - **Fix**: Implemented sample-accurate monotonic timestamping ($t = t_0 + \text{samples} \times 10^6 / \text{sampleRate}$), guaranteeing perfect lip-sync with video and continuous silence generation during mute.
+- **M4 Timestamp & Codec Classification Review Issues**:
+  - **Issue 1 (A/V Synchronization)**: Audio PTS formula previously used isolated sample count without anchor to video PTS.
+    - **Fix**: Built canonical `MediaClock` anchoring both video and audio presentation timestamps to a shared monotonic nanosecond clock origin $t_0$. Audio accumulates sample counts from its initial session offset, while video normalizes buffer timestamps against the same $t_0$.
+  - **Issue 2 (Codec Classification)**: Emulator exposed `c2.android.aac.encoder` which is a software codec (`isHardwareAccelerated = false`, `isSoftwareOnly = true`).
+    - **Fix**: Renamed subsystem to `AacMediaCodecEncoder`, added explicit `EncoderType` audit, updated UI badge to `SOFTWARE AUDIO ENCODER (FALLBACK)` and telemetry to `[SW] c2.android.aac.encoder`.
+  - **Issue 3 (Pipeline Reinit Race)**: Reinitializing audio pipeline while capture engine was active caused `IllegalStateException` in `queuePcm`.
+    - **Fix**: Stopped capture engine and cleared sample listener before resetting encoder, guarding `queuePcm` with `if (!isEncoding) return`.
 
 ---
 
@@ -65,12 +70,12 @@ Rebuild **FAIRY LIVE** from scratch as a high-performance, professional native A
 ## 7. Performance Findings
 - **Cold Start Duration**: 1,231 ms
 - **Active Audio Only Total PSS**: 61.6 MB (negligible memory delta)
-- **Concurrent Video + Audio Total PSS**: 65.1 MB (+1.6 MB over video-only encoding)
-- **Post-Stop Reclaimed PSS**: 61.6 MB (zero leaks)
-- **Audio Codec**: `c2.android.aac.encoder` (AAC-LC, 44,100 Hz, 1-channel, 96 kbps)
-- **Audio Bitrate**: Steady 95-96 kbps
-- **Combined Pipeline CPU**: ~23% on emulator
-- **APK Footprint**: 6.7 MB (well within 15 MB release budget)
+- **Concurrent Video + Audio Total PSS**: 56.0 MB (active encoding)
+- **Post-Stop Reclaimed PSS**: 65.6 MB (zero leaks)
+- **Audio Codec**: `c2.android.aac.encoder` (`EncoderType.SOFTWARE`, AAC-LC, 44,100 Hz, 1-channel, 96 kbps)
+- **Audio Bitrate**: Steady 94-96 kbps
+- **Combined Pipeline CPU**: ~20.6% on emulator
+- **APK Footprint**: 5.8 MB (well within 15 MB release budget)
 
 ---
 
@@ -105,4 +110,4 @@ Rebuild **FAIRY LIVE** from scratch as a high-performance, professional native A
 - **M1**: Approved by ChatGPT on 2026-09-13.
 - **M2**: Approved by ChatGPT on 2026-09-13.
 - **M3**: Approved by ChatGPT on 2026-09-13.
-- **M4**: Implemented and verified, submitted for review.
+- **M4**: Revalidation completed, submitted for review.

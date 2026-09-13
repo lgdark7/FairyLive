@@ -1,19 +1,36 @@
 package com.fairylive.app.core.audio
 
 import android.media.MediaCodec
+import android.media.MediaCodecInfo
+import android.media.MediaCodecList
 import android.media.MediaFormat
+import android.os.Build
 import android.os.SystemClock
 import android.util.Log
 import com.fairylive.app.core.audio.model.AudioCaptureConfig
 import com.fairylive.app.core.audio.model.EncodedAudioFrame
+import com.fairylive.app.core.capability.model.EncoderType
 import java.nio.ByteBuffer
 import java.util.concurrent.atomic.AtomicBoolean
 
+data class AudioCodecSelection(
+    val codecName: String,
+    val encoderType: EncoderType,
+    val maxBitrateBps: Int
+) {
+    val isHardwareAccelerated: Boolean
+        get() = encoderType == EncoderType.HARDWARE
+
+    val isSoftwareOnly: Boolean
+        get() = encoderType == EncoderType.SOFTWARE
+}
+
 /**
- * Low-overhead AAC-LC audio encoder using native MediaCodec.
- * Converts 16-bit PCM buffers to compressed AAC streaming frames.
+ * AAC audio encoder using native Android MediaCodec.
+ * Supports hardware AAC encoders if exposed by device SoC, with transparent
+ * fallback to platform software Codec2/OMX codecs (e.g. c2.android.aac.encoder).
  */
-class HardwareAudioEncoder {
+class AacMediaCodecEncoder {
 
     fun interface EncodedAudioFrameListener {
         fun onAudioFrameEncoded(frame: EncodedAudioFrame)
@@ -22,6 +39,8 @@ class HardwareAudioEncoder {
     private var mediaCodec: MediaCodec? = null
     private var config: AudioCaptureConfig? = null
     private var frameListener: EncodedAudioFrameListener? = null
+    var codecSelection: AudioCodecSelection? = null
+        private set
 
     private var drainThread: Thread? = null
     private val isDraining = AtomicBoolean(false)
@@ -47,9 +66,11 @@ class HardwareAudioEncoder {
         }
 
         this.config = config
-        val format = config.toMediaFormat()
+        val selection = findOptimalAudioEncoder()
+        this.codecSelection = selection
 
-        val codec = MediaCodec.createEncoderByType(MediaFormat.MIMETYPE_AUDIO_AAC)
+        val format = config.toMediaFormat()
+        val codec = MediaCodec.createByCodecName(selection.codecName)
         codec.configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
 
         this.mediaCodec = codec
@@ -58,7 +79,66 @@ class HardwareAudioEncoder {
         this.lastMetricsCalcTime = SystemClock.elapsedRealtime()
         this.lastBytesCount = 0L
 
-        Log.i(TAG, "Audio encoder initialized: ${codec.name} (${config.sampleRate}Hz, ${config.channelCount}ch, ${config.bitrateKbps}kbps)")
+        Log.i(TAG, "AAC Audio encoder initialized: ${selection.codecName} [${selection.encoderType}] (${config.sampleRate}Hz, ${config.channelCount}ch, ${config.bitrateKbps}kbps)")
+
+        AudioStateNotifier.updateMetrics(
+            AudioStateNotifier.currentMetrics.copy(
+                sampleRate = config.sampleRate,
+                channels = config.channelCount,
+                bitrateKbps = config.bitrateKbps.toLong(),
+                encoderName = selection.codecName,
+                encoderType = selection.encoderType
+            )
+        )
+    }
+
+    private fun findOptimalAudioEncoder(): AudioCodecSelection {
+        val candidates = mutableListOf<AudioCodecSelection>()
+        try {
+            val codecList = MediaCodecList(MediaCodecList.REGULAR_CODECS)
+            for (info in codecList.codecInfos) {
+                if (!info.isEncoder) continue
+                val hasAac = info.supportedTypes.any { it.equals(MediaFormat.MIMETYPE_AUDIO_AAC, ignoreCase = true) }
+                if (!hasAac) continue
+
+                val encoderType = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    when {
+                        info.isHardwareAccelerated -> EncoderType.HARDWARE
+                        info.isSoftwareOnly -> EncoderType.SOFTWARE
+                        !info.isVendor && (info.name.startsWith("c2.android.") || info.name.startsWith("OMX.google.")) -> EncoderType.SOFTWARE
+                        else -> EncoderType.UNKNOWN
+                    }
+                } else {
+                    val lower = info.name.lowercase()
+                    when {
+                        lower.startsWith("omx.google.") || lower.startsWith("c2.android.") -> EncoderType.SOFTWARE
+                        lower.startsWith("omx.qcom.") || lower.startsWith("c2.qti.") || lower.startsWith("omx.exynos.") -> EncoderType.HARDWARE
+                        else -> EncoderType.UNKNOWN
+                    }
+                }
+
+                var maxBitrate = 512000
+                try {
+                    val caps = info.getCapabilitiesForType(MediaFormat.MIMETYPE_AUDIO_AAC)
+                    caps.audioCapabilities?.bitrateRange?.let { maxBitrate = it.upper }
+                } catch (_: Exception) {}
+
+                candidates.add(
+                    AudioCodecSelection(
+                        codecName = info.name,
+                        encoderType = encoderType,
+                        maxBitrateBps = maxBitrate
+                    )
+                )
+            }
+        } catch (_: Exception) {}
+
+        // Priority: 1. Hardware AAC -> 2. Unknown -> 3. Software Codec2 -> 4. Software OMX -> 5. Fallback
+        return candidates.firstOrNull { it.encoderType == EncoderType.HARDWARE }
+            ?: candidates.firstOrNull { it.encoderType == EncoderType.UNKNOWN }
+            ?: candidates.firstOrNull { it.codecName.startsWith("c2.android.") }
+            ?: candidates.firstOrNull()
+            ?: AudioCodecSelection("c2.android.aac.encoder", EncoderType.SOFTWARE, 510000)
     }
 
     @Synchronized
@@ -70,7 +150,7 @@ class HardwareAudioEncoder {
         isEncoding = true
         isDraining.set(true)
 
-        val thread = Thread({ drainLoop() }, "FairyAudioDrainThread").apply {
+        val thread = Thread({ drainLoop() }, "FairyAacDrainThread").apply {
             priority = Thread.NORM_PRIORITY
             start()
         }
@@ -78,11 +158,11 @@ class HardwareAudioEncoder {
     }
 
     /**
-     * Feeds raw PCM samples into the encoder input buffer.
+     * Feeds raw PCM samples into the encoder input buffer with canonical presentation timestamp.
      */
     fun queuePcm(pcmData: ByteArray, size: Int, presentationTimeUs: Long) {
-        val codec = mediaCodec ?: return
         if (!isEncoding) return
+        val codec = mediaCodec ?: return
 
         try {
             val inputIndex = codec.dequeueInputBuffer(5_000L)
@@ -159,7 +239,9 @@ class HardwareAudioEncoder {
                 AudioStateNotifier.updateMetrics(
                     AudioStateNotifier.currentMetrics.copy(
                         encodedFrames = totalFramesEncoded,
-                        bitrateKbps = currentBitrateKbps
+                        bitrateKbps = currentBitrateKbps,
+                        encoderName = codecSelection?.codecName ?: "unknown",
+                        encoderType = codecSelection?.encoderType ?: EncoderType.UNKNOWN
                     )
                 )
             }
@@ -200,6 +282,6 @@ class HardwareAudioEncoder {
     }
 
     companion object {
-        private const val TAG = "HardwareAudioEncoder"
+        private const val TAG = "AacMediaCodecEncoder"
     }
 }

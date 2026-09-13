@@ -26,6 +26,7 @@ import com.fairylive.app.core.audio.model.AudioSourceType
 import com.fairylive.app.core.capture.CaptureStateNotifier
 import com.fairylive.app.core.capture.ScreenCaptureEngine
 import com.fairylive.app.core.capture.model.CaptureState
+import com.fairylive.app.core.common.MediaClock
 import com.fairylive.app.core.lifecycle.StreamState
 import com.fairylive.app.core.lifecycle.StreamStateNotifier
 import com.fairylive.app.core.permission.PermissionManager
@@ -83,6 +84,7 @@ class FairyStreamService : Service() {
                 captureEngine.stop()
                 videoEncoder.stop()
                 audioPipeline.stop()
+                MediaClock.stopSession()
                 updateNotificationContent("Capture and encoders stopped")
             }
             ACTION_START_AUDIO -> {
@@ -96,6 +98,9 @@ class FairyStreamService : Service() {
             }
             ACTION_STOP_AUDIO -> {
                 audioPipeline.stop()
+                if (!videoEncoder.isEncoding && !captureEngine.isCapturing) {
+                    MediaClock.stopSession()
+                }
             }
             ACTION_REQUEST_KEYFRAME -> {
                 videoEncoder.requestKeyFrame()
@@ -158,6 +163,11 @@ class FairyStreamService : Service() {
         }
         this.activeMediaProjection = projection
 
+        // Ensure canonical session media clock is anchored for shared A/V timestamp synchronization
+        if (!MediaClock.isRunning) {
+            MediaClock.startSession()
+        }
+
         if (enableEncoding) {
             val selection = VideoEncoderCapabilityManager.findOptimalEncoder()
             val app = applicationContext as? FairyLiveApplication
@@ -217,6 +227,10 @@ class FairyStreamService : Service() {
             sourceType = sourceType
         )
 
+        if (!MediaClock.isRunning) {
+            MediaClock.startSession()
+        }
+
         audioPipeline.start(config, activeMediaProjection)
     }
 
@@ -253,6 +267,7 @@ class FairyStreamService : Service() {
         videoEncoder.stop()
         audioPipeline.stop()
         activeMediaProjection = null
+        MediaClock.stopSession()
 
         StreamStateNotifier.updateState(StreamState.IDLE)
         CaptureStateNotifier.updateState(CaptureState.IDLE)
@@ -273,6 +288,7 @@ class FairyStreamService : Service() {
         videoEncoder.stop()
         audioPipeline.stop()
         activeMediaProjection = null
+        MediaClock.stopSession()
 
         StreamStateNotifier.updateState(StreamState.IDLE)
         CaptureStateNotifier.updateState(CaptureState.IDLE)

@@ -167,9 +167,17 @@ class HardwareVideoEncoder {
             val data = ByteArray(bufferInfo.size)
             outputBuffer.get(data)
 
+            val rawPtsUs = bufferInfo.presentationTimeUs
+            val sessionOriginUs = com.fairylive.app.core.common.MediaClock.sessionOriginNs / 1000L
+            val normalizedPtsUs = if (sessionOriginUs > 0) {
+                (rawPtsUs - sessionOriginUs).coerceAtLeast(0L)
+            } else {
+                rawPtsUs
+            }
+
             val frame = EncodedFrame(
                 data = data,
-                presentationTimeUs = bufferInfo.presentationTimeUs,
+                presentationTimeUs = normalizedPtsUs,
                 flags = bufferInfo.flags,
                 size = bufferInfo.size
             )

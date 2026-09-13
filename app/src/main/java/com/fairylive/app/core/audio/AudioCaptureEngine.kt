@@ -99,7 +99,8 @@ class AudioCaptureEngine {
 
         this.audioRecord = record
         this.totalSamplesRead = 0L
-        this.startTimestampUs = SystemClock.elapsedRealtimeNanos() / 1000L
+        val nowNs = SystemClock.elapsedRealtimeNanos()
+        this.startTimestampUs = com.fairylive.app.core.common.MediaClock.toSessionPtsUs(nowNs)
         this.lastAmplitudeUpdateTime = SystemClock.elapsedRealtime()
 
         record.startRecording()

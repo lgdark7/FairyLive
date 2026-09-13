@@ -1,5 +1,7 @@
 package com.fairylive.app.core.audio.model
 
+import com.fairylive.app.core.capability.model.EncoderType
+
 enum class AudioCaptureState {
     IDLE,
     INITIALIZING,
@@ -21,5 +23,13 @@ data class AudioMetrics(
     val sampleRate: Int = 44100,
     val channels: Int = 1,
     val isMuted: Boolean = false,
-    val isDeviceAudio: Boolean = false
-)
+    val isDeviceAudio: Boolean = false,
+    val encoderName: String = "",
+    val encoderType: EncoderType = EncoderType.UNKNOWN
+) {
+    val isHardwareAccelerated: Boolean
+        get() = encoderType == EncoderType.HARDWARE
+
+    val isSoftwareOnly: Boolean
+        get() = encoderType == EncoderType.SOFTWARE
+}

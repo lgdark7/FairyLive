@@ -1,9 +1,7 @@
 package com.fairylive.app
 
-import android.media.MediaCodec
 import android.media.MediaCodecInfo
 import android.media.MediaCodecList
-import android.media.MediaFormat
 import android.os.Build
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.Test
@@ -11,6 +9,43 @@ import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
 class CodecInspectionTest {
+
+    @Test
+    fun inspectAllDeviceAudioEncoders() {
+        val codecList = MediaCodecList(MediaCodecList.ALL_CODECS)
+        println("=== COMPLETE AUDIO CODEC INSPECTION ON DEVICE ===")
+        for (info in codecList.codecInfos) {
+            if (!info.isEncoder) continue
+            val hasAac = info.supportedTypes.any { it.equals("audio/mp4a-latm", ignoreCase = true) }
+            if (!hasAac) continue
+
+            println("--------------------------------------------------")
+            println("Audio Codec Name: ${info.name}")
+            println("Is Encoder: ${info.isEncoder}")
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                println("isHardwareAccelerated: ${info.isHardwareAccelerated}")
+                println("isSoftwareOnly: ${info.isSoftwareOnly}")
+                println("isVendor: ${info.isVendor}")
+            }
+
+            try {
+                val caps = info.getCapabilitiesForType("audio/mp4a-latm")
+                caps.audioCapabilities?.let { ac ->
+                    println("  Sample Rates: ${ac.supportedSampleRateRanges.map { "[${it.lower}, ${it.upper}]" }}")
+                    println("  Max Input Channel Count: ${ac.maxInputChannelCount}")
+                    ac.bitrateRange?.let { br ->
+                        println("  Bitrate Range: [${br.lower} bps, ${br.upper} bps]")
+                    }
+                }
+                val profiles = caps.profileLevels.map { "Profile:${it.profile}/Level:${it.level}" }
+                println("  Profiles: $profiles")
+            } catch (e: Exception) {
+                println("  Error querying caps: ${e.message}")
+            }
+        }
+        println("==================================================")
+    }
 
     @Test
     fun inspectAllDeviceVideoEncoders() {
@@ -53,6 +88,7 @@ class CodecInspectionTest {
                         println("  isSizeSupported(1080, 2400): ${vc.isSizeSupported(1080, 2400)}")
                         println("  isSizeSupported(1080, 1920): ${vc.isSizeSupported(1080, 1920)}")
                         println("  isSizeSupported(720, 1600): ${vc.isSizeSupported(720, 1600)}")
+                        println("  isSizeSupported(480, 1056): ${vc.isSizeSupported(480, 1056)}")
                         println("  isSizeSupported(854, 480): ${vc.isSizeSupported(854, 480)}")
                         println("  isSizeSupported(1280, 720): ${vc.isSizeSupported(1280, 720)}")
                         println("  isSizeSupported(1920, 1080): ${vc.isSizeSupported(1920, 1080)}")

@@ -412,8 +412,13 @@ class DashboardFragment : Fragment(),
                 binding.tvAudioStatusBadge.setTextColor(ContextCompat.getColor(ctx, R.color.status_amber))
             }
             AudioCaptureState.RECORDING -> {
-                binding.tvAudioStatusBadge.text = "RECORDING (LIVE)"
-                binding.tvAudioStatusBadge.setTextColor(ContextCompat.getColor(ctx, R.color.status_green))
+                if (metrics.isHardwareAccelerated) {
+                    binding.tvAudioStatusBadge.text = "HARDWARE AUDIO ENCODING"
+                    binding.tvAudioStatusBadge.setTextColor(ContextCompat.getColor(ctx, R.color.status_green))
+                } else {
+                    binding.tvAudioStatusBadge.text = "SOFTWARE AUDIO ENCODER (FALLBACK)"
+                    binding.tvAudioStatusBadge.setTextColor(ContextCompat.getColor(ctx, R.color.status_amber))
+                }
                 binding.btnStartAudio.visibility = View.GONE
                 binding.layoutAudioControls.visibility = View.VISIBLE
                 binding.btnMuteAudio.text = "Mute"
@@ -423,7 +428,13 @@ class DashboardFragment : Fragment(),
                 binding.tvAudioLevelLabel.text = "Input Level: ${metrics.peakAmplitudePercent}%"
 
                 val sourceText = if (metrics.isDeviceAudio) "Device Audio" else "Microphone"
-                binding.tvAudioTelemetry.text = "Enc: ${metrics.encodedFrames} frames | ${metrics.bitrateKbps} kbps | ${metrics.sampleRate}Hz ${metrics.channels}ch | $sourceText | PTS Sync: OK"
+                val typeLabel = when (metrics.encoderType) {
+                    com.fairylive.app.core.capability.model.EncoderType.HARDWARE -> "[HW]"
+                    com.fairylive.app.core.capability.model.EncoderType.SOFTWARE -> "[SW]"
+                    com.fairylive.app.core.capability.model.EncoderType.UNKNOWN -> "[UNK]"
+                }
+                val codecDisplay = if (metrics.encoderName.isNotEmpty()) "$typeLabel ${metrics.encoderName}" else "AAC"
+                binding.tvAudioTelemetry.text = "Enc: ${metrics.encodedFrames} frames | ${metrics.bitrateKbps} kbps | ${metrics.sampleRate}Hz ${metrics.channels}ch | $sourceText | $codecDisplay | A/V Monotonic: Synced"
             }
             AudioCaptureState.MUTED -> {
                 binding.tvAudioStatusBadge.text = "MUTED"
@@ -435,7 +446,7 @@ class DashboardFragment : Fragment(),
 
                 binding.pbAudioLevel.progress = 0
                 binding.tvAudioLevelLabel.text = "Input Level: MUTED"
-                binding.tvAudioTelemetry.text = "Enc: ${metrics.encodedFrames} frames | MUTED (Silence Gen) | PTS Sync: Preserved"
+                binding.tvAudioTelemetry.text = "Enc: ${metrics.encodedFrames} frames | MUTED (Silence Gen) | A/V Monotonic: Preserved"
             }
             AudioCaptureState.PAUSED, AudioCaptureState.STOPPING -> {
                 binding.tvAudioStatusBadge.text = state.name

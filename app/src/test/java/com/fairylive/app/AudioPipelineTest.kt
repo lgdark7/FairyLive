@@ -165,4 +165,70 @@ class AudioPipelineTest {
         // On JVM tests, Build.VERSION.SDK_INT is 0, so should be false
         assertFalse(isSupported)
     }
+
+    @Test
+    fun testMediaClockSessionLifecycle() {
+        com.fairylive.app.core.common.MediaClock.stopSession()
+        assertFalse(com.fairylive.app.core.common.MediaClock.isRunning)
+        assertEquals(0L, com.fairylive.app.core.common.MediaClock.sessionOriginNs)
+
+        val t0 = com.fairylive.app.core.common.MediaClock.startSession()
+        assertTrue(com.fairylive.app.core.common.MediaClock.isRunning)
+        assertTrue(t0 > 0L)
+
+        // 100 milliseconds later (100,000,000 ns)
+        val t1 = t0 + 100_000_000L
+        val ptsUs = com.fairylive.app.core.common.MediaClock.toSessionPtsUs(t1)
+        assertEquals(100_000L, ptsUs)
+
+        com.fairylive.app.core.common.MediaClock.stopSession()
+        assertFalse(com.fairylive.app.core.common.MediaClock.isRunning)
+    }
+
+    @Test
+    fun testSharedAvClockDeterministicAlignment() {
+        com.fairylive.app.core.common.MediaClock.stopSession()
+        val originNs = com.fairylive.app.core.common.MediaClock.startSession()
+        val originUs = originNs / 1000L
+
+        // Video frame captured 40ms into session
+        val rawVideoPtsUs = originUs + 40_000L
+        val normalizedVideoPtsUs = (rawVideoPtsUs - originUs).coerceAtMost(Long.MAX_VALUE)
+        assertEquals(40_000L, normalizedVideoPtsUs)
+
+        // Audio sample recording starts 10ms into session, reads 1024 samples at 44.1kHz (~23.2ms)
+        val audioStartRawNs = originNs + 10_000_000L
+        val audioStartPtsUs = com.fairylive.app.core.common.MediaClock.toSessionPtsUs(audioStartRawNs)
+        assertEquals(10_000L, audioStartPtsUs)
+
+        val sampleRate = 44100L
+        val samplesRead = 1024L
+        val nextAudioPtsUs = audioStartPtsUs + (samplesRead * 1_000_000L) / sampleRate
+        assertEquals(33219L, nextAudioPtsUs)
+
+        // Relative offset between Video PTS and Audio PTS is deterministic and derived from same t0
+        val relativeOffsetUs = normalizedVideoPtsUs - nextAudioPtsUs
+        assertEquals(6781L, relativeOffsetUs)
+
+        com.fairylive.app.core.common.MediaClock.stopSession()
+    }
+
+    @Test
+    fun testAudioEncoderClassification() {
+        val swMetrics = AudioMetrics(
+            encodedFrames = 50L,
+            encoderName = "c2.android.aac.encoder",
+            encoderType = com.fairylive.app.core.capability.model.EncoderType.SOFTWARE
+        )
+        assertFalse(swMetrics.isHardwareAccelerated)
+        assertTrue(swMetrics.isSoftwareOnly)
+
+        val hwMetrics = AudioMetrics(
+            encodedFrames = 50L,
+            encoderName = "c2.qti.aac.encoder",
+            encoderType = com.fairylive.app.core.capability.model.EncoderType.HARDWARE
+        )
+        assertTrue(hwMetrics.isHardwareAccelerated)
+        assertFalse(hwMetrics.isSoftwareOnly)
+    }
 }

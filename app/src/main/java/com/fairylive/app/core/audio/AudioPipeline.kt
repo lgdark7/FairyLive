@@ -11,11 +11,11 @@ import com.fairylive.app.core.audio.model.EncodedAudioFrame
 class AudioPipeline {
 
     val captureEngine = AudioCaptureEngine()
-    val audioEncoder = HardwareAudioEncoder()
+    val audioEncoder = AacMediaCodecEncoder()
 
     private var config: AudioCaptureConfig = AudioCaptureConfig()
 
-    fun setEncodedAudioFrameListener(listener: HardwareAudioEncoder.EncodedAudioFrameListener?) {
+    fun setEncodedAudioFrameListener(listener: AacMediaCodecEncoder.EncodedAudioFrameListener?) {
         audioEncoder.setEncodedAudioFrameListener(listener)
     }
 
@@ -24,6 +24,8 @@ class AudioPipeline {
         config: AudioCaptureConfig = AudioCaptureConfig(),
         mediaProjection: MediaProjection? = null
     ) {
+        stop()
+
         this.config = config
 
         // 1. Initialize and start AAC audio encoder
@@ -51,6 +53,7 @@ class AudioPipeline {
 
     @Synchronized
     fun stop() {
+        captureEngine.setAudioSampleListener(null)
         captureEngine.stop()
         audioEncoder.stop()
     }
