@@ -1,0 +1,47 @@
+# FAIRY LIVE — DEVELOPMENT LOG
+
+## 2026-09-13 — Milestone 0: Environment Audit & Project Foundation
+- **Milestone**: M0 — Environment Audit & Project Foundation
+- **Work Performed**:
+  - Inspected Windows host development environment (Android Studio, JDK, Android SDK, ADB, Emulators, storage).
+  - Identified compatible JDK 17 (`jdk17`) to resolve incompatibility between Gradle 8.10 and host Java 25/26.
+  - Configured `gradle.properties` with explicit `org.gradle.java.home`.
+  - Configured native Android project with Kotlin 1.9.22, AGP 8.2.2, compileSdk 34, minSdk 24, targetSdk 34.
+  - Added baseline unit test (`BaselineUnitTest.kt`) to establish JVM test execution verification.
+  - Established Git repository (`main` branch) with comprehensive `.gitignore` filtering build artifacts and large local tools.
+  - Authored foundational engineering specifications: `PROJECT_MEMORY.md`, `ARCHITECTURE.md`, `REQUIREMENTS.md`, `TESTING.md`, `PERFORMANCE.md`.
+  - Booted Android 15 (API 35) emulator `Pixel_8` via ADB tooling.
+  - Installed and launched `com.fairylive.app`.
+  - Captured cold launch latency, memory footprint, logcat diagnostics, and visual screenshot.
+- **Files Created**:
+  - `.gitignore`
+  - `app/src/test/java/com/fairylive/app/BaselineUnitTest.kt`
+  - `PROJECT_MEMORY.md`
+  - `ARCHITECTURE.md`
+  - `REQUIREMENTS.md`
+  - `TESTING.md`
+  - `PERFORMANCE.md`
+  - `DEVELOPMENT_LOG.md`
+- **Files Modified**:
+  - `gradle.properties` (added `org.gradle.java.home`)
+- **Tests Executed**:
+  - Build test: `./gradlew assembleDebug` -> PASS (apk generated, 5.5MB)
+  - Unit test: `./gradlew testDebugUnitTest` -> PASS (2/2 passed)
+  - Install test: `adb install -r app/build/outputs/apk/debug/app-debug.apk` -> PASS (Success)
+  - Cold Launch test: `adb shell am start -n com.fairylive.app/.MainActivity -W` -> PASS (TotalTime: 2419ms)
+  - Memory audit: `adb shell dumpsys meminfo com.fairylive.app` -> PASS (PSS: 47.9MB)
+  - Runtime logcat error audit: `adb logcat -d -s AndroidRuntime:E` -> PASS (0 errors)
+- **Errors Encountered**:
+  - Gradle 8.10 threw exception with Java 25.0.2 launcher.
+- **Fixes Applied**:
+  - Pinned `org.gradle.java.home=C:/Users/benny/Desktop/FAIRY LIVE/jdk17` and set `JAVA_HOME`.
+- **Performance Results**:
+  - Cold launch time: 2,419 ms
+  - Total PSS: 47,972 kB (~47.9 MB)
+  - Private dirty memory: 34,888 kB
+  - APK size: 5.5 MB
+- **Architecture Decisions**:
+  - Decoupled stream rendering from UI layouts.
+  - Zero-copy Surface-to-Surface pipeline with MediaCodec for low-end device optimization.
+- **ChatGPT Feedback**:
+  - Status: Milestone 0 report ready for external ChatGPT review (`WAITING_FOR_CHATGPT`).
