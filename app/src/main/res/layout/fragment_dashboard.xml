@@ -102,7 +102,130 @@
             </LinearLayout>
         </androidx.cardview.widget.CardView>
 
-        <!-- Card 2: Foreground Service & Lifecycle Controller -->
+        <!-- Card 2: Screen Capture Controller (Milestone 2) -->
+        <androidx.cardview.widget.CardView
+            android:id="@+id/card_capture"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            app:cardBackgroundColor="@color/bg_card"
+            app:cardCornerRadius="12dp"
+            app:cardElevation="2dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <ImageView
+                        android:layout_width="24dp"
+                        android:layout_height="24dp"
+                        android:src="@drawable/ic_dashboard" />
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="8dp"
+                        android:layout_weight="1"
+                        android:text="Screen Capture Pipeline"
+                        android:textColor="@color/text_primary"
+                        android:textSize="16sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/tv_capture_status_badge"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:background="@drawable/bg_status_badge"
+                        android:paddingHorizontal="10dp"
+                        android:paddingVertical="3dp"
+                        android:text="CAPTURE IDLE"
+                        android:textColor="@color/status_amber"
+                        android:textSize="11sp"
+                        android:textStyle="bold" />
+                </LinearLayout>
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:text="Zero-copy MediaProjection &amp; VirtualDisplay stream source"
+                    android:textColor="@color/text_muted"
+                    android:textSize="11sp" />
+
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:layout_marginVertical="12dp"
+                    android:background="@color/divider_color" />
+
+                <TextView
+                    android:id="@+id/tv_capture_telemetry"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:fontFamily="monospace"
+                    android:text="Frames: 0 | FPS: 0.0 | Standby"
+                    android:textColor="@color/fairy_cyan"
+                    android:textSize="12sp" />
+
+                <!-- Action: Start Capture Button -->
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btn_start_capture"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:backgroundTint="@color/fairy_purple"
+                    android:text="Start Screen Capture"
+                    android:textColor="@color/text_primary"
+                    app:cornerRadius="8dp" />
+
+                <!-- Action Controls while Capturing (Pause & Stop) -->
+                <LinearLayout
+                    android:id="@+id/layout_capture_active_controls"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:orientation="horizontal"
+                    android:visibility="gone">
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btn_pause_capture"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginEnd="6dp"
+                        android:layout_weight="1"
+                        android:backgroundTint="@color/bg_surface"
+                        android:text="Pause"
+                        android:textColor="@color/status_amber"
+                        app:cornerRadius="8dp"
+                        app:strokeColor="@color/status_amber"
+                        app:strokeWidth="1dp" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btn_stop_capture"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="6dp"
+                        android:layout_weight="1"
+                        android:backgroundTint="@color/bg_surface"
+                        android:text="Stop"
+                        android:textColor="@color/status_red"
+                        app:cornerRadius="8dp"
+                        app:strokeColor="@color/status_red"
+                        app:strokeWidth="1dp" />
+                </LinearLayout>
+
+            </LinearLayout>
+        </androidx.cardview.widget.CardView>
+
+        <!-- Card 3: Foreground Service & Lifecycle Controller -->
         <androidx.cardview.widget.CardView
             android:id="@+id/card_service"
             android:layout_width="match_parent"
@@ -162,7 +285,7 @@
             </LinearLayout>
         </androidx.cardview.widget.CardView>
 
-        <!-- Card 3: Permissions Foundation -->
+        <!-- Card 4: Permissions Foundation -->
         <androidx.cardview.widget.CardView
             android:id="@+id/card_permissions"
             android:layout_width="match_parent"

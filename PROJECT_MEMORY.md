@@ -24,24 +24,30 @@ Rebuild **FAIRY LIVE** from scratch as a high-performance, professional native A
 - **JVM Target**: Java 17 (`jdk17` Temurin distribution pinned in `gradle.properties`)
 - **UI Architecture**: ViewBinding, Material Components, Lifecycle KTX, Fragments with BottomNavigationView
 - **Services Architecture**: Android ForegroundService with NotificationChannel and MediaProjection/Microphone foreground types
+- **Capture Engine**: MediaProjection + VirtualDisplay + Zero-Copy Surface / ImageReader (triple-buffered) pipeline
 
 ---
 
 ## 4. Current Milestone Status
 - **Completed Milestones**: 
   - **M0: Environment Audit & Project Foundation** (Approved by ChatGPT on 2026-09-13)
-- **Current Milestone**: **Milestone 1: APPLICATION FOUNDATION**
-  - Scope: Application shell, navigation, base UI, settings foundation, permission foundation, lifecycle foundation, service foundation, device capability foundation.
+  - **M1: Application Foundation & Shell** (Approved by ChatGPT on 2026-09-13)
+- **Current Milestone**: **Milestone 2: SCREEN CAPTURE**
+  - Scope: Native MediaProjection permission/authorization flow, session management, capture Surface, foreground-service integration (`FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION`), start/stop/pause/resume, orientation handling, resource cleanup, zero-copy architecture.
   - Status: Complete & Verified locally — **WAITING_FOR_CHATGPT** review.
-- **Pending Milestones**: M2 through M15 (M2 Screen Capture strictly gated on M1 ChatGPT approval).
+- **Pending Milestones**: M3 through M15 (M3 Hardware Video Encoding strictly gated on M2 ChatGPT approval).
 
 ---
 
 ## 5. Bugs & Fixes Encountered
 - **M0 Bug**: Host default JDK 25 was incompatible with Gradle 8.10.
   - **Fix**: Pinned `org.gradle.java.home=C:/Users/benny/Desktop/FAIRY LIVE/jdk17` in `gradle.properties`.
-- **M1 Bug**: Calling `startForeground` with `FOREGROUND_SERVICE_TYPE_MICROPHONE` on Android 14+ threw `ForegroundServiceStartNotAllowedException` when `RECORD_AUDIO` was not yet granted or when called from shell UID.
-  - **Fix**: Added proactive permission validation in `DashboardFragment` before starting service, wrapped `startForeground` in try-catch in `FairyStreamService` with state transition to `StreamState.ERROR` on failure, and verified clean foreground execution with granted permissions.
+- **M1 Bug**: Calling `startForeground` with `FOREGROUND_SERVICE_TYPE_MICROPHONE` on Android 14+ threw `ForegroundServiceStartNotAllowedException` when permissions were ungranted.
+  - **Fix**: Added proactive permission validation in `DashboardFragment`, wrapped `startForeground` in try-catch with error fallback.
+- **M2 Bug**: `BufferQueue has been abandoned` during initial screen capture on Android 15.
+  - **Root Cause 1**: Odd height dimension (`2205`) passed from `resources.displayMetrics` caused SurfaceFlinger buffer rejection.
+  - **Root Cause 2**: Redundant ImageReader recreation in `updateResolution` during dialog dismiss closed the active Surface.
+  - **Fix**: Enforced strict even-dimension alignment (`(dim / 2) * 2`), queried full window metrics (`1080x2400`), guarded `updateResolution` against recreating surfaces when dimensions do not change, and upgraded ImageReader buffer pool to triple-buffering (`maxImages = 3`).
 
 ---
 
@@ -51,11 +57,12 @@ Rebuild **FAIRY LIVE** from scratch as a high-performance, professional native A
 ---
 
 ## 7. Performance Findings
-- **Cold Start Duration**: 1,148 ms (52% faster than M0 baseline of 2,419 ms)
-- **Total PSS Memory**: 61.5 MB with full UI shell, 3 fragments, and background service foundation
-- **Dalvik Heap (Allocated)**: 4.0 MB
-- **Native Heap (Allocated)**: 21.5 MB
-- **APK Footprint**: 5.7 MB (within 15 MB release budget)
+- **Cold Start Duration**: 1,142 ms
+- **Active Capture Total PSS**: 61.8 MB (virtually zero overhead over M1's 61.5 MB baseline!)
+- **Dalvik Heap (Allocated)**: 4.8 MB
+- **Native Heap (Allocated)**: 24.3 MB (freed back to 21.1 MB on capture stop)
+- **CPU Utilization (Capture)**: ~15% on emulator
+- **APK Footprint**: 6.7 MB (well within 15 MB release budget)
 
 ---
 
@@ -86,5 +93,6 @@ Rebuild **FAIRY LIVE** from scratch as a high-performance, professional native A
 ---
 
 ## 10. ChatGPT Decisions & Approvals
-- **M0**: Explicitly approved by ChatGPT.
-- **M1**: Implemented and verified, submitted for review.
+- **M0**: Approved by ChatGPT on 2026-09-13.
+- **M1**: Approved by ChatGPT on 2026-09-13.
+- **M2**: Implemented and verified, submitted for review.

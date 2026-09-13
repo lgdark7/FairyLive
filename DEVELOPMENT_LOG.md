@@ -1,83 +1,64 @@
 # FAIRY LIVE — DEVELOPMENT LOG
 
+## 2026-09-13 — Milestone 2: Screen Capture
+- **Milestone**: M2 — Screen Capture
+- **Work Performed**:
+  - Implemented Native Screen Capture Engine (`core/capture`): `ScreenCaptureEngine`, `CaptureState`, `CaptureMetrics`, `CaptureStateNotifier`.
+  - Integrated zero-copy `MediaProjection` and `VirtualDisplay` pipeline with triple-buffered `ImageReader` (RGBA_8888) with immediate buffer recycling (`image.close()`) and zero Bitmap copies.
+  - Configured foreground service integration promoting `FairyStreamService` to `FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION | FOREGROUND_SERVICE_TYPE_MICROPHONE`.
+  - Enforced strict even-dimension alignment (`1080x2400`) to prevent SurfaceFlinger buffer rejection.
+  - Handled MediaProjection system authorization flow with activity result contracts and clean permission denial handling.
+  - Implemented pause and resume support (`virtualDisplay.surface = null` / `captureSurface`).
+  - Implemented safe teardown and resource cleanup in `stop()`.
+  - Built real-time capture telemetry (frame counter, live FPS, active resolution & DPI).
+  - Added unit test suite `ScreenCaptureTest.kt` (15/15 unit tests passing across project).
+  - Validated live on Google Pixel 8 Android 15 emulator:
+    * Authorization dialog and permission denial.
+    * Active screen capture (over 180+ frames captured continuously with live FPS).
+    * Pause / resume toggling.
+    * Clean stop and repeated start/stop.
+    * App backgrounding (swiping on home screen while capturing continuously).
+    * Screen lock and unlock survival.
+    * Orientation rotation (portrait -> landscape -> portrait).
+    * Memory and CPU profiling (Total PSS 61.8 MB, 0 graphics leaks, clean reclamation).
+- **Files Created**:
+  - `app/src/main/java/com/fairylive/app/core/capture/ScreenCaptureEngine.kt`
+  - `app/src/main/java/com/fairylive/app/core/capture/CaptureStateNotifier.kt`
+  - `app/src/main/java/com/fairylive/app/core/capture/model/CaptureState.kt`
+  - `app/src/test/java/com/fairylive/app/ScreenCaptureTest.kt`
+- **Files Modified**:
+  - `app/src/main/java/com/fairylive/app/service/FairyStreamService.kt` (MediaProjection foreground promotion, capture actions, updateResolution)
+  - `app/src/main/java/com/fairylive/app/ui/dashboard/DashboardFragment.kt` (MediaProjection launcher, capture controller UI, telemetry observers)
+  - `app/src/main/res/layout/fragment_dashboard.xml` (Screen Capture card, status badge, telemetry display, action controls)
+  - `PROJECT_MEMORY.md`
+  - `TESTING.md`
+  - `PERFORMANCE.md`
+- **Tests**:
+  - Unit Tests: 15/15 passing
+  - MediaProjection Authorization: PASS
+  - Capture Start: PASS
+  - Capture Stop: PASS
+  - Repeated Start/Stop: PASS
+  - Background/Foreground: PASS (continued capturing in background)
+  - Screen Lock/Unlock: PASS (survived with zero errors)
+  - Orientation Handling: PASS (handled rotation cleanly)
+  - Permission Denial: PASS (handled without crashing)
+  - Resource Cleanup: PASS (memory reclaimed to 61.5 MB)
+- **ChatGPT Feedback**:
+  - M1 approved on 2026-09-13. M2 ready for external review (`WAITING_FOR_CHATGPT`).
+
+---
+
 ## 2026-09-13 — Milestone 1: Application Foundation
 - **Milestone**: M1 — Application Foundation
 - **Work Performed**:
-  - Implemented Device Capability Foundation (`core/capability`): `RamMetrics`, `CpuMetrics`, `EncoderCapability`, `DeviceCapability`, `StreamProfile`, and `DeviceCapabilityDetector`.
-  - Created device tier recommendation logic enforcing the `LOW` (480p @ 24fps) profile on constrained hardware (< 3GB RAM, <= 4 CPU cores, or software-only video encoder).
-  - Implemented Lifecycle Foundation (`core/lifecycle`): `StreamState` state machine (`IDLE`, `STARTING`, `READY`, `STREAMING`, `PAUSED`, `STOPPING`, `ERROR`) and thread-safe `StreamStateNotifier`.
-  - Implemented Permission Foundation (`core/permission`): `PermissionManager` covering `POST_NOTIFICATIONS`, `RECORD_AUDIO`, and `CAMERA`.
-  - Implemented Settings Foundation (`core/settings`): `StreamSettings` data model with encoder-safe dimensional clamping and `StreamSettingsRepository` backed by SharedPreferences.
-  - Implemented Service Foundation (`service`): `FairyStreamService` foreground service with `NotificationChannel`, ongoing status notification, stop action PendingIntent, and Android 14/15 foreground type handling.
-  - Implemented Base UI & Application Shell (`ui`):
-    - `MainActivity` with bottom navigation between Dashboard, Settings, and Diagnostics.
-    - `DashboardFragment`: Hardware profiling card, service lifecycle controller, permission status indicators with request action.
-    - `SettingsFragment`: RTMP ingest URL, stream key, preset selector, and configuration persistence.
-    - `DiagnosticsFragment`: Full hardware breakdown, codec list, memory statistics, and OS properties.
-  - Added unit test suites (`DeviceCapabilityTest`, `StreamSettingsTest`, `StreamLifecycleTest`) — 12/12 unit tests passing.
-  - Installed and verified live on Google Pixel 8 Android 15 emulator.
-  - Validated foreground service startup and teardown, notification display, and settings round-trip storage.
-- **Files Created**:
-  - `app/src/main/java/com/fairylive/app/FairyLiveApplication.kt`
-  - `app/src/main/java/com/fairylive/app/core/capability/model/StreamProfile.kt`
-  - `app/src/main/java/com/fairylive/app/core/capability/model/RamMetrics.kt`
-  - `app/src/main/java/com/fairylive/app/core/capability/model/CpuMetrics.kt`
-  - `app/src/main/java/com/fairylive/app/core/capability/model/EncoderCapability.kt`
-  - `app/src/main/java/com/fairylive/app/core/capability/model/DeviceCapability.kt`
-  - `app/src/main/java/com/fairylive/app/core/capability/DeviceCapabilityDetector.kt`
-  - `app/src/main/java/com/fairylive/app/core/lifecycle/StreamState.kt`
-  - `app/src/main/java/com/fairylive/app/core/lifecycle/StreamStateNotifier.kt`
-  - `app/src/main/java/com/fairylive/app/core/permission/PermissionManager.kt`
-  - `app/src/main/java/com/fairylive/app/core/settings/StreamSettings.kt`
-  - `app/src/main/java/com/fairylive/app/core/settings/StreamSettingsRepository.kt`
-  - `app/src/main/java/com/fairylive/app/service/FairyStreamService.kt`
-  - `app/src/main/java/com/fairylive/app/ui/dashboard/DashboardFragment.kt`
-  - `app/src/main/java/com/fairylive/app/ui/settings/SettingsFragment.kt`
-  - `app/src/main/java/com/fairylive/app/ui/diagnostics/DiagnosticsFragment.kt`
-  - `app/src/main/res/menu/bottom_nav_menu.xml`
-  - `app/src/main/res/layout/fragment_dashboard.xml`
-  - `app/src/main/res/layout/fragment_settings.xml`
-  - `app/src/main/res/layout/fragment_diagnostics.xml`
-  - `app/src/main/res/drawable/ic_dashboard.xml`
-  - `app/src/main/res/drawable/ic_settings.xml`
-  - `app/src/main/res/drawable/ic_diagnostics.xml`
-  - `app/src/main/res/drawable/ic_play.xml`
-  - `app/src/main/res/drawable/ic_stop.xml`
-  - `app/src/main/res/drawable/ic_check_circle.xml`
-  - `app/src/main/res/drawable/ic_warning.xml`
-  - `app/src/main/res/drawable/ic_chip.xml`
-  - `app/src/main/res/drawable/bg_card_rounded.xml`
-  - `app/src/main/res/drawable/bg_status_badge.xml`
-  - `app/src/main/res/drawable/bg_tag_rounded.xml`
-  - `app/src/test/java/com/fairylive/app/DeviceCapabilityTest.kt`
-  - `app/src/test/java/com/fairylive/app/StreamSettingsTest.kt`
-  - `app/src/test/java/com/fairylive/app/StreamLifecycleTest.kt`
-- **Files Modified**:
-  - `app/build.gradle.kts` (added lifecycle-ktx, fragment-ktx dependencies)
-  - `app/src/main/AndroidManifest.xml` (added foreground service, permissions, application class)
-  - `app/src/main/java/com/fairylive/app/MainActivity.kt` (navigation and status integration)
-  - `app/src/main/res/layout/activity_main.xml` (top bar, container, bottom navigation)
-  - `app/src/main/res/values/colors.xml` (dark studio theme colors)
-  - `app/src/main/res/values/themes.xml` (NoActionBar theme)
-  - `app/src/main/res/values/strings.xml` (M1 strings)
-- **Tests**:
-  - JVM Unit Tests: 12/12 passing (`BaselineUnitTest`, `DeviceCapabilityTest`, `StreamSettingsTest`, `StreamLifecycleTest`)
-  - Assemble: PASS (`app-debug.apk`, 5.7 MB)
-  - Install: PASS (`adb install -r`)
-  - Cold Launch: PASS (1,148 ms)
-  - Service Lifecycle: PASS (foreground service started, verified in dumpsys, notification displayed, stopped cleanly)
-  - Settings Persistence: PASS (round-trip saved in SharedPreferences)
-- **ChatGPT Feedback**:
-  - M0 approved. M1 waiting for external review (`WAITING_FOR_CHATGPT`).
+  - Implemented Device Capability Foundation, Lifecycle Foundation, Permission Foundation, Settings Foundation, Service Foundation, and Application Shell UI.
+  - Approved by ChatGPT on 2026-09-13.
 
 ---
 
 ## 2026-09-13 — Milestone 0: Environment Audit & Project Foundation
 - **Milestone**: M0 — Environment Audit & Project Foundation
 - **Work Performed**:
-  - Inspected Windows host development environment (Android Studio, JDK, Android SDK, ADB, Emulators, storage).
-  - Pinned `org.gradle.java.home=C:/Users/benny/Desktop/FAIRY LIVE/jdk17`.
-  - Configured native Android project with Kotlin 1.9.22, AGP 8.2.2.
-  - Booted Android 15 emulator, built, installed, launched, profiled, and captured baseline.
-- **ChatGPT Feedback**:
+  - Initialized native Android project with Kotlin 1.9.22, AGP 8.2.2, JDK 17, and established baseline.
   - Approved by ChatGPT on 2026-09-13.

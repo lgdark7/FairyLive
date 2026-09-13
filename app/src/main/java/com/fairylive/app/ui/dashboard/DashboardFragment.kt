@@ -1,22 +1,32 @@
 package com.fairylive.app.ui.dashboard
 
+import android.app.Activity
 import android.content.Context
+import android.content.res.Configuration
+import android.media.projection.MediaProjectionManager
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import com.fairylive.app.FairyLiveApplication
 import com.fairylive.app.R
+import com.fairylive.app.core.capture.CaptureStateNotifier
+import com.fairylive.app.core.capture.model.CaptureMetrics
+import com.fairylive.app.core.capture.model.CaptureState
 import com.fairylive.app.core.lifecycle.StreamState
 import com.fairylive.app.core.lifecycle.StreamStateNotifier
 import com.fairylive.app.core.permission.PermissionManager
 import com.fairylive.app.databinding.FragmentDashboardBinding
 import com.fairylive.app.service.FairyStreamService
 
-class DashboardFragment : Fragment(), StreamStateNotifier.Listener {
+class DashboardFragment : Fragment(),
+    StreamStateNotifier.Listener,
+    CaptureStateNotifier.StateListener,
+    CaptureStateNotifier.MetricsListener {
 
     private var _binding: FragmentDashboardBinding? = null
     private val binding get() = _binding!!
@@ -25,6 +35,37 @@ class DashboardFragment : Fragment(), StreamStateNotifier.Listener {
         ActivityResultContracts.RequestMultiplePermissions()
     ) { _ ->
         updatePermissionIndicators()
+    }
+
+    private val projectionLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK && result.data != null) {
+            val ctx = requireContext()
+            val windowMetrics = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+                requireActivity().windowManager.currentWindowMetrics
+            } else {
+                null
+            }
+            val bounds = windowMetrics?.bounds
+            val rawW = bounds?.width() ?: resources.displayMetrics.widthPixels
+            val rawH = bounds?.height() ?: resources.displayMetrics.heightPixels
+            val safeWidth = (rawW / 2) * 2
+            val safeHeight = (rawH / 2) * 2
+            val dpi = resources.configuration.densityDpi
+
+            FairyStreamService.startCapture(
+                context = ctx,
+                resultCode = result.resultCode,
+                data = result.data!!,
+                width = safeWidth,
+                height = safeHeight,
+                dpi = dpi
+            )
+        } else {
+            Toast.makeText(requireContext(), "Screen capture permission denied", Toast.LENGTH_SHORT).show()
+            CaptureStateNotifier.updateState(CaptureState.IDLE)
+        }
     }
 
     override fun onCreateView(
@@ -39,18 +80,37 @@ class DashboardFragment : Fragment(), StreamStateNotifier.Listener {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         StreamStateNotifier.addListener(this)
+        CaptureStateNotifier.addStateListener(this)
+        CaptureStateNotifier.addMetricsListener(this)
 
         bindDeviceCapability()
+        bindCaptureControls()
         bindServiceController()
         bindPermissionControls()
         updatePermissionIndicators()
         updateServiceState(StreamStateNotifier.currentState)
+        updateCaptureUI(CaptureStateNotifier.currentState, CaptureStateNotifier.currentMetrics)
     }
 
     override fun onDestroyView() {
         super.onDestroyView()
         StreamStateNotifier.removeListener(this)
+        CaptureStateNotifier.removeStateListener(this)
+        CaptureStateNotifier.removeMetricsListener(this)
         _binding = null
+    }
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        if (CaptureStateNotifier.currentState.isActive) {
+            val metrics = resources.displayMetrics
+            FairyStreamService.updateResolution(
+                requireContext(),
+                metrics.widthPixels,
+                metrics.heightPixels,
+                metrics.densityDpi
+            )
+        }
     }
 
     private fun bindDeviceCapability() {
@@ -71,17 +131,42 @@ class DashboardFragment : Fragment(), StreamStateNotifier.Listener {
         binding.tvEncoderInfo.text = encoderText
     }
 
+    private fun bindCaptureControls() {
+        binding.btnStartCapture.setOnClickListener {
+            val ctx = requireContext()
+            val missing = PermissionManager.getMissingPermissions(ctx)
+            if (missing.isNotEmpty()) {
+                Toast.makeText(ctx, "Grant required permissions first", Toast.LENGTH_SHORT).show()
+                permissionLauncher.launch(missing.toTypedArray())
+                return@setOnClickListener
+            }
+
+            CaptureStateNotifier.updateState(CaptureState.AUTHORIZING)
+            val projectionManager = ctx.getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
+            projectionLauncher.launch(projectionManager.createScreenCaptureIntent())
+        }
+
+        binding.btnPauseCapture.setOnClickListener {
+            val ctx = requireContext()
+            if (CaptureStateNotifier.currentState == CaptureState.PAUSED) {
+                FairyStreamService.resumeCapture(ctx)
+            } else {
+                FairyStreamService.pauseCapture(ctx)
+            }
+        }
+
+        binding.btnStopCapture.setOnClickListener {
+            FairyStreamService.stopCapture(requireContext())
+        }
+    }
+
     private fun bindServiceController() {
         binding.btnToggleService.setOnClickListener {
             val ctx = requireContext()
             if (StreamStateNotifier.currentState.isIdle) {
                 val missing = PermissionManager.getMissingPermissions(ctx)
                 if (missing.isNotEmpty()) {
-                    android.widget.Toast.makeText(
-                        ctx,
-                        "Permissions required before starting service",
-                        android.widget.Toast.LENGTH_SHORT
-                    ).show()
+                    Toast.makeText(ctx, "Permissions required before starting service", Toast.LENGTH_SHORT).show()
                     permissionLauncher.launch(missing.toTypedArray())
                     return@setOnClickListener
                 }
@@ -113,11 +198,7 @@ class DashboardFragment : Fragment(), StreamStateNotifier.Listener {
         setIndicator(binding.ivCameraPermIcon, binding.tvCameraPermLabel, cameraGranted, "Camera (Face Cam)")
 
         val allGranted = audioGranted && notifyGranted && cameraGranted
-        if (allGranted) {
-            binding.btnRequestPermissions.visibility = View.GONE
-        } else {
-            binding.btnRequestPermissions.visibility = View.VISIBLE
-        }
+        binding.btnRequestPermissions.visibility = if (allGranted) View.GONE else View.VISIBLE
     }
 
     private fun setIndicator(iv: android.widget.ImageView, tv: android.widget.TextView, granted: Boolean, baseText: String) {
@@ -148,10 +229,77 @@ class DashboardFragment : Fragment(), StreamStateNotifier.Listener {
         }
     }
 
+    private fun updateCaptureUI(state: CaptureState, metrics: CaptureMetrics) {
+        val ctx = context ?: return
+
+        when (state) {
+            CaptureState.IDLE -> {
+                binding.tvCaptureStatusBadge.text = "CAPTURE IDLE"
+                binding.tvCaptureStatusBadge.setTextColor(ContextCompat.getColor(ctx, R.color.status_amber))
+                binding.btnStartCapture.visibility = View.VISIBLE
+                binding.layoutCaptureActiveControls.visibility = View.GONE
+                binding.tvCaptureTelemetry.text = "Frames: 0 | FPS: 0.0 | Standby"
+            }
+            CaptureState.AUTHORIZING, CaptureState.STARTING -> {
+                binding.tvCaptureStatusBadge.text = "INITIALIZING"
+                binding.tvCaptureStatusBadge.setTextColor(ContextCompat.getColor(ctx, R.color.status_amber))
+                binding.btnStartCapture.visibility = View.GONE
+                binding.layoutCaptureActiveControls.visibility = View.GONE
+            }
+            CaptureState.CAPTURING -> {
+                binding.tvCaptureStatusBadge.text = "CAPTURING"
+                binding.tvCaptureStatusBadge.setTextColor(ContextCompat.getColor(ctx, R.color.status_green))
+                binding.btnStartCapture.visibility = View.GONE
+                binding.layoutCaptureActiveControls.visibility = View.VISIBLE
+                binding.btnPauseCapture.text = "Pause"
+                binding.btnPauseCapture.setTextColor(ContextCompat.getColor(ctx, R.color.status_amber))
+
+                val fpsFormatted = String.format("%.1f", metrics.currentFps)
+                binding.tvCaptureTelemetry.text = "Frames: ${metrics.framesCaptured} | FPS: $fpsFormatted | ${metrics.width}x${metrics.height} (${metrics.dpi}dpi)"
+            }
+            CaptureState.PAUSED -> {
+                binding.tvCaptureStatusBadge.text = "PAUSED"
+                binding.tvCaptureStatusBadge.setTextColor(ContextCompat.getColor(ctx, R.color.status_amber))
+                binding.btnStartCapture.visibility = View.GONE
+                binding.layoutCaptureActiveControls.visibility = View.VISIBLE
+                binding.btnPauseCapture.text = "Resume"
+                binding.btnPauseCapture.setTextColor(ContextCompat.getColor(ctx, R.color.status_green))
+
+                binding.tvCaptureTelemetry.text = "Frames: ${metrics.framesCaptured} | PAUSED | ${metrics.width}x${metrics.height}"
+            }
+            CaptureState.STOPPING -> {
+                binding.tvCaptureStatusBadge.text = "STOPPING"
+                binding.tvCaptureStatusBadge.setTextColor(ContextCompat.getColor(ctx, R.color.status_amber))
+            }
+            CaptureState.ERROR -> {
+                binding.tvCaptureStatusBadge.text = "CAPTURE ERROR"
+                binding.tvCaptureStatusBadge.setTextColor(ContextCompat.getColor(ctx, R.color.status_red))
+                binding.btnStartCapture.visibility = View.VISIBLE
+                binding.layoutCaptureActiveControls.visibility = View.GONE
+            }
+        }
+    }
+
     override fun onStateChanged(newState: StreamState, previousState: StreamState) {
         activity?.runOnUiThread {
             if (_binding != null) {
                 updateServiceState(newState)
+            }
+        }
+    }
+
+    override fun onCaptureStateChanged(newState: CaptureState, previousState: CaptureState) {
+        activity?.runOnUiThread {
+            if (_binding != null) {
+                updateCaptureUI(newState, CaptureStateNotifier.currentMetrics)
+            }
+        }
+    }
+
+    override fun onCaptureMetricsUpdated(metrics: CaptureMetrics) {
+        activity?.runOnUiThread {
+            if (_binding != null) {
+                updateCaptureUI(CaptureStateNotifier.currentState, metrics)
             }
         }
     }
