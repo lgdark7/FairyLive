@@ -154,6 +154,34 @@ class OverlayResourceManager(
         )
     }
 
+    /**
+     * Memory pressure optimization (M12).
+     * Evicts cached bitmaps based on system ComponentCallbacks2 trim level.
+     */
+    fun trimMemory(level: Int) {
+        synchronized(cacheLock) {
+            val initialCount = bitmapCache.size
+            val initialBytes = totalBytes.get()
+            if (level >= android.content.ComponentCallbacks2.TRIM_MEMORY_RUNNING_CRITICAL) {
+                bitmapCache.clear()
+                totalBytes.set(0)
+                Log.w(TAG, "Aggressive memory trim (level $level): cleared all $initialCount bitmaps ($initialBytes bytes)")
+            } else if (level >= android.content.ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW) {
+                val iterator = bitmapCache.entries.iterator()
+                var removed = 0
+                val targetRemove = bitmapCache.size / 2
+                while (iterator.hasNext() && removed < targetRemove) {
+                    val entry = iterator.next()
+                    totalBytes.addAndGet(-entry.value.bytes.toInt())
+                    iterator.remove()
+                    removed++
+                }
+                Log.w(TAG, "Moderate memory trim (level $level): pruned $removed / $initialCount bitmaps")
+            }
+            Unit
+        }
+    }
+
     /** Releases all cached Bitmaps and associated GPU textures. Must run on GL thread for GL deletes. */
     fun release() {
         synchronized(cacheLock) {

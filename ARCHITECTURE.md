@@ -297,6 +297,39 @@ Milestone 11 introduces multi-scene capabilities allowing creators to seamlessly
   3. **Scene 3 ("Be Right Back")**: Solid dark background (`#101420`), centered BRB banner, compact QR code (`fairy.live`), camera disabled.
 - `SceneRepository`: Serializes scene configurations to JSON in Android `SharedPreferences` for seamless persistence across app launches.
 
+---
+
+## 12. Low-End Device Optimization Architecture (Milestone 12)
+
+### A. Architectural Philosophy
+Low-end Android smartphones (2GB-4GB RAM, MediaTek Helio, Unisoc, Qualcomm Snapdragon 4xx/6xx) suffer from acute thermal throttling, aggressive OS out-of-memory process kills, and GPU fill rate saturation. Milestone 12 introduces a dedicated reactive optimization engine (`com.fairylive.app.core.optimization`) designed to proactively degrade workload before the Android OS throttles or terminates the process.
+
+### B. Proactive Thermal Mitigation (`ThermalMitigationManager`)
+- Implements `PowerManager.OnThermalStatusChangedListener` on Android 10+ (API 29+) with backward-compatible broadcast monitoring on older versions.
+- Four-tier reactive mitigation ladder:
+  1. `NOMINAL` (Thermal status 0/1): 30 FPS target, 1200 kbps bitrate.
+  2. `MODERATE` (Thermal status 2): 24 FPS target, 900 kbps bitrate.
+  3. `SEVERE` (Thermal status 3): 20 FPS target, 700 kbps bitrate, disabled non-critical UI effects.
+  4. `CRITICAL` / `EMERGENCY` (Thermal status 4+): 15 FPS target, 500 kbps bitrate, absolute CPU/GPU conservation.
+- Transparent recovery: As thermal sensors cool, the system automatically restores nominal frame rates and bitrates without disconnecting the live broadcast.
+
+### C. System Memory Pressure & OOM Protection (`MemoryPressureGuard`)
+- Listens to Android `ComponentCallbacks2.onTrimMemory(level)`.
+- Multi-stage cache eviction:
+  * `TRIM_MEMORY_RUNNING_LOW`: Purges the oldest 50% of cached overlay bitmap textures in `OverlayResourceManager`.
+  * `TRIM_MEMORY_RUNNING_CRITICAL`: Completely evicts 100% of cached textures and triggers proactive system garbage collection hints.
+
+### D. Dynamic FPS Throttler (`DynamicFpsThrottler`)
+- Integrated directly into the `OverlayCompositor` render pipeline.
+- Continuously measures GLES frame draw duration over a rolling 10-frame window.
+- If render duration consistently exceeds 32ms (threatening the 33.3ms budget of 30 FPS), the throttler steps down render presentation interval (30 -> 24 -> 20 -> 15 FPS) to eliminate frame queue stalls and GPU pipeline backpressure.
+- Smoothly recovers back toward 30 FPS once render latency drops below 18ms for 30 consecutive frames.
+
+### E. Device Profile Detection (`DeviceProfileDetector`)
+- Automatically classifies hardware at startup into `LOW_END`, `MID_RANGE`, or `FLAGSHIP` based on total RAM, core count, and `ActivityManager.isLowRamDevice`.
+- Tailors initial default encoding profiles and buffer depths to prevent device overload.
+
+
 
 
 

@@ -59,6 +59,10 @@ class FairyStreamService : Service() {
     val overlayCompositor = com.fairylive.app.core.compositor.OverlayCompositor(this)
     val cameraEngine = com.fairylive.app.core.camera.CameraCaptureEngine(this)
 
+    lateinit var thermalManager: com.fairylive.app.core.optimization.ThermalMitigationManager
+    val memoryGuard = com.fairylive.app.core.optimization.MemoryPressureGuard()
+    var deviceProfile: com.fairylive.app.core.optimization.model.DeviceProfile? = null
+
     private var activeMediaProjection: MediaProjection? = null
     private val mainHandler = Handler(Looper.getMainLooper())
 
@@ -71,6 +75,42 @@ class FairyStreamService : Service() {
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
+
+        deviceProfile = com.fairylive.app.core.optimization.DeviceProfileDetector.detect(this)
+        Log.i("FairyStreamService", "Detected DeviceProfile: tier=${deviceProfile?.tier}, ram=${deviceProfile?.totalRamMb}MB, cores=${deviceProfile?.availableCores}")
+
+        thermalManager = com.fairylive.app.core.optimization.ThermalMitigationManager(this).apply {
+            addListener(object : com.fairylive.app.core.optimization.ThermalMitigationManager.ThermalListener {
+                override fun onThermalLevelChanged(
+                    level: com.fairylive.app.core.optimization.model.ThermalThrottlingLevel,
+                    rawStatus: Int
+                ) {
+                    overlayCompositor.fpsThrottler.updateThermalLevel(level)
+                    when (level) {
+                        com.fairylive.app.core.optimization.model.ThermalThrottlingLevel.NOMINAL -> {
+                            videoEncoder.adjustBitrate(1200)
+                        }
+                        com.fairylive.app.core.optimization.model.ThermalThrottlingLevel.MODERATE -> {
+                            videoEncoder.adjustBitrate(900)
+                        }
+                        com.fairylive.app.core.optimization.model.ThermalThrottlingLevel.SEVERE -> {
+                            videoEncoder.adjustBitrate(700)
+                        }
+                        com.fairylive.app.core.optimization.model.ThermalThrottlingLevel.CRITICAL -> {
+                            videoEncoder.adjustBitrate(500)
+                        }
+                    }
+                }
+            })
+            start()
+        }
+
+        memoryGuard.addListener(object : com.fairylive.app.core.optimization.MemoryPressureGuard.MemoryTrimListener {
+            override fun onMemoryTrim(level: Int) {
+                overlayCompositor.trimMemory(level)
+            }
+        })
+        registerComponentCallbacks(memoryGuard)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -532,6 +572,11 @@ class FairyStreamService : Service() {
 
     override fun onDestroy() {
         super.onDestroy()
+        if (::thermalManager.isInitialized) {
+            thermalManager.stop()
+        }
+        unregisterComponentCallbacks(memoryGuard)
+
         cameraEngine.stop()
         cameraEngine.release()
         captureEngine.stop()

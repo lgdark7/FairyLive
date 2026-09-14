@@ -92,6 +92,15 @@ class OverlayCompositor(
 
     val isStarted: Boolean get() = isRunning.get()
 
+    val fpsThrottler = com.fairylive.app.core.optimization.DynamicFpsThrottler(baseFps = 30)
+    private var lastCompositedTimeNs = 0L
+
+    fun trimMemory(level: Int) {
+        renderHandler?.post {
+            resources.trimMemory(level)
+        }
+    }
+
     @Synchronized
     fun setEnabled(value: Boolean) {
         if (enabled == value) return
@@ -217,6 +226,16 @@ class OverlayCompositor(
      */
     private fun renderFrame(fromCallback: Boolean = false) {
         if (!isRunning.get() || !available || isPaused.get()) return
+
+        if (fromCallback) {
+            val nowNs = System.nanoTime()
+            val intervalNs = fpsThrottler.currentFrameIntervalNs
+            if (nowNs - lastCompositedTimeNs < intervalNs * 0.85) {
+                // Low-end dynamic frame throttling: drop frame to maintain steady cadence
+                return
+            }
+        }
+
         val isCaptureNew = renderer.consumeNewFrame(force = fromCallback)
         val isCameraNew = if (facecamConfig.enabled) renderer.consumeNewCameraFrame(force = fromCallback) else false
         if (!isCaptureNew && !isCameraNew) {
@@ -249,12 +268,17 @@ class OverlayCompositor(
             }
         }
         surfaceTextureUpdates.incrementAndGet()
+        val renderStartNs = System.nanoTime()
         if (enabled) {
             renderer.drawFrame(scene, resources, facecamConfig)
         } else {
             // Disabled: forward capture to the encoder unchanged (pass-through)
             renderer.drawFrame(OverlayScene(), resources, null)
         }
+        val renderEndNs = System.nanoTime()
+        fpsThrottler.recordRenderTime((renderEndNs - renderStartNs) / 1_000_000L)
+        lastCompositedTimeNs = renderEndNs
+
         val count = renderIterations.incrementAndGet()
         framesComposited.set(count)
         updateMetrics()

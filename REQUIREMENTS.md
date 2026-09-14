@@ -104,4 +104,21 @@
    - Scene switching continuity must be verified with active MediaCodec video/audio streaming over a persistent TCP socket.
    - Verification requires: 1 single persistent TCP socket, 0 RTMP disconnects, 0 RTMP reconnect attempts, 0 stream restarts, 0 false LIVE transitions, 0 pipeline frame drops, and strictly monotonic video and audio timestamps across all scene switches.
 
+---
+
+## 7. Milestone 12 Verification Standards & Constraints
+1. **Low-End Optimization Protocol**:
+   - Must strictly follow `BASELINE -> MEASURE -> IDENTIFY BOTTLENECK -> OPTIMIZE -> MEASURE -> COMPARE -> REGRESSION TEST`. Blind optimizations without baseline metrics are prohibited.
+2. **Honesty Regarding Target Hardware**:
+   - Testing conducted on Android 15 Pixel 8 AVD must never be presented as low-end physical hardware validation. The physical hardware absence must be explicitly acknowledged in all reports and documentation.
+3. **Thermal Mitigation Invariant**:
+   - Thermal status callbacks must dynamically govern render frame rates (30 -> 24 -> 20 -> 15 FPS) and encoder bitrates (1200 -> 900 -> 700 -> 500 kbps) across `NOMINAL`, `MODERATE`, `SEVERE`, and `CRITICAL` states, with smooth automatic recovery upon cooling.
+4. **System Memory & OOM Protection**:
+   - The application must handle `ComponentCallbacks2.onTrimMemory` signals: purging 50% of cached overlay bitmap textures on `TRIM_MEMORY_RUNNING_LOW` and 100% on `TRIM_MEMORY_RUNNING_CRITICAL`.
+5. **Dynamic Frame Throttler Integrity**:
+   - Compositor frame interval must adapt dynamically when measured frame draw latencies exceed 32ms, preventing compositor thread stalling and buffer queue backpressure.
+6. **Codec and Architecture Preservation**:
+   - The 2-active-MediaCodec invariant (1 AVC, 1 AAC) must be strictly maintained. M0-M11 architecture (RTMP, FLV muxer, audio clock, camera pipeline, scene switcher) must remain fully preserved.
+
+
 

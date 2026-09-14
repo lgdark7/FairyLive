@@ -5,7 +5,29 @@ Testing covers unit tests, instrumentation, system-level execution, memory stabi
 
 ---
 
-## 2. Milestone 11 — Broadcast Scenes & Scene Management Verification Matrix
+## 2. Milestone 12 — Low-End Device Optimization Verification Matrix
+
+| Category | Test Case | Target / Command | Result | Evidence |
+|---|---|---|---|---|
+| **Build & Regression** | Full Clean Regression | `./gradlew clean testDebugUnitTest connectedDebugAndroidTest` | **PASS (Exit 0)** | **135/135 unit tests pass**, **18/18 connected tests pass**, 71/71 tasks, build 53s, 6.1 MB APK (< 15 MB budget) |
+| **Device Profiling** | Hardware tier classification | `LowEndOptimizationTest` | **PASS** | `testDeviceProfileDetectionTierLogic`: correctly categorizes LOW_END (<3GB RAM or <=4 cores), MID_RANGE (3-6GB), FLAGSHIP (>6GB) |
+| **Profile Defaults** | Recommended initial defaults | `LowEndOptimizationTest` | **PASS** | `testDeviceProfileRecommendedDefaults`: verifies low-end devices default to 24 FPS and 900 kbps |
+| **Thermal Escalation** | State transitions | `LowEndOptimizationTest` | **PASS** | `testThermalMitigationTransitions`: validates transitions across NOMINAL -> MODERATE -> SEVERE -> CRITICAL |
+| **Thermal Callbacks** | Listener dispatch | `LowEndOptimizationTest` | **PASS** | `testThermalMitigationListenerCallbacks`: verifies callback delivery with correct level and raw status code |
+| **Memory Trim Logic** | Event routing | `LowEndOptimizationTest` | **PASS** | `testMemoryPressureGuardTrimLevels`: verifies notification dispatch for RUNNING_MODERATE, RUNNING_LOW, RUNNING_CRITICAL |
+| **Memory Counters** | Audit tracking | `LowEndOptimizationTest` | **PASS** | `testMemoryPressureGuardTrimCounters`: validates event counting and level tracking |
+| **Dynamic FPS Ladder** | Target FPS adaptation | `LowEndOptimizationTest` | **PASS** | `testDynamicFpsThrottlerThermalScaling`: verifies FPS steps down 30 -> 24 -> 20 -> 15 under thermal stress |
+| **Dynamic FPS Cadence** | Interval nanoseconds | `LowEndOptimizationTest` | **PASS** | `testDynamicFpsThrottlerIntervalCalculations`: validates 33.3ms, 41.6ms, 50.0ms, 66.6ms frame periods |
+| **Render Lag Stepping** | High latency throttle | `LowEndOptimizationTest` | **PASS** | `testDynamicFpsThrottlerRenderLagAdjustment`: verifies step-down when render duration > 32ms |
+| **Render Lag Recovery** | Fast frame step-up | `LowEndOptimizationTest` | **PASS** | `testDynamicFpsThrottlerRecovery`: verifies recovery back to 30 FPS when render latency settles < 18ms |
+| **On-Device Profile** | Pixel 8 AVD specs | `LowEndOptimizationInstrumentedTest` | **PASS** | `testOnDeviceDeviceProfileDetection`: verifies valid cores, RAM, and classified tier on live device |
+| **On-Device Thermal** | Active compositor throttle | `LowEndOptimizationInstrumentedTest` | **PASS** | `testOnDeviceThermalMitigationThrottling`: verifies target FPS matches 30 -> 24 -> 20 -> 15 -> 30 on device |
+| **On-Device Memory Trim**| Texture cache eviction | `LowEndOptimizationInstrumentedTest` | **PASS** | `testOnDeviceMemoryTrimPrunesOverlayCaches`: verifies 50% eviction on RUNNING_LOW, 100% eviction on RUNNING_CRITICAL |
+| **A/B Comparison** | Baseline vs Optimized | `tools/audit_m12_comparison_ledger.json` | **PASS** | Nominal PSS -301 KB, Native Heap -229 KB, UI Jank -5.15% (17.65% -> 12.50%), 2 active codecs preserved |
+
+---
+
+## 3. Milestone 11 — Broadcast Scenes & Scene Management Verification Matrix
 
 | Category | Test Case | Target / Command | Result | Evidence |
 |---|---|---|---|---|

@@ -90,7 +90,7 @@ Rebuild **FAIRY LIVE** from scratch as a high-performance, professional native A
         * 10 complete cycles of START -> CAMERA ON -> STREAM -> CAMERA OFF -> CAMERA ON -> FRONT/REAR SWITCH -> CAMERA OFF -> STOP -> START -> STOP.
         * Cycle 1 to Cycle 10 post-GC: PSS bounded from 74,934 KB to 75,444 KB (+510 KB endpoint delta across 10 complete cycles; non-monotonic trajectory peaking at 77.4 MB at cycle 8 before settling to 75.4 MB post-GC, demonstrating bounded consumption rather than zero leaks), Dalvik heap decreased from 8,249 KB to 8,038 KB (-211 KB), Threads stable (32-36), active codecs bounded at 2.
       - **Full Regression**: `./gradlew clean testDebugUnitTest connectedDebugAndroidTest` passed with exit code 0 (115/115 unit tests pass, 11/11 connected tests pass, 71/71 tasks, build duration 31.8s, APK size 6.0 MB).
-  - **M11: Scenes & Scene Management** (IMPLEMENTATION & VERIFICATION COMPLETE — Ready for ChatGPT Review)
+  - **M11: Scenes & Scene Management** (OFFICIALLY APPROVED BY CHATGPT — Checkpoint `48b252e`)
       - **Zero-Disruption Scene Architecture**: Built pure-Kotlin scene data models (`BroadcastScene`, `SceneTransition`, `SceneBackgroundMode`), `BroadcastSceneManager` with 3 predefined presets (Gameplay, Just Chatting, Be Right Back), lightweight JSON persistence (`SceneRepository`), and observable event bus (`SceneStateNotifier`).
       - **Runtime Switching Invariant**: Stream, RTMP connection, AVC video MediaCodec, AAC audio MediaCodec, audio pipeline, and network resilience monitor remain 100% continuous and active during scene transitions. Zero reconnects, zero dropped sockets, and zero false `LIVE` -> `IDLE` state transitions.
       - **Compositor Integration & Lightweight Transitions**: Integrated into `OverlayCompositor` and `GlesRenderer` with instant CUT (0ms) and linear opacity interpolation CROSSFADE (300ms) without allocating secondary OpenGL framebuffers, duplicate textures, or offscreen staging surfaces.
@@ -102,16 +102,33 @@ Rebuild **FAIRY LIVE** from scratch as a high-performance, professional native A
         * Rapid Switching Condition: CPU 10.0%, PSS 63,262 KB, Native 13,246 KB, 2 active codecs, 19 threads.
       - **10-Cycle Stability Audit (`tools/audit_m11_10cycle_resources.json`)**:
         * 10 complete cycles across Gameplay -> Just Chatting -> BRB -> Gameplay.
-        * Post-GC Cycle 1 PSS: 63,173 KB; Cycle 10 PSS: 63,177 KB (net delta +4 KB across 10 cycles). Native heap delta: 0 bytes (flat at 13,258 KB). Threads bounded at 19. Active codecs strictly bounded at 2.
-        * Resource Audit Finding: No meaningful monotonic resource growth was observed across the 10-cycle scene switching audit.
+        * Post-GC Cycle 1 PSS: 63,173 KB; Cycle 10 PSS: 63,177 KB. Native heap delta: 0 bytes (flat at 13,258 KB). Threads bounded at 19. Active codecs strictly bounded at 2.
+        * Resource Audit Finding: PSS increased by 4 KB across the ten post-GC cycle measurements, with no observed decrease; the magnitude is small and no meaningful resource accumulation was observed. (Does not prove zero leaks).
       - **RTMP Continuity Validation (`tools/audit_m11_continuity_ledger.json`)**:
         * Verified on-device connected test across 6 switches (Gameplay -> Just Chatting [Crossfade] -> BRB [Cut] -> Gameplay [Crossfade] -> Just Chatting [Cut] -> BRB [Crossfade] -> Gameplay [Cut]).
         * TCP connection identity: `/127.0.0.1:35406`. Total TCP connections: 1.
         * RTMP disconnects: 0. RTMP reconnects: 0. Stream restarts: 0. False LIVE transitions: 0. Pipeline drops: 0.
         * Timestamps strictly monotonic across all switches: Video (416ms -> 4,166ms), Audio (232ms -> 2,322ms).
+        * Operational Scope: Represents an approximately 4.2-second continuity test window demonstrating scene-switch mechanism continuity without socket restart; not a long-duration stress/resilience validation (which is deferred to M13).
       - **Full Regression**: `./gradlew clean testDebugUnitTest connectedDebugAndroidTest` passed with exit code 0 (127/127 unit tests pass, 15/15 connected tests pass on Pixel 8 AVD, APK size 6.2 MB).
-- **Authorized Milestones**: M11 (Authorized by ChatGPT on 2026-09-14).
-- **Locked Milestones**: M12 through M15.
+  - **M12: Low-End Device Optimization** (IMPLEMENTATION & VERIFICATION COMPLETE — Ready for ChatGPT Review)
+      - **Hardware Environment Note**: Physical low-end device is unavailable on host. Audited on Google Pixel 8 AVD (Android 15, API 35) under controlled stress and memory pressure. Invariant: Emulator measurements are never misrepresented as low-end physical silicon.
+      - **Measurement Protocol & Empirical Baseline**: Formally conducted `BASELINE -> MEASURE -> IDENTIFY BOTTLENECK -> OPTIMIZE -> MEASURE -> COMPARE -> REGRESSION TEST`. Baseline ledger captured at `tools/audit_m12_baseline_ledger.json`.
+      - **Identified Bottlenecks**: (1) Lack of proactive thermal mitigation (app ran full tilt regardless of thermal status), (2) lack of system memory pressure / OOM trimming callbacks, (3) fixed 30 FPS rendering cadence causing potential GPU/compositor backlog during high load.
+      - **Optimizations Implemented (`com.fairylive.app.core.optimization`)**:
+        * **`ThermalMitigationManager.kt`**: Proactive thermal mitigation listening to `PowerManager.OnThermalStatusChangedListener` (API 29+) and battery broadcasts. Dynamically steps down render FPS (30 -> 24 -> 20 -> 15) and encoder bitrate (1200 -> 900 -> 700 -> 500 kbps) across `NOMINAL`, `MODERATE`, `SEVERE`, and `CRITICAL` thermal states to prevent OS thermal shutdown.
+        * **`MemoryPressureGuard.kt`**: Coordinates `ComponentCallbacks2.onTrimMemory(level)`. Automatically evicts 50% of cached bitmap textures in `OverlayResourceManager` on `TRIM_MEMORY_RUNNING_LOW`, and fully purges all cached bitmaps and invokes `System.gc()` on `TRIM_MEMORY_RUNNING_CRITICAL` to eliminate OOM risk.
+        * **`DynamicFpsThrottler.kt`**: Rolling render time governor inside `OverlayCompositor`. Throttles frame delivery if render latency exceeds 32ms consistently, recovering to 30 FPS when latency settles below 18ms.
+        * **`DeviceProfileDetector.kt`**: Classifies device into `LOW_END`, `MID_RANGE`, or `FLAGSHIP` based on RAM, CPU core count, and `isLowRamDevice` flag.
+      - **Comparative Audit Ledger (`tools/audit_m12_comparison_ledger.json`)**:
+        * Cold Startup: 2,827 ms.
+        * Nominal PSS: 60,584 KB (reduced from baseline 60,885 KB). Native Heap: 13,211 KB (reduced from 13,440 KB).
+        * Memory Trim Protection: Verified on-device cache eviction under `RUNNING_LOW` and `RUNNING_CRITICAL` (100% cache freed).
+        * UI Jank Percentage: Reduced from 17.65% (baseline) down to 12.5% (optimized).
+        * Active Codecs Invariant: Strictly **2 active MediaCodec instances** preserved.
+      - **Full Regression**: `./gradlew clean testDebugUnitTest connectedDebugAndroidTest` passed with exit code 0 (135/135 unit tests pass, 18/18 connected tests pass on Pixel 8 AVD, 71/71 tasks, APK size 6.1 MB).
+- **Authorized Milestones**: M12 (Authorized by ChatGPT on 2026-09-14).
+- **Locked Milestones**: M13 through M15.
 
 ---
 

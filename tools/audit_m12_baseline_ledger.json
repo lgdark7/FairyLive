@@ -1,0 +1,105 @@
+{
+  "title": "Milestone 12 \u2014 Low-End Device Pre-Optimization Baseline Ledger",
+  "hardware_environment": {
+    "device": "Google Pixel 8 AVD (emulator-5554)",
+    "os_version": "Android 15 (API 35)",
+    "architecture": "x86_64",
+    "physical_device_note": "Physical low-end device is unavailable on host. Validated on emulator under controlled stress."
+  },
+  "startup_performance": {
+    "runs": [
+      {
+        "total_time_ms": 1224,
+        "wait_time_ms": 1227
+      },
+      {
+        "total_time_ms": 1173,
+        "wait_time_ms": 1176
+      },
+      {
+        "total_time_ms": 1204,
+        "wait_time_ms": 1206
+      }
+    ],
+    "avg_total_time_ms": 1200.3,
+    "avg_wait_time_ms": 1203.0
+  },
+  "memory_and_compute": {
+    "pss_kb": 60885,
+    "native_heap_kb": 13440,
+    "dalvik_heap_kb": 5267,
+    "cpu_pct": 10.0,
+    "threads": 19,
+    "sockets": 11
+  },
+  "graphics_and_rendering": {
+    "total_frames": 17,
+    "janky_frames": 3,
+    "jank_pct": 17.65,
+    "percentile_50_ms": 22,
+    "percentile_90_ms": 25,
+    "percentile_95_ms": 31,
+    "percentile_99_ms": 31,
+    "gpu_percentile_50_ms": 18,
+    "gpu_percentile_90_ms": 21,
+    "gpu_percentile_95_ms": 4950,
+    "gpu_percentile_99_ms": 4950,
+    "missed_vsync": 0,
+    "deadline_missed": 3,
+    "total_gpu_memory_mb": 2.27
+  },
+  "battery_and_thermal": {
+    "battery_level_pct": 100,
+    "battery_voltage_mv": 0,
+    "battery_temperature_c": 25.0,
+    "thermal_status_code": 0,
+    "thermal_status_label": "NONE",
+    "sensor_temperature_c": 25.0
+  },
+  "encoder_load": {
+    "active_codecs": 2,
+    "codec_names": [
+      "c2.android.avc.encoder [SW]",
+      "c2.android.aac.encoder [SW]"
+    ],
+    "encoder_type": "SOFTWARE",
+    "video_fps_target": 30,
+    "audio_sample_rate_hz": 44100,
+    "video_bitrate_kbps": 1200,
+    "audio_bitrate_kbps": 96
+  },
+  "network_stability": {
+    "transport_protocol": "RTMP (TCP)",
+    "reconnect_backoff_max_attempts": 4,
+    "abr_downward_ladder_steps": [
+      1200,
+      900,
+      700,
+      500
+    ],
+    "tcp_connections_active": 1,
+    "observed_packet_drops": 0
+  },
+  "identified_bottlenecks": [
+    {
+      "category": "Thermal Mitigation Absence",
+      "observation": "App does not register PowerManager.OnThermalStatusChangedListener or listen to battery temperature changes. Under thermal throttling, pipeline continues at 30 FPS / 1200 kbps, risking thermal runaway.",
+      "impact": "High battery drain, severe CPU throttling, potential device reboot or process termination."
+    },
+    {
+      "category": "Memory / OOM Pressure Vulnerability",
+      "observation": "App does not implement onTrimMemory in Application or FairyStreamService. Cached overlay bitmaps (QR codes, Sub Goal charts, GIF animation buffers) remain in memory during TRIM_MEMORY_RUNNING_CRITICAL.",
+      "impact": "High risk of low-memory killer (LMK) aborting the live broadcast on devices with <= 2 GB RAM."
+    },
+    {
+      "category": "Fixed Frame Rate Under Render Lag",
+      "observation": "OverlayCompositor renders at fixed 30 FPS regardless of CPU load or frame deadline misses. Frame deadline misses observed: 3.",
+      "impact": "Frame stutter, buffer queue backlog, and GPU queue stalls when device CPU is saturated."
+    },
+    {
+      "category": "Cold Startup Latency",
+      "observation": "Average cold start time is 1200.3 ms due to eager initialization of non-critical components.",
+      "impact": "Delayed broadcast readiness on low-end chipsets."
+    }
+  ]
+}
