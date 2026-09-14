@@ -30,7 +30,7 @@ Conducted on Google Pixel 8 AVD, Android 15 (API 35), x86_64 emulator (`emulator
 | **Queue Depth** | 1 packet | 0 packets | **Bounded** |
 | **Pipeline Drops** | 0 drops | 0 drops | **Zero drops** |
 
-*Analysis*: Zero-copy GPU texture sampling introduces zero measurable CPU load (10.0% vs 10.0%). The +7.4 MB PSS increase corresponds precisely to the internal camera HAL buffer queue allocations (3-buffer triple-buffering) and Android camera service IPC descriptors. Thread count and socket count are unchanged.
+*Analysis*: Zero-copy GPU texture sampling introduces zero measurable CPU load (10.0% vs 10.0%). Camera ON produced approximately +7.4 MB PSS under this test condition. The exact allocation sources were not independently attributed. Thread count and socket count are unchanged.
 
 ---
 
@@ -54,11 +54,11 @@ Post-cycle metrics recorded after explicit ART GC (`run-as com.fairylive.app kil
 | **Cycle 10** | 75,444 | 16,162 | 8,038 | 179,560 | 32 | 12 | 2 | IDLE (Session closed clean) | Clean | Reused/Released |
 
 #### Evaluation for Monotonic Resource Growth:
-- **PSS**: Grew by only +510 KB across 10 complete cycles (+51 KB/cycle), dropping from 77.4 MB at cycle 8 to 75.4 MB at cycle 9 upon GC. Growth is bounded and non-monotonic.
+- **PSS Trajectory**: Total endpoint PSS change across 10 complete cycles is +510 KB (74,934 KB -> 75,444 KB). Behavior is non-monotonic and bounded, peaking at 77,447 KB at Cycle 8 before settling to 75,444 KB after runtime GC. This demonstrates bounded memory consumption rather than runaway leakage, but is not characterized as zero leaks.
 - **Dalvik Heap**: Decreased by -211 KB from Cycle 1 (8,249 KB) to Cycle 10 (8,038 KB).
 - **Native Heap**: Stabilized at 16,162 KB (+523 KB total over 10 cycles, flat across cycles 9-10).
-- **Active Codecs**: Strictly maintained at 2 (1 AVC, 1 AAC) across all 10 cycles.
-- **Surfaces & Camera Sessions**: Cleanly disposed on each cycle without resource leaks.
+- **Codec Lifecycle**: Active MediaCodec instances are cleanly stopped and released upon session teardown, and re-initialized when capture starts. Active codec count remained bounded at 2 at every measurement point.
+- **Surfaces & Camera Sessions**: Cleanly disposed on each cycle without unreleased handles.
 
 ---
 

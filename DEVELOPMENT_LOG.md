@@ -22,9 +22,9 @@
     * CPU: 10.0%, PSS: 75,794 KB (75.8 MB), Native Heap: 15,130 KB, Dalvik Heap: 9,798 KB, RSS: 177,048 KB, Threads: 36, Sockets: 12, Camera FPS: 30.0, Compositor FPS: 29.9, Encoder FPS: 29.8, Queue: 0, Drops: 0.
   - **Net Overhead & Analysis**:
     * CPU Delta: 0.0% (within rounding)
-    * PSS Delta: +7,582 KB (+7.4 MB, accounting for internal camera HAL buffer queue and OES texture allocation)
+    * PSS Delta: Camera ON produced approximately +7.4 MB PSS under this test condition. The exact allocation sources were not independently attributed.
     * Native Heap Delta: +496 KB
-    * Dalvik Heap Delta: +5,506 KB (camera service Binder dispatch objects)
+    * Dalvik Heap Delta: +5,506 KB
     * Threads: 36 (identical across active streaming)
     * Sockets: 12 (identical)
     * Pipeline Drops: 0 across both conditions.
@@ -41,9 +41,9 @@
   - Cycle 9: PSS 75,414 KB, Native 16,162 KB, Dalvik 8,034 KB, RSS 179,520 KB, Threads 32, Sockets 12, Codecs 2
   - Cycle 10: PSS 75,444 KB, Native 16,162 KB, Dalvik 8,038 KB, RSS 179,560 KB, Threads 32, Sockets 12, Codecs 2
   - **Analysis**:
-    * Bounded non-monotonic growth: Total PSS grew by only +510 KB across 10 complete cycles (+51 KB/cycle), dropping from 77.4 MB at cycle 8 to 75.4 MB at cycle 9 post-GC.
+    * Bounded non-monotonic growth: Total PSS endpoint change across 10 complete cycles is +510 KB (+51 KB/cycle), peaking at 77.4 MB at cycle 8 before settling to 75.4 MB at cycle 9 post-GC. Bounded and non-monotonic; not characterized as zero leaks.
     * Dalvik heap decreased by 211 KB (8,249 -> 8,038 KB).
-    * Active MediaCodec count held strictly constant at 2 across all 10 cycles.
+    * Active MediaCodec instances are cleanly stopped and released upon session teardown, and re-initialized when capture starts. Active codec count remained bounded at 2 at every measurement point.
     * Sockets remained stable at 11-12. Zero unclosed camera sessions, zero unreleased EGL surfaces.
 - **Full Regression Verification**:
   - Command: `./gradlew clean testDebugUnitTest connectedDebugAndroidTest`

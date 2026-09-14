@@ -81,14 +81,14 @@ Rebuild **FAIRY LIVE** from scratch as a high-performance, professional native A
       - **Low-Overhead Optimal Sizing**: Pure-Kotlin `CameraSize` selector choosing optimal 640x480 preview resolution instead of 4K/12MP sensor resolutions to strictly conserve GPU memory bandwidth and fill rate.
       - **Lifecycle & Switching Safety**: Dedicated background `FairyCameraThread` with sequential teardown and rebuild (`STOP` -> `RELEASE` -> `SELECT` -> `CONFIGURE` -> `START`), non-fatal error fallback, and state synchronization via `CameraStateNotifier`.
       - **UI & IPC Control**: Creator dashboard controls for Facecam toggle and lens switching, backed by exported `StreamControlReceiver` for background IPC broadcast automation.
-      - **Active Codecs Invariant**: System holds strictly 2 active MediaCodec instances (1 AVC video, 1 AAC audio) with zero codec churn or recreation.
+      - **Active Codecs Invariant**: Active MediaCodec count held strictly bounded at 2 (1 AVC video, 1 AAC audio) at every measurement point during active capture. Codec instances are cleanly stopped and released upon session teardown, and re-initialized when capture starts.
       - **A/B Benchmark (Camera OFF vs Camera ON under identical conditions)**:
         * Condition A (Camera OFF): CPU 10.0%, PSS 68,212 KB (68.2 MB), Native 14,634 KB, Dalvik 4,292 KB, Threads 36, Sockets 12, Camera FPS 0.0, Compositor FPS 30.0, Encoder FPS 29.8, Drops 0.
         * Condition B (Camera ON): CPU 10.0%, PSS 75,794 KB (75.8 MB), Native 15,130 KB, Dalvik 9,798 KB, Threads 36, Sockets 12, Camera FPS 30.0, Compositor FPS 29.9, Encoder FPS 29.8, Drops 0.
-        * Net Overhead: CPU delta 0.0%, PSS delta +7,582 KB (+7.4 MB, for camera buffers & OES texture), Native delta +496 KB, Thread delta 0.
+        * Net Overhead: CPU delta 0.0%, PSS delta +7,582 KB (+7.4 MB observed under this test condition; exact allocation sources not independently attributed), Native delta +496 KB, Thread delta 0.
       - **10-Cycle Lifecycle Stability Audit**:
         * 10 complete cycles of START -> CAMERA ON -> STREAM -> CAMERA OFF -> CAMERA ON -> FRONT/REAR SWITCH -> CAMERA OFF -> STOP -> START -> STOP.
-        * Cycle 1 to Cycle 10 post-GC: PSS bounded from 74,934 KB to 75,444 KB (+510 KB across 10 complete cycles), Dalvik heap decreased from 8,249 KB to 8,038 KB (-211 KB), Threads stable (32-36), Codecs strictly 2. Zero monotonic growth.
+        * Cycle 1 to Cycle 10 post-GC: PSS bounded from 74,934 KB to 75,444 KB (+510 KB endpoint delta across 10 complete cycles; non-monotonic trajectory peaking at 77.4 MB at cycle 8 before settling to 75.4 MB post-GC, demonstrating bounded consumption rather than zero leaks), Dalvik heap decreased from 8,249 KB to 8,038 KB (-211 KB), Threads stable (32-36), active codecs bounded at 2.
       - **Full Regression**: `./gradlew clean testDebugUnitTest connectedDebugAndroidTest` passed with exit code 0 (115/115 unit tests pass, 11/11 connected tests pass, 71/71 tasks, build duration 35.4s, APK size 6.0 MB).
 - **Pending Milestones**: M11 through M15 (M10 awaiting ChatGPT review).
 
