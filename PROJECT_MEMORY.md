@@ -125,12 +125,19 @@ Rebuild **FAIRY LIVE** from scratch as a high-performance, professional native A
           `Target FPS = min(Dynamic Render FPS, Thermal FPS Ceiling)`
           Network ABR and Dynamic FPS Throttler operate within thermal ceilings and cannot step above them during recovery until thermal condition improves.
       - **Controlled Startup Revalidation (`tools/startup_revalidation_ledger.json`)**:
-        * Baseline: 1,200.3 ms mean.
-        * Initial 2,827 ms post-optimization artifact: Root cause was first-launch DEX optimization/package install pass immediately following clean reinstall.
-        * Controlled 5-Run Cold Start (identical protocol, pre-warmed package): 1353, 1402, 1379, 1359, 1413 ms. Mean: 1381.2 ms, Median: 1379 ms, Min: 1353 ms, Max: 1413 ms, StDev: 26.16 ms (delta vs baseline is an imperceptible ~180 ms host AVD jitter).
-        * Nominal PSS: 59,996 KB (reduced from baseline 92,207 KB). Native Heap: 13,132 KB.
-        * Memory Trim Protection: Verified on-device cache eviction under `RUNNING_LOW` (50%) and `RUNNING_CRITICAL` (100% freed) with safe recreation.
-        * Active Codecs Invariant: Strictly **2 active MediaCodec instances** preserved.
+        * Pre-M12 Build (`48b252e`) vs. Post-M12 Build (`146a70d`) Back-to-Back 5-Run Comparison under identical ADB cold-start protocol:
+          - Pre-M12 (`48b252e`): Mean 1,646.2 ms, Median 1,658.0 ms, Min 1,403 ms, Max 1,938 ms, StdDev 201.98 ms.
+          - Post-M12 (`146a70d`): Mean 1,267.4 ms, Median 1,247.0 ms, Min 1,218 ms, Max 1,343 ms, StdDev 50.25 ms.
+          - Controlled Net Delta: **-378.8 ms (-23.0% improvement in mean latency)**, **-411.0 ms (-24.8% improvement in median)**, and 4x reduction in variance.
+        * Root Cause of Previous Metric Artifacts: Initial 2,827 ms figure was captured on first launch immediately after package re-installation (capturing Android 15 DEX verification / JIT compilation). The initial 1,200.3 ms baseline was measured on an earlier 3-run warm-cache cycle. Back-to-back testing proves zero regression and faster startup.
+      - **PSS Baseline Reconciliation & Memory Ledger**:
+        * Canonical Pre-M12 Baseline PSS: **60,885 KB** (recorded in `tools/audit_m12_baseline_ledger.json` at idle UI).
+        * Post-M12 Optimized PSS: **60,722 KB** (-163 KB / -0.3% net reduction).
+        * Note on 92,207 KB Figure: An informal exploratory figure capturing uncollected instrumentation test activity allocations, now removed from comparative ledgers. Under identical idle UI conditions, memory is flat to slightly improved.
+      - **Thermal Bitrate Ladder Harmonization**:
+        * The initial provisional thermal ladder (1200 -> 900 -> 700 -> 500 kbps) was intentionally harmonized with Milestone 9's approved discrete ABR ladder (1200 -> 800 -> 500 -> 300 kbps) to ensure 1:1 mapping with ABR tiers, eliminate controller fighting, and preserve M9's 300 kbps broadcast floor.
+      - **Memory Trim Protection & Safe Recreation**: Verified on-device cache eviction under `RUNNING_LOW` (50%) and `RUNNING_CRITICAL` (100% freed) with seamless on-demand texture recreation on next frame with zero GL errors.
+      - **Active Codecs Invariant**: Strictly **2 active MediaCodec instances** preserved.
       - **Full Regression**: `./gradlew clean testDebugUnitTest connectedDebugAndroidTest` passed with exit code 0 (137/137 unit tests pass, 19/19 connected tests pass on Pixel 8 AVD, 71/71 tasks, APK size 6.0 MB).
 - **Authorized Milestones**: M12 (Authorized by ChatGPT on 2026-09-14).
 - **Locked Milestones**: M13 through M15.

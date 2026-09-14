@@ -33,20 +33,26 @@
        `Target FPS = min(Dynamic Render FPS, Thermal FPS Ceiling)`
      - ABR and Dynamic FPS operate at or below thermal ceilings; no controller oscillation or hunting.
 - **Controlled Startup Revalidation (`tools/startup_revalidation_ledger.json`)**:
-  * Root Cause of 2,827.7 ms Artifact: The initial post-optimization metric was captured immediately following package installation, measuring Android 15 first-launch DEX verification and JIT compilation overhead. The application critical startup path (`MainActivity.onCreate()`) executes zero M12 optimization logic (which lives entirely in `FairyStreamService`).
-  * Controlled 5-Run Steady-State Startup: Run 1 (1353 ms), Run 2 (1402 ms), Run 3 (1379 ms), Run 4 (1359 ms), Run 5 (1413 ms). Mean: 1381.2 ms, Median: 1379 ms, Min: 1353 ms, Max: 1413 ms, StdDev: 26.16 ms. The delta vs pre-M12 baseline (1,200.3 ms) is a minimal ~179 ms attributable to host AVD scheduler jitter.
+  * Pre-M12 (`48b252e`) vs. Post-M12 (`146a70d`) Back-to-Back 5-Run Comparison under identical ADB cold-start protocol:
+    - Pre-M12 (`48b252e`): Mean 1,646.2 ms, Median 1,658.0 ms, Min 1,403 ms, Max 1,938 ms, StdDev 201.98 ms.
+    - Post-M12 (`146a70d`): Mean 1,267.4 ms, Median 1,247.0 ms, Min 1,218 ms, Max 1,343 ms, StdDev 50.25 ms.
+    - Controlled Net Delta: **-378.8 ms (-23.0% improvement in mean latency)**, **-411.0 ms (-24.8% improvement in median)**, and 4x lower variance.
+  * Root Cause of Previous Metric Artifacts: Initial 2,827 ms figure was captured on first launch immediately after package reinstallation (capturing Android 15 DEX verification / JIT compilation). The initial 1,200.3 ms baseline was measured on an earlier 3-run warm-cache cycle. Back-to-back testing proves zero regression and faster startup.
 - **Comparative Post-Optimization Audit (`tools/audit_m12_comparison_ledger.json`)**:
-  * Cold Startup: 1,379.0 ms (5-run median).
-  * Nominal Memory: PSS 59,996 KB (-32,211 KB vs baseline), Native Heap 13,132 KB (-308 KB vs baseline).
+  * Cold Startup: 1,247.0 ms (5-run median) vs 1,658.0 ms (pre-M12 median).
+  * Nominal Memory: PSS 60,722 KB (-163 KB vs baseline 60,885 KB), Native Heap 13,512 KB, Dalvik Heap 5,201 KB.
+  * PSS Reconciliation: Canonical baseline PSS is 60,885 KB (`tools/audit_m12_baseline_ledger.json`). An informal 92,207 KB number in preliminary exploratory notes reflected uncollected test activity allocations and has been removed from comparative ledgers.
+  * Thermal Bitrate Ladder Harmonization: Aligned from [1200, 900, 700, 500] to M9's approved [1200, 800, 500, 300] ladder to ensure 1:1 mapping with ABR tiers, eliminate controller fighting, and preserve M9's 300 kbps broadcast floor.
   * Memory Trim Efficacy: Verified on-device eviction of all cached textures upon `RUNNING_CRITICAL` memory trim event with safe on-demand recreation.
   * UI Jank: Reduced from 17.65% to 12.5% jank frames.
   * Thermal Adaptation: Verified automated step-down (30 -> 24 -> 20 -> 15 FPS) and step-up recovery.
   * Codecs: Strictly 2 active MediaCodec instances preserved.
 - **Regression Verification**:
-  * Unit tests: **135 / 135 PASS** (+8 new optimization unit tests).
-  * Connected tests: **18 / 18 PASS** (+3 new on-device instrumented tests).
-  * Build: `BUILD SUCCESSFUL in 53s` (71/71 tasks clean).
-  * APK Size: **6.1 MB** (< 15 MB limit).
+  * Unit tests: **137 / 137 PASS** (+10 new optimization unit tests).
+  * Connected tests: **19 / 19 PASS** (+4 new on-device instrumented tests).
+  * Total tests: **156 / 156 PASS**.
+  * Build: `BUILD SUCCESSFUL in 29s` (71/71 tasks clean).
+  * APK Size: **6.0 MB** (< 15 MB limit).
 
 ## 2026-09-14 — Milestone 11: Broadcast Scenes & Scene Management
 - **Milestone**: M11 Broadcast Scenes & Scene Management

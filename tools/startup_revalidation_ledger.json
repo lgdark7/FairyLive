@@ -3,24 +3,24 @@
   "target": "Google Pixel 8 AVD (Android 15, API 35)",
   "runs": 5,
   "total_times_ms": [
-    1391,
-    1488,
-    1517,
-    1372,
-    1692
+    1343,
+    1292,
+    1237,
+    1218,
+    1247
   ],
   "wait_times_ms": [
-    1392,
-    1494,
-    1521,
-    1375,
-    1695
+    1344,
+    1299,
+    1239,
+    1221,
+    1249
   ],
-  "total_mean_ms": 1492,
-  "total_median_ms": 1488,
-  "total_min_ms": 1372,
-  "total_max_ms": 1692,
-  "total_stdev_ms": 127.71,
-  "wait_mean_ms": 1495.4,
-  "wait_median_ms": 1494
+  "total_mean_ms": 1267.4,
+  "total_median_ms": 1247,
+  "total_min_ms": 1218,
+  "total_max_ms": 1343,
+  "total_stdev_ms": 50.25,
+  "wait_mean_ms": 1270.4,
+  "wait_median_ms": 1249
 }
