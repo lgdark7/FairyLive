@@ -32,7 +32,7 @@ class Milestone13StressUnitTest {
     fun setUp() {
         abrController = AdaptiveBitrateController(
             ladderKbps = intArrayOf(1200, 800, 500, 300),
-            cooldownMs = 8000L,
+            cooldownMs = 3000L,
             hysteresisRequiredHealthyWindows = 3
         )
         abrController.initialize(initialBitrateKbps = 1200, nowElapsedMs = 1000L)
@@ -91,35 +91,35 @@ class Milestone13StressUnitTest {
         val tGood = NetworkQualityTelemetry(health = NetworkHealth.EXCELLENT, currentLatencyMs = 25L, queueFillRatio = 0.05f)
 
         // Dropped to 300 at 2000ms
-        // Upward step requires: timeSinceLastDecision >= 8000ms AND consecutiveHealthyEvaluations >= 3
-        val w1 = abrController.evaluate(tGood, nowElapsedMs = 10001L) // window 1
+        // Upward step requires: timeSinceLastDecision >= 3000ms AND consecutiveHealthyEvaluations >= 3
+        val w1 = abrController.evaluate(tGood, nowElapsedMs = 5001L) // window 1
         assertNull("Requires 3 healthy windows", w1)
 
-        val w2 = abrController.evaluate(tGood, nowElapsedMs = 11001L) // window 2
+        val w2 = abrController.evaluate(tGood, nowElapsedMs = 6001L) // window 2
         assertNull("Requires 3 healthy windows", w2)
 
-        val stepTo500 = abrController.evaluate(tGood, nowElapsedMs = 12001L) // window 3 -> triggers 300 -> 500
+        val stepTo500 = abrController.evaluate(tGood, nowElapsedMs = 7001L) // window 3 -> triggers 300 -> 500
         assertNotNull(stepTo500)
         assertEquals(500, stepTo500?.newBitrateKbps)
         assertEquals(500, abrController.currentBitrateKbps)
 
-        // Next upgrade (500 -> 800): must wait 8s cooldown before healthy evaluations count towards next step
-        // At 20002ms, cooldown is fulfilled (20002 - 12001 = 8001 >= 8000)
-        val w4 = abrController.evaluate(tGood, nowElapsedMs = 20002L)
+        // Next upgrade (500 -> 800): must wait 3s cooldown before healthy evaluations count towards next step
+        // At 10002ms, cooldown is fulfilled (10002 - 7001 = 3001 >= 3000)
+        val w4 = abrController.evaluate(tGood, nowElapsedMs = 10002L)
         assertNull("Requires 3 healthy windows", w4)
 
-        val w5 = abrController.evaluate(tGood, nowElapsedMs = 21002L)
+        val w5 = abrController.evaluate(tGood, nowElapsedMs = 11002L)
         assertNull("Requires 3 healthy windows", w5)
 
-        val stepTo800 = abrController.evaluate(tGood, nowElapsedMs = 22002L)
+        val stepTo800 = abrController.evaluate(tGood, nowElapsedMs = 12002L)
         assertNotNull(stepTo800)
         assertEquals(800, stepTo800?.newBitrateKbps)
         assertEquals(800, abrController.currentBitrateKbps)
 
-        // Fulfill 8s cooldown + 3 healthy windows for 800 -> 1200
-        abrController.evaluate(tGood, nowElapsedMs = 30003L)
-        abrController.evaluate(tGood, nowElapsedMs = 31003L)
-        val stepTo1200 = abrController.evaluate(tGood, nowElapsedMs = 32003L)
+        // Fulfill 3s cooldown + 3 healthy windows for 800 -> 1200
+        abrController.evaluate(tGood, nowElapsedMs = 15003L)
+        abrController.evaluate(tGood, nowElapsedMs = 16003L)
+        val stepTo1200 = abrController.evaluate(tGood, nowElapsedMs = 17003L)
         assertNotNull(stepTo1200)
         assertEquals(1200, stepTo1200?.newBitrateKbps)
         assertEquals(1200, abrController.currentBitrateKbps)

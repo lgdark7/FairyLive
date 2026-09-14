@@ -366,7 +366,12 @@ Milestone 13 validates application survivability, memory boundedness, resource c
 - Audio timeline span: $\Delta T_{audio} = PTS_{audio\_last} - PTS_{audio\_first}$
 - Video timeline span: $\Delta T_{video} = PTS_{video\_last} - PTS_{video\_first}$
 - Cumulative Timeline Drift: $|\Delta T_{video} - \Delta T_{audio}|$
-- MediaClock enforces sample-exact monotonic progression derived directly from byte count accumulation ($1024 \text{ samples} / 44100 \text{ Hz} \approx 23.2199 \text{ ms}$ per AAC frame), eliminating thread-scheduling timestamp slippage.
+- Dual-Mode Audio Synchronization Architecture:
+  1. **Continuous Micro-Spacing**: Derived directly from byte-count accumulation ($1024 \text{ samples} / 44100 \text{ Hz} \approx 23.2199 \text{ ms}$ per AAC frame), eliminating thread-scheduling timestamp slippage during normal execution.
+  2. **Wall-Clock Macro-Synchronization (`AudioCaptureEngine.kt` lines 152–155)**:
+     $$\text{driftUs} = \text{wallClockPtsUs} - \text{accumulatedPtsUs}$$
+     If $|\text{driftUs}| > 40,000\,\mu\text{s}$, $\text{startTimestampUs} += \text{driftUs}$.
+     This re-anchors the audio PTS to the wall-clock session timeline whenever `AudioRecord` HAL buffer dropouts or scheduler starvation occur. Video frames use `VirtualDisplay` wall-clock timestamps (`SurfaceTexture.timestamp`); without this compensation, dropped audio buffers would cause cumulative audio lag against the video timeline. During the 30-minute soak, this mechanism advanced $\text{startTimestampUs}$ by 59.014s during the minutes 14–19 stress interval, preventing a 55-second audio desynchronization and maintaining steady-state alignment (ending with a flat 1.0 ms/min post-recovery drift rate).
 
 
 

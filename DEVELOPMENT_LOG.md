@@ -7,10 +7,10 @@
 - **Scope Implemented & Verified**:
   1. **Test 1 & Test 2: 30-Minute Continuous RTMP Stream Soak & A/V Sync Analysis (`tools/audit_m13_30min_stream_ledger.json`)**:
      - 30 continuous minutes (1,800 seconds) of live AVC/AAC RTMP streaming.
-     - 30 fixed 60-second telemetry samples capturing: CPU %, PSS, Native Heap, Dalvik Heap, RSS, Threads, Sockets, Codecs, Video FPS, Audio Rate, FLV tag PTS timestamps, A/V Delta, and Cumulative Drift.
+     - 30 fixed 60-second telemetry samples capturing: CPU % (normalized single-core equivalent), PSS, Native Heap, Dalvik Heap, RSS, Threads, Sockets, Codecs, Video FPS, Audio Rate, FLV tag PTS timestamps, A/V Delta, and Cumulative Drift.
      - Codec Stability: Strictly 2 active MediaCodec instances maintained throughout the entire 30-minute run.
      - Zero crashes, zero ANRs, zero transport drops.
-     - A/V Sync verdict: Fully synchronized (<100ms drift across 30 minutes, monotonic sample-clock alignment).
+     - A/V Sync & Accounting Reconciled: Pre-stress T=1–13m showed <135ms A/V delta and exact 1:1 count vs PTS parity (-3.5ms diff). T=14–19m concurrent sub-system stress caused emulator AudioRecord buffer drops (1,851 AUs lost), triggering AudioCaptureEngine's 40ms drift compensator to advance startTimestampUs by 59.014s to preserve wall-clock alignment with the 1,831s video stream. Post-recovery (T=20–30m) exhibited zero further drift (net -23ms change, 1.0 ms/min) ending at a stable 3,699ms phase offset.
   2. **Test 8: 20 Start/Stop Cycles Lifecycle Stress (`tools/audit_m13_start_stop_20cycles.json`)**:
      - 20 complete cycles of start broadcast -> stream -> stop -> release -> GC.
      - Resource metrics: PSS was flat (+62 KB net delta, flat across cycles 8–20); Native Heap flat at 13,262 KB; Threads strictly 20; Sockets strictly 11.
@@ -20,7 +20,7 @@
      - Exhaustion test verified exponential backoff (1s -> 2s -> 4s -> 8s) transitioning to `FAILED` with zero infinite loops.
      - Bounded resources: Sockets strictly 11; Codecs strictly 2.
   4. **Subsystem Stress & Regression Suite**:
-     - Unit Tests: 145/145 PASS (`Milestone13StressUnitTest.kt` added 10 new tests covering ABR ladder cycling, 8s cooldown hysteresis, thermal ceilings, exponential backoff exhaustion, and memory trim).
+     - Unit Tests: 145/145 PASS (`Milestone13StressUnitTest.kt` added 10 new tests covering ABR ladder cycling, 3s cooldown hysteresis, thermal ceilings, exponential backoff exhaustion, and memory trim).
      - Connected Instrumented Tests: 23/23 PASS (`Milestone13StressInstrumentedTest.kt` added 5 new tests covering rapid full-overlay compositing, camera cycling, and memory trim).
      - Total Tests: 168/168 PASS (0 failures).
      - APK Binary Size: 6.0 MB (<15 MB budget).
