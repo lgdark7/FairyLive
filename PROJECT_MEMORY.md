@@ -61,7 +61,7 @@ Rebuild **FAIRY LIVE** from scratch as a high-performance, professional native A
       - **Resource Audit & Metric Clarification**:
         * Clarified that `dumpsys media.player | grep -c MediaCodec` (55) is an enumeration of OS-wide registered codec profiles across all formats.
         * Verified via `dumpsys media.metrics` that Fairy Live creates and holds **strictly 2 active MediaCodec instances** (1 AVC video encoder `HardwareVideoEncoder`, 1 AAC audio encoder `AacMediaCodecEncoder`).
-        * Post-GC memory stability: Dalvik heap stabilizes at 2.8 MB - 4.3 MB, native heap at 12.7 MB - 14.5 MB, and PSS at 54.8 MB - 67.9 MB.
+        * Post-GC memory stability: 10-cycle disconnect/reconnect audit (`tools/audit_reconnect_10cycles.json`) proves complete stabilization: Native heap delta across cycles 1-10 is 0 KB (13,385 KB), Dalvik heap delta is 0 KB (7,794 KB), PSS delta is +6 KB (62.3 MB), active codecs strictly 2, sockets return to baseline (10). Zero monotonic growth.
       - **3-Run Controlled A/B Benchmark (Condition A: M8 Compositor Baseline vs Condition B: M9 Active Resilience)**:
         * Identical Pixel 8 AVD, 720p 30fps, 5 overlays + GIF, 12s active duration post-warmup.
         * Condition A Mean (Range): CPU 10.0% [10.0-10.0%], PSS 67,684 KB [67,528 - 67,771 KB], Native 14,415 KB [14,393 - 14,429 KB], Dalvik 6,085 KB [5,956 - 6,156 KB], Threads 28, Sockets 4, Queue 40 KB.

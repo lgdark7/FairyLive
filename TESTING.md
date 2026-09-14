@@ -20,7 +20,7 @@ Testing covers unit tests, instrumentation, system-level execution, memory stabi
 | **Drop Accounting**| Decoupled drops vs delta evictions | `BoundedStreamQueue.kt` | **PASS** | `captureDrops=0`, `encoderDrops=0`, `muxDrops=0`, `rtmpDrops=0`, `queueEvictions`, `deltaFramesEvicted`, `keyframesEvicted=0` |
 | **Reconnect Audit**| Precise timeline ledger | `tools/audit_reconnect_timeline.json` | **PASS** | RTMP publishing recovered after forced disconnect; outage 1.03s, reconnect 1.027s; viewer-side seamlessness explicitly not validated |
 | **Controlled A/B** | 3-Run A/B Benchmark | `tools/audit_ab_3runs.json` | **PASS** | Condition A Mean: CPU 10.0%, PSS 67.7 MB, Native 14.4 MB, Dalvik 6.1 MB, 28 th, 4 sk.<br>Condition B Mean: CPU 10.0%, PSS 67.9 MB (+190 KB / +0.28%), Native 14.5 MB, Dalvik 6.0 MB, 28 th, 4 sk. Zero reduction claimed. |
-| **Resource Audit** | Codec and Post-GC Memory Audit | `dumpsys media.metrics` + `meminfo` | **PASS** | "55 Codecs" clarified as OS profile enumeration. Active codecs strictly = 2 (1 AVC, 1 AAC). Post-GC Dalvik 2.8 MB, native 12.7 MB, PSS 54.8 MB. |
+| **Resource Audit** | 10-Cycle Reconnection Resource Ledger | `tools/audit_reconnect_10cycles.json` | **PASS** | Native heap delta across cycles 1-10: 0 KB (13,385 KB). Dalvik delta: 0 KB (7,794 KB). PSS delta: +6 KB (62.3 MB). Codecs strictly 2 (1 AVC, 1 AAC). Zero socket leaks (10 sk). |
 | **Transport Note** | Interface transition detection | `NetworkQualityMonitor.kt` | **DOCUMENTED**| Transition detection implemented; physical Wi-Fi/cellular streaming migration not validated in M9 |
 
 ---

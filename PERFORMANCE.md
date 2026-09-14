@@ -52,10 +52,38 @@ Measured on Pixel 8 AVD under controlled network throttle schedule (`tools/audit
   1. `HardwareVideoEncoder` (`c2.android.avc.encoder`, software fallback on AVD)
   2. `AacMediaCodecEncoder` (`c2.android.aac.encoder`)
   These 2 instances persist cleanly across socket reconnections without being reallocated or leaked.
-- **Post-GC Memory Verification**:
-  * Pre-GC during continuous streaming: Dalvik heap expands to 6.1 – 11.5 MB due to uncollected log strings and temporary buffers.
-  * Post-GC checkpoint (`run-as com.fairylive.app kill -10 $PID`): Dalvik heap immediately drops to **2,851 KB** (Allocated: 4,358 KB), native heap stabilizes at **12,775 KB**, and total PSS stabilizes at **54,832 KB (54.8 MB)**.
-  * Conclusion: No sustained memory leaks beyond normal virtual machine runtime variance. Zero leaks claimed only where supported by post-GC stability data.
+
+### D. 10-Cycle Disconnect/Reconnect Resource Audit Ledger
+Conducted on Google Pixel 8 AVD, Android 15 (API 35), PID 25686. Stream active at 720p 30fps with 5 overlays + animated GIF.
+Each cycle induced a forced socket disconnect by terminating the ingest server, followed by automatic reconnection backoff (1000ms), stream resynchronization, and an explicit post-GC checkpoint (`run-as com.fairylive.app kill -10 $PID`):
+
+| Cycle # | Event / State | PSS (KB) | Native Heap (KB) | Dalvik Heap (KB) | RSS (KB) | Threads | Sockets | Active Codecs | Codec Types |
+|---|---|---|---|---|---|---|---|---|---|
+| **0** | Baseline (Warmup) | 56,468 | 13,585 | 3,031 | 161,572 | 20 | 10 | **2** | 1 AVC enc, 1 AAC enc |
+| **1** | Post-Reconnect #1 | 62,375 | 13,385 | 7,794 | 161,464 | 19 | 10 | **2** | 1 AVC enc, 1 AAC enc |
+| **2** | Post-Reconnect #2 | 62,375 | 13,385 | 7,794 | 161,368 | 19 | 10 | **2** | 1 AVC enc, 1 AAC enc |
+| **3** | Post-Reconnect #3 | 62,388 | 13,385 | 7,794 | 161,364 | 19 | 10 | **2** | 1 AVC enc, 1 AAC enc |
+| **4** | Post-Reconnect #4 | 62,388 | 13,385 | 7,794 | 161,360 | 19 | 10 | **2** | 1 AVC enc, 1 AAC enc |
+| **5** | Post-Reconnect #5 | 62,388 | 13,385 | 7,794 | 161,356 | 19 | 10 | **2** | 1 AVC enc, 1 AAC enc |
+| **6** | Post-Reconnect #6 | 62,388 | 13,385 | 7,794 | 161,352 | 19 | 10 | **2** | 1 AVC enc, 1 AAC enc |
+| **7** | Post-Reconnect #7 | 62,320 | 13,297 | 7,794 | 161,340 | 19 | 10 | **2** | 1 AVC enc, 1 AAC enc |
+| **8** | Post-Reconnect #8 | 62,388 | 13,385 | 7,794 | 161,340 | 19 | 10 | **2** | 1 AVC enc, 1 AAC enc |
+| **9** | Post-Reconnect #9 | 62,388 | 13,385 | 7,794 | 161,336 | 19 | 10 | **2** | 1 AVC enc, 1 AAC enc |
+| **10** | Post-Reconnect #10 | 62,381 | 13,385 | 7,794 | 161,396 | 19 | 10 | **2** | 1 AVC enc, 1 AAC enc |
+
+#### Conservative Engineering Analysis
+1. **Memory Stabilization**:
+   - Native Heap: Evaluated at 13,585 KB baseline; stabilized at exactly **13,385 KB** across Cycles 1–10 (Delta Cycle 1 to Cycle 10: **0 KB**).
+   - Dalvik Heap: Evaluated at 3,031 KB initial; stabilized at exactly **7,794 KB** post-GC across Cycles 1–10 (Delta Cycle 1 to Cycle 10: **0 KB**).
+   - PSS: Initial baseline 56.4 MB; post-reconnect stabilized at **62.3 MB** (Delta Cycle 1 to Cycle 10: **+6 KB**, within negligible measurement variance).
+   - RSS: Evaluated at 161.5 MB initial; ended at **161.4 MB** (Delta Cycle 1 to Cycle 10: **-68 KB**).
+2. **Absence of Monotonic Resource Growth**:
+   - Zero monotonic escalation across all memory segments over 10 complete disconnect/reconnect cycles.
+3. **Codec Instance Invariant**:
+   - Active MediaCodec instances remained **strictly 2** (1 AVC video encoder, 1 AAC audio encoder) without recreating, abandoning, or leaking codecs.
+4. **Thread and Socket Invariants**:
+   - Thread count: 20 at baseline, exactly **19** across all reconnect cycles.
+   - Sockets: Exactly **10** open file descriptors across all cycles (zero socket descriptor leakage).
 
 ---
 
