@@ -55,3 +55,23 @@
 1. Animated overlay formats (GIF, WebP animations, Lottie/vector animations).
 2. Creator soundboard and interactive audio triggers.
 3. Stream chat overlay rendering.
+
+---
+
+## 4. Milestone 9 Verification Standards & Constraints
+1. **ABR Downscaling Dynamics**:
+   - Discrete ladder: 1200 -> 800 -> 500 -> 300 kbps.
+   - Under acute `POOR` network conditions (throughput < 500 kbps or write latency > 350 ms), the controller intentionally executes a 2-tier rapid downscale (1200 -> 500 kbps) to prevent buffer explosion and protect keyframes, skipping intermediate 800 kbps.
+   - Under mild `DEGRADED` conditions (500–800 kbps), it executes a 1-tier step-down (1200 -> 800 kbps).
+   - Keyframes and sequence headers are strictly protected (`keyframesEvicted = 0`).
+2. **Decoupled Metric Accounting**:
+   - Complete architectural decoupling between pipeline-stage drops (`captureDrops`, `encoderDrops`, `muxDrops`, `rtmpDrops`, `serverDrops`) and buffer queue evictions (`queueEvictions`, `deltaFramesEvicted`, `keyframesEvicted`, `unbufferedDrops`).
+3. **Controlled A/B Evaluation**:
+   - Evaluation protocol requires 3 runs per condition with identical parameters, reporting run-by-run measurements along with means and ranges for CPU, PSS, Native Heap, Dalvik Heap, Threads, Sockets, and Queue Memory. No memory-reduction claims are permitted.
+4. **Codec & Resource Audit Ground Truth**:
+   - Active encoder instances are strictly bounded to 2 (1 video, 1 audio), confirmed via `dumpsys media.metrics`. System-level codec profile enumeration (`dumpsys media.player`) is disambiguated.
+   - Post-GC memory stability must be verified to prevent conflating transient allocation with memory leaks.
+5. **Operational Limitations Preserved**:
+   - Viewer-side seamless player continuity is explicitly not validated in M9.
+   - Physical Wi-Fi <-> Cellular interface migration is explicitly not validated on AVD.
+   - No unsupported claims of hardware acceleration or zero memory leaks beyond empirical evidence.

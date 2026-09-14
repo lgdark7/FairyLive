@@ -9,23 +9,18 @@ Testing covers unit tests, instrumentation, system-level execution, memory stabi
 
 | Category | Test Case | Target / Command | Result | Evidence |
 |---|---|---|---|---|
-| **Build** | Clean & Assemble | `./gradlew clean assembleDebug` | **PASS** | `BUILD SUCCESSFUL`, 7.00 MB APK (< 15 MB budget) |
-| **Unit Tests** | Complete Suite | `./gradlew testDebugUnitTest` | **PASS** | **108/108 unit tests pass** (16 classes, incl. 16 M9 resilience tests) |
-| **Device Tests** | On-Device Instrumentation | `connectedDebugAndroidTest` | **PASS** | **5/5 pass** on Pixel 8 Android 15 AVD |
+| **Build & Regression** | Clean, Unit & Connected Suite | `./gradlew clean testDebugUnitTest connectedDebugAndroidTest` | **PASS (Exit 0)** | **108/108 unit tests pass**, **5/5 connected tests pass**, 71/71 tasks, 6.00 MB APK (< 15 MB budget) |
 | **Network Monitor** | Circular buffer latency & zero alloc | `NetworkQualityMonitorTest` | **PASS** | `testSlidingWindowLatencyAveraging`, `testZeroAllocationHotPath` |
 | **Network Monitor** | Throughput & NetworkTransport | `NetworkQualityMonitorTest` | **PASS** | `testThroughputEstimation`, `testNetworkAvailabilityTransition` |
-| **ABR Ladder** | Rapid downscale on congestion | `AdaptiveBitrateControllerTest` | **PASS** | `testImmediateClampingToFloorOnCritical`, `testDownscaleOnPoorNetwork` |
-| **ABR Hysteresis** | Anti-oscillation cooldown & step-up | `AdaptiveBitrateControllerTest` | **PASS** | `testConservativeRecoveryRequiresSustainedHealthyWindows`, `testCooldownPreventsOscillation` |
-| **ABR Keyframe** | Request sync IDR on downscale | `AdaptiveBitrateControllerTest` | **PASS** | `testKeyFrameRequestedOnSignificantDownscale` |
+| **ABR Downscale** | Intentional 2-tier rapid downscale | `tools/audit_abr_downward_ladder.json` | **PASS** | Acute `POOR` drops 2 tiers (1200 -> 500 kbps, `POOR_NETWORK`, keyframe requested); sustained drops to floor (500 -> 300 kbps, `DEGRADED_LATENCY`). `keyframesEvicted = 0` strictly protected. |
+| **ABR Unit Tests** | Ladder transitions & hysteresis | `AdaptiveBitrateControllerTest` | **PASS** | `testPoorNetworkTriggersFastDropTwoTiers`, `testDegradedNetworkTriggersStepDownOneTier`, `testCriticalCongestionTriggersEmergencyDropAndKeyFrame`, `testConservativeRecoveryRequiresHysteresisAndCooldown` |
 | **Reconnection** | Exponential backoff sequence | `StreamReconnectionManagerTest`| **PASS** | 1s, 2s, 4s, 8s backoff timings verified |
-| **Reconnection** | Capped attempts & exhaustion | `StreamReconnectionManagerTest`| **PASS** | Max 4 attempts enforced, exhausts to null and `EXHAUSTED` state |
-| **State Machine** | Strict prevention of false LIVE | `NetworkResilienceTest` | **PASS** | `testStrictConnectionStateTransitions`, `DISCONNECTED` & `RECONNECTING` never `isStreaming` |
+| **Reconnection** | Capped attempts & exhaustion | `StreamReconnectionManagerTest`| **PASS** | Max 4 attempts enforced, exhausts to `RtmpConnectionState.FAILED` with 0 leaked sockets |
+| **State Machine** | Strict prevention of false LIVE | `NetworkResilienceTest` | **PASS** | `testStrictConnectionStateTransitions`, `DISCONNECTED` & `RECONNECTING` never report `isStreaming` |
 | **Drop Accounting**| Decoupled drops vs delta evictions | `BoundedStreamQueue.kt` | **PASS** | `captureDrops=0`, `encoderDrops=0`, `muxDrops=0`, `rtmpDrops=0`, `queueEvictions`, `deltaFramesEvicted`, `keyframesEvicted=0` |
 | **Reconnect Audit**| Precise timeline ledger | `tools/audit_reconnect_timeline.json` | **PASS** | RTMP publishing recovered after forced disconnect; outage 1.03s, reconnect 1.027s; viewer-side seamlessness explicitly not validated |
-| **ABR Ledger** | Controlled bandwidth throttling | `tools/audit_bandwidth_ledger.json` | **PASS** | Controlled step-down (1200->500->300 kbps) and step-up recovery (300->500->800->1200 kbps) verified |
-| **Failure Mode** | Reconnect exhaustion timeline | `tools/audit_reconnect_failure.json` | **PASS** | Exact delays 1006ms, 2010ms, 4004ms, 8004ms -> halts cleanly in `FAILED` state, no crash, 0 leaks |
-| **10-Cycle Audit** | 10 repeated reconnect cycles | `tools/audit_10_cycle_resources.json` | **PASS** | No sustained resource growth observed across 10 cycles; Native Heap 14.0-14.9 MB, Threads 34-35 |
-| **A/B Overhead** | Controlled Condition A vs B | `tools/audit_ab_benchmark.json` | **PASS** | Identical 5-overlay pipeline: +0.4% CPU, ~0 MB net memory delta |
+| **Controlled A/B** | 3-Run A/B Benchmark | `tools/audit_ab_3runs.json` | **PASS** | Condition A Mean: CPU 10.0%, PSS 67.7 MB, Native 14.4 MB, Dalvik 6.1 MB, 28 th, 4 sk.<br>Condition B Mean: CPU 10.0%, PSS 67.9 MB (+190 KB / +0.28%), Native 14.5 MB, Dalvik 6.0 MB, 28 th, 4 sk. Zero reduction claimed. |
+| **Resource Audit** | Codec and Post-GC Memory Audit | `dumpsys media.metrics` + `meminfo` | **PASS** | "55 Codecs" clarified as OS profile enumeration. Active codecs strictly = 2 (1 AVC, 1 AAC). Post-GC Dalvik 2.8 MB, native 12.7 MB, PSS 54.8 MB. |
 | **Transport Note** | Interface transition detection | `NetworkQualityMonitor.kt` | **DOCUMENTED**| Transition detection implemented; physical Wi-Fi/cellular streaming migration not validated in M9 |
 
 ---

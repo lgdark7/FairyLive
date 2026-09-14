@@ -175,4 +175,47 @@ FAIRY LIVE M8 establishes a modular, decoupled overlay architecture that support
 - `MAX_ACTIVE_GIFS = 2`: Concurrent animated-overlay ceiling.
 - `MAX_CONCURRENT_ALERTS = 3`: Queue ceiling for broadcast alerts.
 
+---
+
+## 9. Adaptive Bitrate & Network Resilience Architecture (Milestone 9)
+
+### A. Network Quality Telemetry (`NetworkQualityMonitor`)
+- **Zero-Allocation Hot-Path Primitives**:
+  - Employs a pre-allocated circular array (`LongArray(16)`) to track socket write latencies.
+  - Throughput is calculated via a sliding byte accumulator over 1000 ms windows with zero object allocation during packet transmission.
+- **Health Classification Hierarchy**:
+  - `EXCELLENT`: Latency 1–49 ms, 0 slow writes, queue fill $\le$ 5%, throughput $\ge$ 1,000 kbps.
+  - `HEALTHY`: Normal operating conditions meeting baseline transmission pace.
+  - `DEGRADED`: Latency $\ge$ 150 ms, slow writes $\ge$ 1, queue fill $\ge$ 25%, or throughput 500–800 kbps.
+  - `POOR`: Latency $\ge$ 350 ms, slow writes $\ge$ 3, queue fill $\ge$ 50%, or throughput 250–500 kbps.
+  - `CRITICAL`: Failures $> 0$, OS network unavailable, latency $\ge$ 500 ms, queue fill $\ge$ 75%, or throughput 1–250 kbps.
+- **ConnectivityManager Integration**: Tracks OS-level interfaces (`WIFI`, `CELLULAR`, `ETHERNET`, `UNAVAILABLE`). Physical Wi-Fi $\leftrightarrow$ Cellular seamless handover is explicitly documented as not validated on this AVD.
+
+### B. Adaptive Bitrate Controller (`AdaptiveBitrateController`)
+- **Discrete Bitrate Ladder**: 1200 kbps (Tier 0) $
+ightarrow$ 800 kbps (Tier 1) $
+ightarrow$ 500 kbps (Tier 2) $
+ightarrow$ 300 kbps (Tier 3 floor).
+- **Asymmetric Downscaling State-Machine**:
+  - `CRITICAL`: Immediate emergency clamp to 300 kbps floor (`reason=CRITICAL_CONGESTION`).
+  - `POOR`: 2-tier rapid downscale (`targetTier = (currentTierIndex + 2).coerceAtMost(3)`). From 1200 kbps, intentionally transitions to 500 kbps (`reason=POOR_NETWORK`) to rapidly relieve acute network collapse and protect keyframes from buffer explosion, skipping intermediate 800 kbps.
+  - `DEGRADED`: 1-tier downscale (`targetTier = (currentTierIndex + 1).coerceAtMost(3)`), transitioning 1200 $
+ightarrow$ 800 kbps (`reason=DEGRADED_LATENCY` or `QUEUE_BACKPRESSURE`).
+  - **Keyframe Synchronization**: Requests an IDR sync keyframe from the encoder (`PARAMETER_KEY_REQUEST_SYNC_FRAME`) upon significant downward transitions.
+- **Conservative Recovery with Hysteresis**:
+  - Requires 3 consecutive sustained healthy evaluation windows (3000 ms) AND a 3000 ms anti-oscillation cooldown before stepping up 1 tier at a time (300 $
+ightarrow$ 500 $
+ightarrow$ 800 $
+ightarrow$ 1200 kbps).
+
+### C. Stream Reconnection & Lifecycle Safety (`StreamReconnectionManager`)
+- **Bounded Exponential Backoff**: Retries at 1s, 2s, 4s, 8s intervals capped at 4 maximum attempts.
+- **Terminal State Safety**: Transitions cleanly to `RtmpConnectionState.FAILED`, halting background threads and preventing reconnect storms or false `● LIVE` reporting.
+- **Session Continuity**: Retains encoder instances and sequence headers; viewer-side seamless player continuity is explicitly not validated in M9.
+
+### D. Codec Instance Lifecycle & Memory Guarantees
+- **Active Codec Invariant**: Exactly **2 active MediaCodec instances** exist in the process (1 AVC video encoder `HardwareVideoEncoder`, 1 AAC audio encoder `AacMediaCodecEncoder`). Reconnection preserves these instances without recreation or leaks.
+- **System Profile Enumeration Clarification**: The 55 count reported in system dumps represents registered OS MIME profiles (`dumpsys media.player`), not application instances. Application instances are verified via `dumpsys media.metrics`.
+
+
 
