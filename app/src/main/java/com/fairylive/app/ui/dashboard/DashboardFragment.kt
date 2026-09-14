@@ -112,6 +112,18 @@ class DashboardFragment : Fragment(),
         updateCompositorUI()
     }
 
+    private val cameraStateListener: (com.fairylive.app.core.camera.CameraState, com.fairylive.app.core.camera.CameraState) -> Unit = { _, _ ->
+        activity?.runOnUiThread {
+            if (_binding != null) updateCameraUI()
+        }
+    }
+
+    private val cameraMetricsListener: (com.fairylive.app.core.camera.CameraMetrics) -> Unit = { _ ->
+        activity?.runOnUiThread {
+            if (_binding != null) updateCameraUI()
+        }
+    }
+
     override fun onCreateView(
         inflater: LayoutInflater,
         container: ViewGroup?,
@@ -133,7 +145,10 @@ class DashboardFragment : Fragment(),
         com.fairylive.app.core.common.CreatorErrorNotifier.addListener(this)
         com.fairylive.app.core.compositor.CompositorStateNotifier.addStateListener(compositorStateListener)
         com.fairylive.app.core.compositor.CompositorStateNotifier.addMetricsListener(compositorMetricsListener)
+        com.fairylive.app.core.camera.CameraStateNotifier.addStateListener(cameraStateListener)
+        com.fairylive.app.core.camera.CameraStateNotifier.addMetricsListener(cameraMetricsListener)
         updateCompositorUI()
+        updateCameraUI()
 
         bindDeviceCapability()
         bindCaptureControls()
@@ -168,6 +183,8 @@ class DashboardFragment : Fragment(),
         com.fairylive.app.core.common.CreatorErrorNotifier.removeListener(this)
         com.fairylive.app.core.compositor.CompositorStateNotifier.removeStateListener(compositorStateListener)
         com.fairylive.app.core.compositor.CompositorStateNotifier.removeMetricsListener(compositorMetricsListener)
+        com.fairylive.app.core.camera.CameraStateNotifier.removeStateListener(cameraStateListener)
+        com.fairylive.app.core.camera.CameraStateNotifier.removeMetricsListener(cameraMetricsListener)
         _binding = null
     }
 
@@ -696,6 +713,49 @@ class DashboardFragment : Fragment(),
             } catch (e: Exception) {
                 Toast.makeText(requireContext(), "Start stream first to display broadcast alerts", Toast.LENGTH_SHORT).show()
             }
+        }
+
+        binding.btnToggleFacecam.setOnClickListener {
+            if (!PermissionManager.hasCameraPermission(requireContext())) {
+                permissionLauncher.launch(arrayOf(android.Manifest.permission.CAMERA))
+                return@setOnClickListener
+            }
+            try {
+                FairyStreamService.toggleFacecam(requireContext())
+            } catch (e: Exception) {
+                Toast.makeText(requireContext(), "Start stream first to enable broadcast Facecam", Toast.LENGTH_SHORT).show()
+            }
+        }
+
+        binding.btnSwitchFacecam.setOnClickListener {
+            try {
+                FairyStreamService.switchFacecam(requireContext())
+            } catch (e: Exception) {
+                Toast.makeText(requireContext(), "Start stream first to switch Facecam", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    private fun updateCameraUI() {
+        if (_binding == null) return
+        val state = com.fairylive.app.core.camera.CameraStateNotifier.currentState
+        val metrics = com.fairylive.app.core.camera.CameraStateNotifier.currentMetrics
+        val isStreaming = (state == com.fairylive.app.core.camera.CameraState.STREAMING)
+        binding.btnToggleFacecam.text = if (isStreaming) "Facecam PIP: ON" else "Facecam PIP: OFF"
+        binding.btnToggleFacecam.setTextColor(
+            requireContext().getColor(if (isStreaming) R.color.status_green else R.color.fairy_cyan)
+        )
+        binding.tvFacecamStatus.text = when (state) {
+            com.fairylive.app.core.camera.CameraState.STREAMING ->
+                "Facecam: ACTIVE (${metrics.facing} | ${String.format("%.1f", metrics.currentFps)} fps | ${metrics.framesCaptured} frames)"
+            com.fairylive.app.core.camera.CameraState.OPENING ->
+                "Facecam: Opening hardware camera..."
+            com.fairylive.app.core.camera.CameraState.SWITCHING ->
+                "Facecam: Switching camera lens..."
+            com.fairylive.app.core.camera.CameraState.ERROR ->
+                "Facecam: Error (Hardware unavailable or busy)"
+            else ->
+                "Facecam: Standby (Front PIP 26% top-right)"
         }
     }
 

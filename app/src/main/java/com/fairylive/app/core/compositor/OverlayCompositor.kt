@@ -6,6 +6,7 @@ import android.os.HandlerThread
 import android.os.SystemClock
 import android.util.Log
 import android.view.Surface
+import com.fairylive.app.core.camera.model.FacecamConfig
 import com.fairylive.app.core.compositor.model.OverlayElement
 import com.fairylive.app.core.compositor.render.GlesRenderer
 import com.fairylive.app.core.compositor.resource.OverlayResourceManager
@@ -47,10 +48,15 @@ class OverlayCompositor(
     private var available: Boolean = false
 
     private val captureFramesReceived = AtomicLong(0L)
+    private val cameraFramesReceived = AtomicLong(0L)
     private val surfaceTextureUpdates = AtomicLong(0L)
     private val renderIterations = AtomicLong(0L)
     private val duplicateRendersSkipped = AtomicLong(0L)
     private val framesComposited = AtomicLong(0L)
+
+    @Volatile
+    var facecamConfig: FacecamConfig = FacecamConfig(enabled = false)
+        private set
 
     private var lastFpsCalcTime: Long = 0L
     private var lastRenderFrameCount: Long = 0L
@@ -111,9 +117,12 @@ class OverlayCompositor(
                     appContext.assets,
                     handler
                 )
-                // Auto-drive: every new capture frame triggers a composite + present.
+                // Auto-drive: capture & camera frame arrivals trigger composition.
                 renderer.onFrameAvailable = {
                     onCaptureFrameAvailable()
+                }
+                renderer.onCameraFrameAvailable = {
+                    onCameraFrameAvailable()
                 }
                 isRunning.set(true)
                 available = true
@@ -171,27 +180,56 @@ class OverlayCompositor(
         }
     }
 
+    /** Queues a frame to be composed + presented from camera preview. */
+    fun onCameraFrameAvailable() {
+        if (!isRunning.get() || !available) return
+        cameraFramesReceived.incrementAndGet()
+        renderHandler?.post {
+            renderFrame(fromCallback = true)
+        }
+    }
+
     /**
      * Render-loop body — invoked on the render thread by the SurfaceTexture
      * frame-available callback ([fromCallback] = true) or the poll fallback ([fromCallback] = false).
      */
     private fun renderFrame(fromCallback: Boolean = false) {
         if (!isRunning.get() || !available || isPaused.get()) return
-        val isNew = renderer.consumeNewFrame(force = fromCallback)
-        if (!isNew) {
+        val isCaptureNew = renderer.consumeNewFrame(force = fromCallback)
+        val isCameraNew = if (facecamConfig.enabled) renderer.consumeNewCameraFrame(force = fromCallback) else false
+        if (!isCaptureNew && !isCameraNew) {
             duplicateRendersSkipped.incrementAndGet()
             return
         }
         surfaceTextureUpdates.incrementAndGet()
         if (enabled) {
-            renderer.drawFrame(scene, resources)
+            renderer.drawFrame(scene, resources, facecamConfig)
         } else {
             // Disabled: forward capture to the encoder unchanged (pass-through)
-            renderer.drawFrame(OverlayScene(), resources)
+            renderer.drawFrame(OverlayScene(), resources, null)
         }
         val count = renderIterations.incrementAndGet()
         framesComposited.set(count)
         updateMetrics()
+    }
+
+    fun getCameraSurface(width: Int = 640, height: Int = 480): Surface? {
+        val handler = renderHandler ?: return null
+        return handler.postWithResult {
+            renderer.getCameraSurface(width, height)
+        }
+    }
+
+    fun updateFacecamConfig(config: FacecamConfig) {
+        this.facecamConfig = config.sanitized()
+        Log.i(TAG, "Facecam config updated: enabled=${config.enabled}, facing=${config.facing}, x=${config.normalizedX}, y=${config.normalizedY}")
+    }
+
+    fun toggleFacecam(enable: Boolean? = null): Boolean {
+        val target = enable ?: !facecamConfig.enabled
+        facecamConfig = facecamConfig.copy(enabled = target)
+        Log.i(TAG, "Facecam toggled: $target")
+        return target
     }
 
     private fun updateMetrics() {

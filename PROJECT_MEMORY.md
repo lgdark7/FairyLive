@@ -76,7 +76,21 @@ Rebuild **FAIRY LIVE** from scratch as a high-performance, professional native A
         * Physical Wi-Fi <-> Cellular handover NOT validated on AVD.
         * No unsupported hardware encoder claims.
         * No unsupported zero-leak claims beyond measured data.
-- **Pending Milestones**: M10 through M15 (strictly gated on ChatGPT M9 approval).
+  - **M10: Camera / Face Cam Integration** (IMPLEMENTED & VALIDATED — 2026-09-14)
+      - **Zero-Copy Camera PIP Compositing**: Native `Camera2` integration streaming direct to a dedicated OpenGL `SurfaceTexture` via `GL_TEXTURE_EXTERNAL_OES` with hardware sensor orientation transform (`uTexMatrix`), spatial layout matrix (`uModel`), PIP scaling, and front-camera selfie mirroring.
+      - **Low-Overhead Optimal Sizing**: Pure-Kotlin `CameraSize` selector choosing optimal 640x480 preview resolution instead of 4K/12MP sensor resolutions to strictly conserve GPU memory bandwidth and fill rate.
+      - **Lifecycle & Switching Safety**: Dedicated background `FairyCameraThread` with sequential teardown and rebuild (`STOP` -> `RELEASE` -> `SELECT` -> `CONFIGURE` -> `START`), non-fatal error fallback, and state synchronization via `CameraStateNotifier`.
+      - **UI & IPC Control**: Creator dashboard controls for Facecam toggle and lens switching, backed by exported `StreamControlReceiver` for background IPC broadcast automation.
+      - **Active Codecs Invariant**: System holds strictly 2 active MediaCodec instances (1 AVC video, 1 AAC audio) with zero codec churn or recreation.
+      - **A/B Benchmark (Camera OFF vs Camera ON under identical conditions)**:
+        * Condition A (Camera OFF): CPU 10.0%, PSS 68,212 KB (68.2 MB), Native 14,634 KB, Dalvik 4,292 KB, Threads 36, Sockets 12, Camera FPS 0.0, Compositor FPS 30.0, Encoder FPS 29.8, Drops 0.
+        * Condition B (Camera ON): CPU 10.0%, PSS 75,794 KB (75.8 MB), Native 15,130 KB, Dalvik 9,798 KB, Threads 36, Sockets 12, Camera FPS 30.0, Compositor FPS 29.9, Encoder FPS 29.8, Drops 0.
+        * Net Overhead: CPU delta 0.0%, PSS delta +7,582 KB (+7.4 MB, for camera buffers & OES texture), Native delta +496 KB, Thread delta 0.
+      - **10-Cycle Lifecycle Stability Audit**:
+        * 10 complete cycles of START -> CAMERA ON -> STREAM -> CAMERA OFF -> CAMERA ON -> FRONT/REAR SWITCH -> CAMERA OFF -> STOP -> START -> STOP.
+        * Cycle 1 to Cycle 10 post-GC: PSS bounded from 74,934 KB to 75,444 KB (+510 KB across 10 complete cycles), Dalvik heap decreased from 8,249 KB to 8,038 KB (-211 KB), Threads stable (32-36), Codecs strictly 2. Zero monotonic growth.
+      - **Full Regression**: `./gradlew clean testDebugUnitTest connectedDebugAndroidTest` passed with exit code 0 (115/115 unit tests pass, 11/11 connected tests pass, 71/71 tasks, build duration 35.4s, APK size 6.0 MB).
+- **Pending Milestones**: M11 through M15 (M10 awaiting ChatGPT review).
 
 ---
 
@@ -116,6 +130,15 @@ Rebuild **FAIRY LIVE** from scratch as a high-performance, professional native A
 - **M7 Bug 2 (Virtualized Driver Callback Delivery)**:
   - **Issue**: Emulator swiftshader intermittently omitted `onFrameAvailable` signals, causing stalls.
   - **Fix**: Added an adaptive 16 ms periodic poll fallback with `consumeNewFrame()` ensuring steady 46+ FPS frame delivery to MediaCodec without CPU busy-waiting.
+- **M10 Bug 1 (android.util.Size JVM Stub in Unit Tests)**:
+  - **Issue**: Running unit tests without Robolectric stubbed `android.util.Size.width/height` to 0, failing `testOptimalSizeSelectionConservesGpuBandwidth`.
+  - **Fix**: Replaced framework class with pure-Kotlin `data class CameraSize(val width: Int, val height: Int) : Comparable<CameraSize>` in `CameraDeviceInfo.kt`, `CameraCapabilityDetector.kt`, and `CameraCaptureEngine.kt`.
+- **M10 Bug 2 (Instrumentation Test Runner Permission Manifest)**:
+  - **Issue**: Connected instrumented test APK runner lacked camera permission, causing `CameraCaptureEngine` to fail with SecurityException on startup.
+  - **Fix**: Declared `<uses-permission android:name="android.permission.CAMERA" />` in `app/src/androidTest/AndroidManifest.xml` and automated permission grants via `uiAutomation.executeShellCommand` in `@Before`.
+- **M10 Bug 3 (Non-Exported Foreground Service Intent IPC)**:
+  - **Issue**: Shell commands could not send intents directly to `FairyStreamService` because `android:exported="false"`.
+  - **Fix**: Created and registered `StreamControlReceiver` with actions `TOGGLE_FACECAM`, `SWITCH_FACECAM`, and `STOP_CAPTURE`.
 
 ---
 

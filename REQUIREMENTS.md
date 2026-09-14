@@ -43,7 +43,7 @@
 3. **Scene Management**:
    - Switchable scenes (e.g. Starting, Gameplay, Chat, Ending) without interrupting active stream connection.
 4. **Camera / Face Cam**:
-   - CameraX / Camera2 integration rendering face-cam into the compositor pipeline.
+   - Pure Camera2 integration rendering face-cam into GLES compositor pipeline via zero-copy `GL_TEXTURE_EXTERNAL_OES` (Completed in M10).
 5. **Dynamic Telemetry & Adaptive Quality**:
    - Monitoring of encoder FPS, dropped frames, network throughput, and device battery/thermal state.
 6. **Custom Creator Presets**:
@@ -75,3 +75,17 @@
    - Viewer-side seamless player continuity is explicitly not validated in M9.
    - Physical Wi-Fi <-> Cellular interface migration is explicitly not validated on AVD.
    - No unsupported claims of hardware acceleration or zero memory leaks beyond empirical evidence.
+
+---
+
+## 5. Milestone 10 Verification Standards & Constraints
+1. **Zero-Copy Pipeline Integrity**:
+   - Camera frames must flow directly from `CameraCaptureSession` to an Android `Surface` backed by a dedicated GLES `SurfaceTexture` (`GL_TEXTURE_EXTERNAL_OES`). No CPU memory copies, pixel readbacks, or `Bitmap` allocations are permitted in the hot path.
+2. **GPU Bandwidth Conservation**:
+   - Camera preview dimensions must be constrained to bandwidth-optimized dimensions (640x480) for PIP rendering; full sensor resolution capture (4K/12MP) is prohibited to prevent GPU fill rate and memory exhaustion on low-end hardware.
+3. **Safe Lifecycle & Non-Monotonic Growth**:
+   - Camera teardown and rebuild must execute sequentially on a dedicated background thread without deadlocks or unclosed sessions.
+   - 10-cycle camera toggle stability audit must verify non-monotonic memory growth post-GC, with active MediaCodec instances held strictly at 2.
+4. **Decoupled IPC & State Safety**:
+   - Camera toggling and lens switching must never mutate RTMP stream state or cause false `● LIVE` reporting.
+

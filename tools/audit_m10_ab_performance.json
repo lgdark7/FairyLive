@@ -1,0 +1,53 @@
+{
+  "condition_A": {
+    "condition": "Condition A (Camera OFF)",
+    "duration_sec": 15,
+    "profile": "LOW (720p)",
+    "resolution": "1280x720",
+    "bitrate_kbps": 1200,
+    "fps": 30,
+    "overlay_config": "M8 Multi-Overlay Scene (GIF + Watermark + Goal + Banner)",
+    "facecam_enabled": false,
+    "cpu_percent": 10.0,
+    "pss_kb": 68212,
+    "native_heap_kb": 14634,
+    "dalvik_heap_kb": 4292,
+    "rss_kb": 176488,
+    "threads": 36,
+    "sockets": 12,
+    "camera_fps": 0.0,
+    "compositor_fps": 30.0,
+    "encoder_fps": 29.8,
+    "queue_depth": 1,
+    "pipeline_drops": 0
+  },
+  "condition_B": {
+    "condition": "Condition B (Camera ON)",
+    "duration_sec": 15,
+    "profile": "LOW (720p)",
+    "resolution": "1280x720 (Facecam PIP 640x480 @ 26%)",
+    "bitrate_kbps": 1200,
+    "fps": 30,
+    "overlay_config": "M8 Multi-Overlay Scene + Facecam OES PIP Layer",
+    "facecam_enabled": true,
+    "cpu_percent": 10.0,
+    "pss_kb": 75794,
+    "native_heap_kb": 15130,
+    "dalvik_heap_kb": 9798,
+    "rss_kb": 177048,
+    "threads": 36,
+    "sockets": 12,
+    "camera_fps": 30.0,
+    "compositor_fps": 29.9,
+    "encoder_fps": 29.8,
+    "queue_depth": 0,
+    "pipeline_drops": 0
+  },
+  "delta": {
+    "cpu_delta_percent": 0.0,
+    "pss_delta_kb": 7582,
+    "native_heap_delta_kb": 496,
+    "dalvik_heap_delta_kb": 5506,
+    "thread_delta": 0
+  }
+}

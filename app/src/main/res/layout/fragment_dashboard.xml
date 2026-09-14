@@ -717,6 +717,52 @@
                     app:strokeColor="@color/status_amber"
                     app:strokeWidth="1dp" />
 
+                <!-- M10: Broadcast Facecam Controls -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:orientation="horizontal">
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btn_toggle_facecam"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:layout_marginEnd="4dp"
+                        android:backgroundTint="@color/bg_surface"
+                        android:text="Facecam PIP: OFF"
+                        android:textColor="@color/fairy_cyan"
+                        android:textSize="11sp"
+                        app:cornerRadius="6dp"
+                        app:strokeColor="@color/fairy_cyan"
+                        app:strokeWidth="1dp" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btn_switch_facecam"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:layout_marginStart="4dp"
+                        android:backgroundTint="@color/bg_surface"
+                        android:text="Flip Camera"
+                        android:textColor="@color/text_primary"
+                        android:textSize="11sp"
+                        app:cornerRadius="6dp"
+                        app:strokeColor="@color/bg_card_stroke"
+                        app:strokeWidth="1dp" />
+                </LinearLayout>
+
+                <TextView
+                    android:id="@+id/tv_facecam_status"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:fontFamily="monospace"
+                    android:text="Facecam: Standby (Front PIP 26% top-right)"
+                    android:textColor="@color/text_muted"
+                    android:textSize="10sp" />
+
                 <TextView
                     android:id="@+id/tv_stream_endpoint_info"
                     android:layout_width="match_parent"

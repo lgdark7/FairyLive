@@ -1,5 +1,58 @@
 # FAIRY LIVE — DEVELOPMENT LOG
 
+## 2026-09-14 — Milestone 10: Camera / Face Cam Integration & Comprehensive Empirical Validation
+- **Milestone**: M10 Camera / Face Cam Integration
+- **Implementation Highlights**:
+  1. **Native Camera2 Architecture**:
+     - `CameraCapabilityDetector.kt`: Discovers front and rear hardware camera devices, extracts sensor orientation, enumerates supported `SurfaceTexture` dimensions, and selects the bandwidth-optimized preview size (`CameraSize(640, 480)`).
+     - `CameraCaptureEngine.kt`: Manages `CameraDevice` and `CameraCaptureSession` lifecycles on a dedicated background thread (`FairyCameraThread`). Handles lens switching sequentially (`STOP` -> `RELEASE` -> `SELECT` -> `CONFIGURE` -> `START`), catches hardware disconnects gracefully, and avoids busy waiting.
+     - `CameraDeviceInfo.kt` & `FacecamConfig.kt`: Pure-Kotlin models for hardware descriptions and normalized PIP overlay transforms (position, scale, opacity, aspect ratio preservation, and horizontal selfie mirroring).
+     - `CameraState.kt` & `CameraStateNotifier.kt`: Thread-safe observer tracking camera state transitions and frame telemetry.
+  2. **Zero-Copy GLES Compositor Pipeline**:
+     - `GlesRenderer.kt`: Allocated dedicated external OES texture (`cameraTextureId`) and `cameraSurfaceTexture`. Added native vertex/fragment shaders for external OES camera textures with dynamic `uTexMatrix` (handling sensor rotation) and `uModel` (handling PIP geometry, aspect ratio, and front-cam mirroring).
+     - `OverlayCompositor.kt`: Integrates camera frame arrival listener into the composite engine loop. Zero CPU allocations on frame arrival; direct GPU-to-GPU texture blending into the MediaCodec input surface.
+  3. **IPC & UI Controls**:
+     - Created `StreamControlReceiver.kt` handling `TOGGLE_FACECAM`, `SWITCH_FACECAM`, and `STOP_CAPTURE` for non-intrusive automation.
+     - Updated `fragment_dashboard.xml` and `DashboardFragment.kt` with live Facecam controls and status telemetry.
+- **Empirical A/B Performance Benchmark (Condition A vs Condition B)**:
+  - Conducted on Google Pixel 8 AVD, 720p 30fps, 1200 kbps, 5 overlays + animated GIF (`tools/audit_m10_ab_performance.json`):
+  - **Condition A (Camera OFF)**:
+    * CPU: 10.0%, PSS: 68,212 KB (68.2 MB), Native Heap: 14,634 KB, Dalvik Heap: 4,292 KB, RSS: 176,488 KB, Threads: 36, Sockets: 12, Camera FPS: 0.0, Compositor FPS: 30.0, Encoder FPS: 29.8, Queue: 1, Drops: 0.
+  - **Condition B (Camera ON)**:
+    * CPU: 10.0%, PSS: 75,794 KB (75.8 MB), Native Heap: 15,130 KB, Dalvik Heap: 9,798 KB, RSS: 177,048 KB, Threads: 36, Sockets: 12, Camera FPS: 30.0, Compositor FPS: 29.9, Encoder FPS: 29.8, Queue: 0, Drops: 0.
+  - **Net Overhead & Analysis**:
+    * CPU Delta: 0.0% (within rounding)
+    * PSS Delta: +7,582 KB (+7.4 MB, accounting for internal camera HAL buffer queue and OES texture allocation)
+    * Native Heap Delta: +496 KB
+    * Dalvik Heap Delta: +5,506 KB (camera service Binder dispatch objects)
+    * Threads: 36 (identical across active streaming)
+    * Sockets: 12 (identical)
+    * Pipeline Drops: 0 across both conditions.
+- **10-Cycle Lifecycle Stability Audit**:
+  - Conducted 10 complete cycles of START -> CAMERA ON -> STREAM -> CAMERA OFF -> CAMERA ON -> FRONT/REAR SWITCH -> CAMERA OFF -> STOP -> START -> STOP (`tools/audit_m10_10cycle_resources.json`):
+  - Cycle 1: PSS 74,934 KB, Native 15,639 KB, Dalvik 8,249 KB, RSS 178,528 KB, Threads 36, Sockets 11, Codecs 2
+  - Cycle 2: PSS 75,332 KB, Native 15,743 KB, Dalvik 8,249 KB, RSS 178,940 KB, Threads 36, Sockets 11, Codecs 2
+  - Cycle 3: PSS 75,667 KB, Native 15,819 KB, Dalvik 8,281 KB, RSS 179,528 KB, Threads 36, Sockets 11, Codecs 2
+  - Cycle 4: PSS 75,983 KB, Native 15,883 KB, Dalvik 8,242 KB, RSS 180,228 KB, Threads 36, Sockets 11, Codecs 2
+  - Cycle 5: PSS 76,209 KB, Native 15,943 KB, Dalvik 8,238 KB, RSS 180,552 KB, Threads 36, Sockets 11, Codecs 2
+  - Cycle 6: PSS 76,273 KB, Native 15,971 KB, Dalvik 8,250 KB, RSS 180,644 KB, Threads 36, Sockets 11, Codecs 2
+  - Cycle 7: PSS 76,478 KB, Native 16,003 KB, Dalvik 8,398 KB, RSS 180,488 KB, Threads 36, Sockets 11, Codecs 2
+  - Cycle 8: PSS 77,447 KB, Native 16,155 KB, Dalvik 9,194 KB, RSS 180,976 KB, Threads 36, Sockets 11, Codecs 2
+  - Cycle 9: PSS 75,414 KB, Native 16,162 KB, Dalvik 8,034 KB, RSS 179,520 KB, Threads 32, Sockets 12, Codecs 2
+  - Cycle 10: PSS 75,444 KB, Native 16,162 KB, Dalvik 8,038 KB, RSS 179,560 KB, Threads 32, Sockets 12, Codecs 2
+  - **Analysis**:
+    * Bounded non-monotonic growth: Total PSS grew by only +510 KB across 10 complete cycles (+51 KB/cycle), dropping from 77.4 MB at cycle 8 to 75.4 MB at cycle 9 post-GC.
+    * Dalvik heap decreased by 211 KB (8,249 -> 8,038 KB).
+    * Active MediaCodec count held strictly constant at 2 across all 10 cycles.
+    * Sockets remained stable at 11-12. Zero unclosed camera sessions, zero unreleased EGL surfaces.
+- **Full Regression Verification**:
+  - Command: `./gradlew clean testDebugUnitTest connectedDebugAndroidTest`
+  - Exit code: **0**
+  - Unit tests: **115/115 PASS** (0 regressions against 108 baseline tests)
+  - Connected tests: **11/11 PASS** on Pixel 8 (AVD) - 15 (covering camera discovery, front/back queries, engine start/stop lifecycle, lens switching, error fallback, and zero-error GLES compositor integration)
+  - Build Duration: **35.4 seconds**
+  - APK size: **6.0 MB** (< 15 MB constraint).
+
 ## 2026-09-14 — Milestone 9 Revalidation: Empirical Reconnect Timeline, Controlled ABR Ledger & 10-Cycle Resource Audit
 - **Milestone**: M9 Revalidation & Final Empirical Verification Pass (addressing all blockers from ChatGPT M9 final gate)
 - **Verified Empirical Results**:

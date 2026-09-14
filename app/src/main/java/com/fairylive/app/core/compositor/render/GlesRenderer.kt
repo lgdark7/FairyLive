@@ -14,6 +14,7 @@ import android.opengl.GLUtils
 import android.os.Handler
 import android.util.Log
 import android.view.Surface
+import com.fairylive.app.core.camera.model.FacecamConfig
 import com.fairylive.app.core.compositor.OverlayLayer
 import com.fairylive.app.core.compositor.OverlayScene
 import com.fairylive.app.core.compositor.animation.GifStreamPlayer
@@ -48,6 +49,19 @@ class GlesRenderer {
     private var captureSurfaceTexture: SurfaceTexture? = null
     private var captureSurface: Surface? = null
 
+    private var cameraTextureId: Int = 0
+    private var cameraSurfaceTexture: SurfaceTexture? = null
+    private var cameraSurface: Surface? = null
+    private var facecamProgram: Int = 0
+
+    private val cameraTexMatrix = FloatArray(16)
+    private val cameraModelMatrix = FloatArray(16)
+    private var lastCameraTimestampNanos: Long = -1L
+    private val newCameraAvailable = java.util.concurrent.atomic.AtomicBoolean(false)
+
+    @Volatile
+    var onCameraFrameAvailable: (() -> Unit)? = null
+
     private var encoderSurface: Surface? = null
     private var streamWidth: Int = 0
     private var streamHeight: Int = 0
@@ -76,6 +90,32 @@ class GlesRenderer {
             1f, 1f,
             0f, 0f,
             1f, 0f
+        )
+    )
+
+    // Centered Facecam quad (-0.5..0.5) for scale & rotation about center
+    private val facecamVerts = directBuffer(
+        floatArrayOf(
+            -0.5f, -0.5f,
+             0.5f, -0.5f,
+            -0.5f,  0.5f,
+             0.5f,  0.5f
+        )
+    )
+    private val facecamUvs = directBuffer(
+        floatArrayOf(
+            0f, 0f,
+            1f, 0f,
+            0f, 1f,
+            1f, 1f
+        )
+    )
+    private val facecamMirroredUvs = directBuffer(
+        floatArrayOf(
+            1f, 0f,
+            0f, 0f,
+            1f, 1f,
+            0f, 1f
         )
     )
 
@@ -154,11 +194,31 @@ class GlesRenderer {
         overlayProgram = createProgram(OVERLAY_VERTEX_SHADER, OVERLAY_FRAGMENT)
         gifStreamPlayer = GifStreamPlayer(assets)
 
+        // Camera input texture (OES) + SurfaceTexture for broadcast facecam
+        cameraTextureId = createOesTexture()
+        cameraSurfaceTexture = SurfaceTexture(cameraTextureId).apply {
+            setDefaultBufferSize(width / 2, height / 2)
+            setOnFrameAvailableListener({
+                newCameraAvailable.set(true)
+                onCameraFrameAvailable?.invoke()
+            }, renderHandler)
+        }
+        cameraSurface = Surface(cameraSurfaceTexture)
+        android.opengl.Matrix.setIdentityM(cameraTexMatrix, 0)
+        facecamProgram = createProgram(FACECAM_VERTEX_SHADER, FACECAM_FRAGMENT)
+
         GLES20.glClearColor(0f, 0f, 0f, 1f)
         initialized = true
 
-        Log.i(TAG, "Renderer initialized: ${width}x${height}, captureSurface=$captureSurface")
+        Log.i(TAG, "Renderer initialized: ${width}x${height}, captureSurface=$captureSurface, cameraSurface=$cameraSurface")
         return captureSurface!!
+    }
+
+    /** Exposes the camera preview input surface for Facecam capture. */
+    fun getCameraSurface(width: Int = 640, height: Int = 480): Surface? {
+        if (!initialized) return null
+        cameraSurfaceTexture?.setDefaultBufferSize(width, height)
+        return cameraSurface
     }
 
     /** Call from the render thread when a new capture frame should be consumed. */
@@ -196,17 +256,45 @@ class GlesRenderer {
     }
 
     /**
+     * Consumes a new camera frame if one is pending.
+     * Returns true when a new camera buffer was latched.
+     */
+    fun consumeNewCameraFrame(force: Boolean = false): Boolean {
+        val st = cameraSurfaceTexture ?: return false
+        if (!initialized) return false
+        return try {
+            st.updateTexImage()
+            st.getTransformMatrix(cameraTexMatrix)
+            val currentTs = st.timestamp
+            val isDifferent = (currentTs != 0L && currentTs != lastCameraTimestampNanos) || force
+            if (isDifferent) {
+                lastCameraTimestampNanos = currentTs
+                true
+            } else {
+                false
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "consumeNewCameraFrame skipped: ${e.message}")
+            false
+        }
+    }
+
+    /**
      * Returns the timestamp of the most recently latched capture texture, in nanoseconds.
      */
     val currentCaptureTimestampNanos: Long
         get() = captureSurfaceTexture?.timestamp ?: 0L
 
     /** Draws the composed frame to the encoder surface. Must run on the GL thread. */
-    fun drawFrame(scene: OverlayScene, resources: OverlayResourceManager) {
+    fun drawFrame(
+        scene: OverlayScene,
+        resources: OverlayResourceManager,
+        facecamConfig: FacecamConfig? = null
+    ) {
         if (!initialized) return
         if (eglDisplay == EGL14.EGL_NO_DISPLAY || eglSurface == EGL14.EGL_NO_SURFACE) return
 
-        composite(scene, resources)
+        composite(scene, resources, facecamConfig)
         val captureTs = captureSurfaceTexture?.timestamp ?: 0L
         if (captureTs > 0L) {
             EGLExt.eglPresentationTimeANDROID(eglDisplay, eglSurface, captureTs)
@@ -214,11 +302,20 @@ class GlesRenderer {
         EGL14.eglSwapBuffers(eglDisplay, eglSurface)
     }
 
+    /** Overload for backwards compatibility. */
+    fun drawFrame(scene: OverlayScene, resources: OverlayResourceManager) {
+        drawFrame(scene, resources, null)
+    }
+
     /**
      * Draws the composed scene without swapping. Test-only primitive so the test
      * can `glReadPixels` the framebuffer before the swap consumes it.
      */
-    fun composite(scene: OverlayScene, resources: OverlayResourceManager) {
+    fun composite(
+        scene: OverlayScene,
+        resources: OverlayResourceManager,
+        facecamConfig: FacecamConfig? = null
+    ) {
         if (!initialized) return
         if (eglDisplay == EGL14.EGL_NO_DISPLAY || eglSurface == EGL14.EGL_NO_SURFACE) return
 
@@ -226,7 +323,85 @@ class GlesRenderer {
         GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT)
 
         drawCapture()
+        if (facecamConfig != null && facecamConfig.enabled) {
+            drawFacecam(facecamConfig)
+        }
         scene.orderedLayers.forEach { layer -> drawOverlay(layer, resources) }
+    }
+
+    /** Overload for backwards compatibility. */
+    fun composite(scene: OverlayScene, resources: OverlayResourceManager) {
+        composite(scene, resources, null)
+    }
+
+    fun drawFacecam(config: FacecamConfig) {
+        if (cameraTextureId == 0 || facecamProgram == 0 || !config.enabled) return
+
+        val left = config.resolvedLeft(streamWidth)
+        val top = config.resolvedTop(streamHeight)
+        val w = config.resolvedWidth(streamWidth)
+        val h = config.resolvedHeight(streamWidth, streamHeight)
+
+        // Normalized clip-space transform (-1..1 NDC)
+        val clipX = left * 2f / streamWidth - 1f
+        val clipY = 1f - top * 2f / streamHeight
+        val clipW = w * 2f / streamWidth
+        val clipH = h * 2f / streamHeight
+
+        val rot = config.rotationDegrees * (kotlin.math.PI.toFloat()) / 180f
+        val cosR = cos(rot)
+        val sinR = sin(rot)
+
+        val centerX = clipX + clipW / 2f
+        val centerY = clipY - clipH / 2f
+
+        cameraModelMatrix[0] = cosR * clipW
+        cameraModelMatrix[1] = sinR * clipW
+        cameraModelMatrix[2] = 0f
+        cameraModelMatrix[3] = 0f
+
+        cameraModelMatrix[4] = -sinR * clipH
+        cameraModelMatrix[5] = cosR * clipH
+        cameraModelMatrix[6] = 0f
+        cameraModelMatrix[7] = 0f
+
+        cameraModelMatrix[8] = 0f
+        cameraModelMatrix[9] = 0f
+        cameraModelMatrix[10] = 1f
+        cameraModelMatrix[11] = 0f
+
+        cameraModelMatrix[12] = centerX
+        cameraModelMatrix[13] = centerY
+        cameraModelMatrix[14] = 0f
+        cameraModelMatrix[15] = 1f
+
+        GLES20.glUseProgram(facecamProgram)
+        GLES20.glActiveTexture(GLES20.GL_TEXTURE0)
+        GLES20.glBindTexture(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, cameraTextureId)
+
+        val posLoc = GLES20.glGetAttribLocation(facecamProgram, "aPosition")
+        val uvLoc = GLES20.glGetAttribLocation(facecamProgram, "aTexCoord")
+        GLES20.glEnableVertexAttribArray(posLoc)
+        GLES20.glEnableVertexAttribArray(uvLoc)
+
+        val uvBuffer = if (config.mirrorHorizontal) facecamMirroredUvs else facecamUvs
+        GLES20.glVertexAttribPointer(posLoc, 2, GLES20.GL_FLOAT, false, 0, facecamVerts)
+        GLES20.glVertexAttribPointer(uvLoc, 2, GLES20.GL_FLOAT, false, 0, uvBuffer)
+
+        GLES20.glUniform1i(GLES20.glGetUniformLocation(facecamProgram, "uTexture"), 0)
+        GLES20.glUniformMatrix4fv(GLES20.glGetUniformLocation(facecamProgram, "uModel"), 1, false, cameraModelMatrix, 0)
+        GLES20.glUniformMatrix4fv(GLES20.glGetUniformLocation(facecamProgram, "uTexMatrix"), 1, false, cameraTexMatrix, 0)
+        GLES20.glUniform1f(GLES20.glGetUniformLocation(facecamProgram, "uOpacity"), config.opacity.coerceIn(0f, 1f))
+
+        GLES20.glEnable(GLES20.GL_BLEND)
+        GLES20.glBlendFunc(GLES20.GL_SRC_ALPHA, GLES20.GL_ONE_MINUS_SRC_ALPHA)
+
+        GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4)
+
+        GLES20.glDisable(GLES20.GL_BLEND)
+        GLES20.glDisableVertexAttribArray(posLoc)
+        GLES20.glDisableVertexAttribArray(uvLoc)
+        GLES20.glBindTexture(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, 0)
     }
 
     private fun drawCapture() {
@@ -422,15 +597,27 @@ class GlesRenderer {
         GLES20.glDeleteTextures(1, intArrayOf(captureTextureId), 0)
         captureTextureId = 0
 
+        if (cameraTextureId != 0) {
+            GLES20.glDeleteTextures(1, intArrayOf(cameraTextureId), 0)
+            cameraTextureId = 0
+        }
+
         if (captureProgram != 0) GLES20.glDeleteProgram(captureProgram)
         if (overlayProgram != 0) GLES20.glDeleteProgram(overlayProgram)
+        if (facecamProgram != 0) GLES20.glDeleteProgram(facecamProgram)
         captureProgram = 0
         overlayProgram = 0
+        facecamProgram = 0
 
         captureSurface?.release()
         captureSurface = null
         captureSurfaceTexture?.release()
         captureSurfaceTexture = null
+
+        cameraSurface?.release()
+        cameraSurface = null
+        cameraSurfaceTexture?.release()
+        cameraSurfaceTexture = null
 
         if (eglDisplay != EGL14.EGL_NO_DISPLAY) {
             EGL14.eglMakeCurrent(eglDisplay, EGL14.EGL_NO_SURFACE, EGL14.EGL_NO_SURFACE, EGL14.EGL_NO_CONTEXT)
@@ -444,6 +631,7 @@ class GlesRenderer {
         eglSurface = EGL14.EGL_NO_SURFACE
         encoderSurface = null
         lastCaptureTimestampNanos = -1L
+        lastCameraTimestampNanos = -1L
         gifStreamPlayer?.release()
         gifStreamPlayer = null
         initialized = false
@@ -548,6 +736,30 @@ class GlesRenderer {
             void main() {
                 vec4 texColor = texture2D(uTexture, vTexCoord);
                 gl_FragColor = vec4(texColor.rgb, texColor.a * uOpacity);
+            }
+        """
+
+        private const val FACECAM_VERTEX_SHADER = """
+            attribute vec4 aPosition;
+            attribute vec2 aTexCoord;
+            uniform mat4 uModel;
+            uniform mat4 uTexMatrix;
+            varying vec2 vTexCoord;
+            void main() {
+                gl_Position = uModel * aPosition;
+                vTexCoord = (uTexMatrix * vec4(aTexCoord, 0.0, 1.0)).xy;
+            }
+        """
+
+        private const val FACECAM_FRAGMENT = """
+            #extension GL_OES_EGL_image_external : require
+            precision mediump float;
+            varying vec2 vTexCoord;
+            uniform samplerExternalOES uTexture;
+            uniform float uOpacity;
+            void main() {
+                vec4 col = texture2D(uTexture, vTexCoord);
+                gl_FragColor = vec4(col.rgb, col.a * uOpacity);
             }
         """
     }

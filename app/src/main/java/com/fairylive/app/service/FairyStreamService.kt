@@ -56,6 +56,7 @@ class FairyStreamService : Service() {
     val audioPipeline = AudioPipeline()
     val streamPipeline = StreamPipeline()
     val overlayCompositor = com.fairylive.app.core.compositor.OverlayCompositor(this)
+    val cameraEngine = com.fairylive.app.core.camera.CameraCaptureEngine(this)
 
     private var activeMediaProjection: MediaProjection? = null
     private val mainHandler = Handler(Looper.getMainLooper())
@@ -92,6 +93,8 @@ class FairyStreamService : Service() {
                 videoEncoder.resume()
             }
             ACTION_STOP_CAPTURE -> {
+                cameraEngine.stop()
+                overlayCompositor.updateFacecamConfig(overlayCompositor.facecamConfig.copy(enabled = false))
                 captureEngine.stop()
                 videoEncoder.stop()
                 audioPipeline.stop()
@@ -100,6 +103,22 @@ class FairyStreamService : Service() {
                 audioPipeline.setEncodedAudioFrameListener(null)
                 MediaClock.stopSession()
                 updateNotificationContent("Capture, encoders, and stream stopped")
+            }
+            ACTION_TOGGLE_FACECAM -> {
+                toggleFacecam()
+            }
+            ACTION_SWITCH_FACECAM -> {
+                switchFacecam()
+            }
+            ACTION_UPDATE_FACECAM -> {
+                val x = intent?.getFloatExtra(EXTRA_FACECAM_X, -1f) ?: -1f
+                val y = intent?.getFloatExtra(EXTRA_FACECAM_Y, -1f) ?: -1f
+                val scale = intent?.getFloatExtra(EXTRA_FACECAM_SCALE, -1f) ?: -1f
+                var cur = overlayCompositor.facecamConfig
+                if (x >= 0f) cur = cur.copy(normalizedX = x)
+                if (y >= 0f) cur = cur.copy(normalizedY = y)
+                if (scale > 0f) cur = cur.copy(scale = scale)
+                overlayCompositor.updateFacecamConfig(cur)
             }
             ACTION_START_AUDIO -> {
                 handleStartAudio(intent)
@@ -225,6 +244,8 @@ class FairyStreamService : Service() {
                 override fun onStop() {
                     Log.w("FairyStreamService", "MediaProjection stopped by system — tearing down capture")
                     mainHandler.post {
+                        cameraEngine.stop()
+                        overlayCompositor.updateFacecamConfig(overlayCompositor.facecamConfig.copy(enabled = false))
                         captureEngine.stop()
                         overlayCompositor.stop()
                         videoEncoder.stop()
@@ -278,6 +299,10 @@ class FairyStreamService : Service() {
                     return
                 }
                 Log.i("FairyStreamService", "Compositor ENABLED — capture SurfaceTexture → GLES → encoder")
+                val enableFacecam = intent.getBooleanExtra(EXTRA_ENABLE_FACECAM, false)
+                if (enableFacecam) {
+                    setFacecamEnabled(true)
+                }
             } else {
                 captureSurface = encoderSurface
             }
@@ -447,6 +472,8 @@ class FairyStreamService : Service() {
     }
 
     private fun stopStreamService() {
+        cameraEngine.stop()
+        overlayCompositor.updateFacecamConfig(overlayCompositor.facecamConfig.copy(enabled = false))
         captureEngine.stop()
         overlayCompositor.stop()
         videoEncoder.stop()
@@ -483,6 +510,8 @@ class FairyStreamService : Service() {
 
     override fun onDestroy() {
         super.onDestroy()
+        cameraEngine.stop()
+        cameraEngine.release()
         captureEngine.stop()
         overlayCompositor.stop()
         videoEncoder.stop()
@@ -497,6 +526,51 @@ class FairyStreamService : Service() {
         CaptureStateNotifier.updateState(CaptureState.IDLE)
         AudioStateNotifier.updateState(AudioCaptureState.IDLE)
         StreamTelemetryNotifier.updateState(RtmpConnectionState.IDLE)
+    }
+
+    fun toggleFacecam(): Boolean {
+        val newEnabled = !overlayCompositor.facecamConfig.enabled
+        setFacecamEnabled(newEnabled)
+        return newEnabled
+    }
+
+    fun setFacecamEnabled(enabled: Boolean) {
+        if (enabled) {
+            val surface = overlayCompositor.getCameraSurface(640, 480)
+            if (surface != null) {
+                overlayCompositor.updateFacecamConfig(
+                    overlayCompositor.facecamConfig.copy(enabled = true)
+                )
+                cameraEngine.start(
+                    surface = surface,
+                    preferredFacing = overlayCompositor.facecamConfig.facing,
+                    targetWidth = 640,
+                    targetHeight = 480
+                )
+                Log.i("FairyStreamService", "Facecam ENABLED on broadcast compositor")
+            } else {
+                Log.e("FairyStreamService", "Failed to obtain camera preview surface from compositor")
+            }
+        } else {
+            cameraEngine.stop()
+            overlayCompositor.updateFacecamConfig(
+                overlayCompositor.facecamConfig.copy(enabled = false)
+            )
+            Log.i("FairyStreamService", "Facecam DISABLED on broadcast compositor")
+        }
+    }
+
+    fun switchFacecam() {
+        cameraEngine.switchCamera()
+        val nextFacing = if (overlayCompositor.facecamConfig.facing == com.fairylive.app.core.camera.model.CameraFacing.FRONT)
+            com.fairylive.app.core.camera.model.CameraFacing.BACK else com.fairylive.app.core.camera.model.CameraFacing.FRONT
+        overlayCompositor.updateFacecamConfig(
+            overlayCompositor.facecamConfig.copy(
+                facing = nextFacing,
+                mirrorHorizontal = (nextFacing == com.fairylive.app.core.camera.model.CameraFacing.FRONT)
+            )
+        )
+        Log.i("FairyStreamService", "Facecam switched to $nextFacing")
     }
 
     fun getUptimeMillis(): Long {
@@ -572,6 +646,14 @@ class FairyStreamService : Service() {
         const val ACTION_UNMUTE_AUDIO = "com.fairylive.app.action.UNMUTE_AUDIO"
         const val ACTION_STOP_AUDIO = "com.fairylive.app.action.STOP_AUDIO"
         const val ACTION_TRIGGER_ALERT = "com.fairylive.app.action.TRIGGER_ALERT"
+        const val ACTION_TOGGLE_FACECAM = "com.fairylive.app.action.TOGGLE_FACECAM"
+        const val ACTION_SWITCH_FACECAM = "com.fairylive.app.action.SWITCH_FACECAM"
+        const val ACTION_UPDATE_FACECAM = "com.fairylive.app.action.UPDATE_FACECAM"
+
+        const val EXTRA_ENABLE_FACECAM = "extra_enable_facecam"
+        const val EXTRA_FACECAM_X = "extra_facecam_x"
+        const val EXTRA_FACECAM_Y = "extra_facecam_y"
+        const val EXTRA_FACECAM_SCALE = "extra_facecam_scale"
 
         const val EXTRA_ALERT_HEADLINE = "extra_alert_headline"
         const val EXTRA_ALERT_SUBTEXT = "extra_alert_subtext"
@@ -720,6 +802,20 @@ class FairyStreamService : Service() {
         fun stopCapture(context: Context) {
             val intent = Intent(context, FairyStreamService::class.java).apply {
                 action = ACTION_STOP_CAPTURE
+            }
+            context.startService(intent)
+        }
+
+        fun toggleFacecam(context: Context) {
+            val intent = Intent(context, FairyStreamService::class.java).apply {
+                action = ACTION_TOGGLE_FACECAM
+            }
+            context.startService(intent)
+        }
+
+        fun switchFacecam(context: Context) {
+            val intent = Intent(context, FairyStreamService::class.java).apply {
+                action = ACTION_SWITCH_FACECAM
             }
             context.startService(intent)
         }

@@ -5,7 +5,28 @@ Testing covers unit tests, instrumentation, system-level execution, memory stabi
 
 ---
 
-## 2. Milestone 9 — Adaptive Bitrate & Network Resilience Verification Matrix
+## 2. Milestone 10 — Camera / Face Cam Integration Verification Matrix
+
+| Category | Test Case | Target / Command | Result | Evidence |
+|---|---|---|---|---|
+| **Build & Regression** | Full Clean Regression | `./gradlew clean testDebugUnitTest connectedDebugAndroidTest` | **PASS (Exit 0)** | **115/115 unit tests pass**, **11/11 connected tests pass**, 71/71 tasks, build 35.4s, 6.00 MB APK (< 15 MB budget) |
+| **Optimal Sizing** | Bandwidth conservation | `CameraIntegrationTest` | **PASS** | `testOptimalSizeSelectionConservesGpuBandwidth`: selects 640x480 preview, rejects 4K/1080p |
+| **Capability Query** | Lens facing & sensor angles | `CameraIntegrationTest` | **PASS** | `testCameraDeviceInfoFrontAndBackFacing`: parses front (270°) and back (90°) sensor specs |
+| **State Transitions** | Thread-safe notifier bus | `CameraIntegrationTest` | **PASS** | `testCameraStateNotifierTransitions`: IDLE -> INITIALIZING -> CONFIGURING -> STREAMING -> STOPPING -> IDLE |
+| **PIP Positioning** | Normalized transform math | `CameraIntegrationTest` | **PASS** | `testFacecamConfigDefaultAndCustomCoordinates`: aspect ratio preservation, coordinate bounds, horizontal mirror |
+| **Error Handling** | Resilience on disconnect | `CameraIntegrationTest` | **PASS** | `testCameraErrorStateHandling`: graceful fallback to ERROR state without app crash |
+| **Frame Telemetry** | Monotonic FPS & frames | `CameraIntegrationTest` | **PASS** | `testCameraMetricsUpdate`: verifies zero frame drops and steady 30 FPS accounting |
+| **Device Discovery** | On-device camera query | `CameraInstrumentedTest` | **PASS** | `testCameraDiscoveryAndHardwareProfiles`: enumerates front (cam 1) and rear (cam 10) hardware |
+| **Engine Lifecycle** | Start/stop streaming loop | `CameraInstrumentedTest` | **PASS** | `testCameraCaptureEngineLifecycleAndStreaming`: starts capture to SurfaceTexture, achieves STREAMING, releases clean |
+| **Lens Switching** | Sequential switch | `CameraInstrumentedTest` | **PASS** | `testCameraFrontRearSwitching`: front -> rear transition without crashing or leaking |
+| **GLES Blending** | Real AVC input Surface | `CameraInstrumentedTest` | **PASS** | `testCameraGlesCompositorIntegration`: renders OES camera PIP quad with zero GLES errors (`GL_NO_ERROR`) |
+| **False Live Guard** | Decoupled state safety | `CameraInstrumentedTest` | **PASS** | `testCameraNoFalseLiveState`: verifies camera state changes never cause false LIVE RTMP broadcast |
+| **A/B Benchmark** | Camera OFF vs ON | `tools/audit_m10_ab_performance.json` | **PASS** | 720p 30fps: CPU 10.0% vs 10.0% (0.0% delta), PSS 68.2 vs 75.8 MB (+7.4 MB for camera HAL buffers), 0 drops |
+| **10-Cycle Audit** | Lifecycle Stability Ledger | `tools/audit_m10_10cycle_resources.json` | **PASS** | 10 cycles of START -> CAM ON -> STREAM -> CAM OFF -> CAM ON -> SWITCH -> CAM OFF -> STOP -> START -> STOP. PSS delta +510 KB (+51 KB/cycle), non-monotonic, codecs strictly 2, zero leaks. |
+
+---
+
+## 3. Milestone 9 — Adaptive Bitrate & Network Resilience Verification Matrix
 
 | Category | Test Case | Target / Command | Result | Evidence |
 |---|---|---|---|---|

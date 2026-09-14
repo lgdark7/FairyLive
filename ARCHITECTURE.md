@@ -217,5 +217,53 @@ ightarrow$ 1200 kbps).
 - **Active Codec Invariant**: Exactly **2 active MediaCodec instances** exist in the process (1 AVC video encoder `HardwareVideoEncoder`, 1 AAC audio encoder `AacMediaCodecEncoder`). Reconnection preserves these instances without recreation or leaks.
 - **System Profile Enumeration Clarification**: The 55 count reported in system dumps represents registered OS MIME profiles (`dumpsys media.player`), not application instances. Application instances are verified via `dumpsys media.metrics`.
 
+---
+
+## 10. Camera / Face Cam Integration Architecture (Milestone 10)
+
+### A. Subsystem Topology & Pipeline
+```text
+[ Physical Camera (Front/Rear) ]
+   │
+   │ (Pure Camera2 API / TEMPLATE_PREVIEW)
+   ▼
+[ SurfaceTexture (GL_TEXTURE_EXTERNAL_OES) ]
+   │
+   │ (Zero-Copy GPU Direct Mapping)
+   ▼
+[ GlesRenderer PIP Pass (uTexMatrix + uModel transform) ]
+   │
+   │ (Overlaid on Background Screen Capture)
+   ▼
+[ MediaCodec Video Encoder Input Surface ]
+```
+
+### B. Hardware Query & Optimal Preview Sizing (`CameraCapabilityDetector`)
+- Queries `CameraManager` for device facing (`LENS_FACING_FRONT`, `LENS_FACING_BACK`), hardware support level, sensor orientation, and supported `SurfaceTexture` output resolutions.
+- Pure-Kotlin `CameraSize(width, height)` wrapper decouples size selection logic from Android framework `Size` class for seamless unit testing and JVM isolation.
+- Optimal resolution selection: Constrained to standard 640x480 preview dimension rather than full sensor resolutions (4K/12MP) to strictly conserve GPU texture fill rate and memory bandwidth on budget devices.
+
+### C. Zero-Copy GLES PIP Compositing (`GlesRenderer`)
+- Dedicated external OES texture (`cameraTextureId`) and `cameraSurfaceTexture` allocated on the GL thread.
+- Native vertex/fragment shaders for external OES camera textures:
+  * Dynamic `uTexMatrix`: Applies hardware sensor rotation directly in shader space.
+  * Dynamic `uModel`: Maps normalized PIP position ($x, y$), dimension ($w, h$), aspect ratio preservation, and horizontal selfie mirroring (`scaleX = -1.0`) for front-facing camera.
+- Composite rendering sequence:
+  1. Base Pass: Background Screen Capture (`GL_TEXTURE_EXTERNAL_OES`)
+  2. PIP Pass: Camera Facecam Layer (`GL_TEXTURE_EXTERNAL_OES`)
+  3. Overlay Pass: Ordered Graphic Layers (Text, Goal, Stats, QR, Alerts, GIFs) with alpha blending (`GL_BLEND`)
+- Zero CPU readback or bitmap conversions in hot path.
+
+### D. Concurrency & Switching Lifecycle (`CameraCaptureEngine`)
+- Dedicated background HandlerThread (`FairyCameraThread`) isolates camera operations from Android main/UI thread.
+- Sequential teardown & rebuild protocol prevents camera driver deadlocks during front/rear lens switching:
+  `STOP` -> `CLOSE_SESSION` -> `CLOSE_DEVICE` -> `RELEASE` -> `SELECT_LENS` -> `OPEN_DEVICE` -> `CONFIGURE_SESSION` -> `START_PREVIEW`.
+- Thread-safe state synchronization via `CameraStateNotifier` tracking states: `IDLE`, `INITIALIZING`, `CONFIGURING`, `STREAMING`, `SWITCHING`, `STOPPING`, `ERROR`.
+
+### E. IPC & Creator Controls
+- `StreamControlReceiver`: Broadcast receiver handling `TOGGLE_FACECAM`, `SWITCH_FACECAM`, and `STOP_CAPTURE` enabling external automation and decoupled UI dispatch.
+- Integrated dashboard controls (`fragment_dashboard.xml` and `DashboardFragment.kt`) for creator toggle, lens flip, and real-time state telemetry.
+
+
 
 
