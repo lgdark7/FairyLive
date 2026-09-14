@@ -76,7 +76,7 @@ Rebuild **FAIRY LIVE** from scratch as a high-performance, professional native A
         * Physical Wi-Fi <-> Cellular handover NOT validated on AVD.
         * No unsupported hardware encoder claims.
         * No unsupported zero-leak claims beyond measured data.
-  - **M10: Camera / Face Cam Integration** (IMPLEMENTED & VALIDATED — 2026-09-14)
+  - **M10: Camera / Face Cam Integration** (OFFICIALLY APPROVED BY CHATGPT — Checkpoint `95dd044`)
       - **Zero-Copy Camera PIP Compositing**: Native `Camera2` integration streaming direct to a dedicated OpenGL `SurfaceTexture` via `GL_TEXTURE_EXTERNAL_OES` with hardware sensor orientation transform (`uTexMatrix`), spatial layout matrix (`uModel`), PIP scaling, and front-camera selfie mirroring.
       - **Low-Overhead Optimal Sizing**: Pure-Kotlin `CameraSize` selector choosing optimal 640x480 preview resolution instead of 4K/12MP sensor resolutions to strictly conserve GPU memory bandwidth and fill rate.
       - **Lifecycle & Switching Safety**: Dedicated background `FairyCameraThread` with sequential teardown and rebuild (`STOP` -> `RELEASE` -> `SELECT` -> `CONFIGURE` -> `START`), non-fatal error fallback, and state synchronization via `CameraStateNotifier`.
@@ -89,8 +89,9 @@ Rebuild **FAIRY LIVE** from scratch as a high-performance, professional native A
       - **10-Cycle Lifecycle Stability Audit**:
         * 10 complete cycles of START -> CAMERA ON -> STREAM -> CAMERA OFF -> CAMERA ON -> FRONT/REAR SWITCH -> CAMERA OFF -> STOP -> START -> STOP.
         * Cycle 1 to Cycle 10 post-GC: PSS bounded from 74,934 KB to 75,444 KB (+510 KB endpoint delta across 10 complete cycles; non-monotonic trajectory peaking at 77.4 MB at cycle 8 before settling to 75.4 MB post-GC, demonstrating bounded consumption rather than zero leaks), Dalvik heap decreased from 8,249 KB to 8,038 KB (-211 KB), Threads stable (32-36), active codecs bounded at 2.
-      - **Full Regression**: `./gradlew clean testDebugUnitTest connectedDebugAndroidTest` passed with exit code 0 (115/115 unit tests pass, 11/11 connected tests pass, 71/71 tasks, build duration 35.4s, APK size 6.0 MB).
-- **Pending Milestones**: M11 through M15 (M10 awaiting ChatGPT review).
+      - **Full Regression**: `./gradlew clean testDebugUnitTest connectedDebugAndroidTest` passed with exit code 0 (115/115 unit tests pass, 11/11 connected tests pass, 71/71 tasks, build duration 31.8s, APK size 6.0 MB).
+- **Authorized Milestones**: M11 (Authorized by ChatGPT on 2026-09-14).
+- **Locked Milestones**: M12 through M15.
 
 ---
 
