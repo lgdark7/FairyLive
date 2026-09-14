@@ -11,6 +11,8 @@ enum class RtmpConnectionState {
     CREATING_STREAM,
     PUBLISHING,
     RECONNECTING,
+    DISCONNECTED,
+    FAILED,
     STOPPING,
     ERROR;
 
@@ -18,7 +20,7 @@ enum class RtmpConnectionState {
         get() = this == PUBLISHING
 
     val isActive: Boolean
-        get() = this != IDLE && this != ERROR
+        get() = this != IDLE && this != ERROR && this != FAILED && this != DISCONNECTED
 }
 
 /**
@@ -36,7 +38,9 @@ data class StreamTelemetry(
     val networkLatencyMs: Long = 0L,
     val durationMs: Long = 0L,
     val reconnectAttempts: Int = 0,
-    val lastError: String? = null
+    val lastError: String? = null,
+    val activeBitrateKbps: Int = 1200,
+    val networkHealth: String = "HEALTHY"
 ) {
     val bitrateKbps: Long
         get() = bitrateBps / 1000L

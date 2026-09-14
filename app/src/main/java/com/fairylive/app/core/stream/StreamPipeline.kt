@@ -4,6 +4,11 @@ import android.os.SystemClock
 import android.util.Log
 import com.fairylive.app.core.audio.model.EncodedAudioFrame
 import com.fairylive.app.core.common.MediaClock
+import com.fairylive.app.core.network.AdaptiveBitrateController
+import com.fairylive.app.core.network.BitrateChangeReason
+import com.fairylive.app.core.network.NetworkHealth
+import com.fairylive.app.core.network.NetworkQualityMonitor
+import com.fairylive.app.core.network.StreamReconnectionManager
 import com.fairylive.app.core.stream.flv.AacFlvPacketizer
 import com.fairylive.app.core.stream.flv.FlvMetadataBuilder
 import com.fairylive.app.core.stream.flv.H264FlvPacketizer
@@ -17,19 +22,28 @@ import com.fairylive.app.core.video.model.EncodedFrame
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
- * Top-level streaming pipeline orchestrator for Fairy Live.
+ * Top-level streaming pipeline orchestrator for Fairy Live (Milestone 9).
  * Manages FLV multiplexing, bounded queue buffering with backpressure eviction,
- * asynchronous network transmission, reconnection logic, and real-time telemetry.
+ * real-time network quality monitoring, adaptive bitrate (ABR) control,
+ * bounded exponential-backoff reconnection, and non-blocking RTMP transmission.
  */
 class StreamPipeline(
     val maxQueuePackets: Int = 90,
-    val maxQueueBytes: Long = 4 * 1024 * 1024L // 4 MB
+    val maxQueueBytes: Long = 4 * 1024 * 1024L // 4 MB memory ceiling
 ) {
-
     private val videoPacketizer = H264FlvPacketizer()
     private var audioPacketizer = AacFlvPacketizer()
     private val packetQueue = BoundedStreamQueue(maxQueuePackets, maxQueueBytes)
     private val rtmpClient = RtmpClient()
+
+    // Network Resilience Engines
+    val networkMonitor = NetworkQualityMonitor()
+    val abrController = AdaptiveBitrateController()
+    val reconnectionManager = StreamReconnectionManager()
+
+    // Dynamic encoder callbacks
+    var onAdjustBitrate: ((newBitrateKbps: Int) -> Unit)? = null
+    var onRequestKeyFrame: (() -> Unit)? = null
 
     private var senderThread: Thread? = null
     private val isRunning = AtomicBoolean(false)
@@ -45,13 +59,21 @@ class StreamPipeline(
     var audioFramesSent: Long = 0L
         private set
 
-    /** Diagnostic accessors (M8 revalidation audit). */
+    // Stream metadata cache for clean reconnection recovery
+    private var streamWidth: Int = 480
+    private var streamHeight: Int = 1056
+    private var streamFps: Int = 24
+    private var streamVideoBitrateKbps: Int = 1200
+    private var streamAudioSampleRate: Int = 44100
+    private var streamAudioBitrateKbps: Int = 96
+    private var streamAudioChannels: Int = 1
+
+    /** Diagnostic accessors (M8/M9 verification audit). */
     val packetQueueDropped: Long get() = packetQueue.droppedCount.get()
     val muxedVideoTagCount: Long get() = muxedVideoTags
     val muxedAudioTagCount: Long get() = muxedAudioTags
 
-    // Stage-audit counters (M6 final review: per-stage FPS trace).
-    // Muxer-tag counters: FLV tags produced by the packetizers (encoder output consumers).
+    // Stage-audit counters
     private var muxedVideoTags: Long = 0L
     private var muxedAudioTags: Long = 0L
     private var lastAuditLogTime: Long = 0L
@@ -60,7 +82,7 @@ class StreamPipeline(
     private var lastBitrateCalcTime: Long = 0L
     private var lastBytesCount: Long = 0L
     private var currentBitrateBps: Long = 0L
-    private var reconnectCount: Int = 0
+    private var lastAbrEvalTime: Long = 0L
 
     @Volatile
     var isStreaming: Boolean = false
@@ -81,10 +103,30 @@ class StreamPipeline(
         }
 
         this.activeEndpoint = endpoint
+        this.streamWidth = videoWidth
+        this.streamHeight = videoHeight
+        this.streamFps = videoFps
+        this.streamVideoBitrateKbps = videoBitrateKbps
+        this.streamAudioSampleRate = audioSampleRate
+        this.streamAudioBitrateKbps = audioBitrateKbps
+        this.streamAudioChannels = audioChannels
+
         this.audioPacketizer = AacFlvPacketizer(audioSampleRate, audioChannels)
         this.videoPacketizer.reset()
         this.packetQueue.clear()
-        this.reconnectCount = 0
+        this.networkMonitor.reset()
+        this.reconnectionManager.reset()
+
+        // Initialize ABR controller
+        this.abrController.initialize(videoBitrateKbps)
+        this.abrController.onBitrateAdjustmentListener = { decision ->
+            Log.i(TAG, "ABR Decision: ${decision.oldBitrateKbps} -> ${decision.newBitrateKbps} kbps (reason=${decision.reason})")
+            onAdjustBitrate?.invoke(decision.newBitrateKbps)
+            if (decision.requestKeyFrame) {
+                onRequestKeyFrame?.invoke()
+            }
+        }
+
         this.totalBytesSent = 0L
         this.totalPacketsSent = 0L
         this.videoFramesSent = 0L
@@ -95,6 +137,7 @@ class StreamPipeline(
         this.auditStartElapsed = 0L
         this.currentBitrateBps = 0L
         this.lastBytesCount = 0L
+        this.lastAbrEvalTime = SystemClock.elapsedRealtime()
         this.lastBitrateCalcTime = SystemClock.elapsedRealtime()
         this.startTimeMs = System.currentTimeMillis()
 
@@ -127,11 +170,32 @@ class StreamPipeline(
                     StreamTelemetryNotifier.updateState(state)
                     if (state == RtmpConnectionState.PUBLISHING) {
                         isStreaming = true
+                        networkMonitor.setRtmpConnected(true)
                     }
                 }
 
                 // Connect and publish
                 rtmpClient.connect(endpoint)
+                isStreaming = true
+                networkMonitor.setRtmpConnected(true)
+                reconnectionManager.onConnectionRestored()
+
+                // If this was a reconnection, queue fresh metadata and sequence headers
+                if (reconnectionManager.attemptCount > 0) {
+                    val metadataPacket = FlvMetadataBuilder.buildMetadataPacket(
+                        width = streamWidth,
+                        height = streamHeight,
+                        videoFps = streamFps,
+                        videoBitrateKbps = abrController.currentBitrateKbps,
+                        audioSampleRate = streamAudioSampleRate,
+                        audioBitrateKbps = streamAudioBitrateKbps,
+                        audioChannels = streamAudioChannels
+                    )
+                    packetQueue.offer(metadataPacket)
+                    packetQueue.offer(audioPacketizer.buildAacSequenceHeader(MediaClock.currentSessionTimeUs() / 1000L))
+                    onRequestKeyFrame?.invoke()
+                    Log.i(TAG, "Reconnected: re-injected metadata and requested sync keyframe")
+                }
 
                 // Main packet transmission loop
                 while (isRunning.get() && rtmpClient.isPublishing) {
@@ -146,39 +210,74 @@ class StreamPipeline(
                     if (packet.isVideo) videoFramesSent++
                     if (packet.isAudio) audioFramesSent++
 
-                    updateTelemetry(latency)
+                    // Zero-allocation hot path telemetry recording
+                    networkMonitor.recordPacketWrite(
+                        bytesWritten = packet.payload.size,
+                        writeDurationMs = latency,
+                        queueDepth = packetQueue.size,
+                        queueMaxCapacity = maxQueuePackets,
+                        droppedCount = packetQueue.droppedCount.get()
+                    )
+
+                    // Periodic ABR evaluation and telemetry update (every ~1000ms)
+                    val now = SystemClock.elapsedRealtime()
+                    if (now - lastAbrEvalTime >= 1000L) {
+                        lastAbrEvalTime = now
+                        val decision = abrController.evaluate(networkMonitor.currentTelemetry, now)
+                        if (decision != null && decision.newBitrateKbps != decision.oldBitrateKbps) {
+                            onAdjustBitrate?.invoke(decision.newBitrateKbps)
+                            if (decision.requestKeyFrame) {
+                                onRequestKeyFrame?.invoke()
+                            }
+                        }
+                        reconnectionManager.checkStability(now)
+                        updateTelemetry(latency)
+                    }
                 }
             } catch (e: Exception) {
-                Log.w(TAG, "Streaming connection error: ${e.message}")
-                StreamTelemetryNotifier.updateState(RtmpConnectionState.ERROR)
+                Log.w(TAG, "Streaming connection interrupted: ${e.message}")
+                networkMonitor.recordWriteFailure(e)
+                networkMonitor.setRtmpConnected(false)
+                rtmpClient.close()
+                isStreaming = false
+
+                // Strictly prevent false LIVE reporting
+                StreamTelemetryNotifier.updateState(RtmpConnectionState.DISCONNECTED)
                 StreamTelemetryNotifier.updateTelemetry(
                     StreamTelemetryNotifier.currentTelemetry.copy(
+                        connectionState = RtmpConnectionState.DISCONNECTED,
                         lastError = e.message
                     )
                 )
 
-                rtmpClient.close()
-                isStreaming = false
-
-                // Reconnection logic with exponential backoff (max 3 attempts)
-                if (isRunning.get() && reconnectCount < MAX_RECONNECT_ATTEMPTS) {
-                    reconnectCount++
-                    val backoffDelayMs = (1000L * (1 shl (reconnectCount - 1))).coerceAtMost(8000L)
-                    Log.i(TAG, "Attempting reconnect #$reconnectCount in ${backoffDelayMs}ms...")
+                // Schedule bounded exponential backoff reconnection
+                val delayMs = reconnectionManager.scheduleNextAttempt(e.message ?: "Socket disconnect")
+                if (isRunning.get() && delayMs != null) {
+                    Log.i(TAG, "Attempting reconnect #${reconnectionManager.attemptCount}/${reconnectionManager.maxAttempts} in ${delayMs}ms...")
                     StreamTelemetryNotifier.updateState(RtmpConnectionState.RECONNECTING)
                     StreamTelemetryNotifier.updateTelemetry(
                         StreamTelemetryNotifier.currentTelemetry.copy(
-                            reconnectAttempts = reconnectCount
+                            connectionState = RtmpConnectionState.RECONNECTING,
+                            reconnectAttempts = reconnectionManager.attemptCount
                         )
                     )
 
                     try {
-                        Thread.sleep(backoffDelayMs)
+                        Thread.sleep(delayMs)
                     } catch (_: InterruptedException) {
                         break
                     }
+                    reconnectionManager.onAttemptStarted()
                 } else {
-                    Log.e(TAG, "Reconnection limit reached or stopped. Stream halted.")
+                    Log.e(TAG, "Reconnection limit reached or stopped. Halting stream.")
+                    StreamTelemetryNotifier.updateState(RtmpConnectionState.FAILED)
+                    StreamTelemetryNotifier.updateTelemetry(
+                        StreamTelemetryNotifier.currentTelemetry.copy(
+                            connectionState = RtmpConnectionState.FAILED,
+                            lastError = "Reconnection exhausted: ${e.message}"
+                        )
+                    )
+
                     val creatorError = com.fairylive.app.core.common.CreatorErrorNotifier.mapNetworkException(e)
                     com.fairylive.app.core.common.CreatorErrorNotifier.postError(
                         creatorError.title,
@@ -192,7 +291,10 @@ class StreamPipeline(
 
         rtmpClient.close()
         isStreaming = false
-        StreamTelemetryNotifier.updateState(RtmpConnectionState.IDLE)
+        networkMonitor.setRtmpConnected(false)
+        if (StreamTelemetryNotifier.currentState != RtmpConnectionState.FAILED) {
+            StreamTelemetryNotifier.updateState(RtmpConnectionState.IDLE)
+        }
     }
 
     fun flushTelemetry(networkLatencyMs: Long = 0L) {
@@ -222,7 +324,9 @@ class StreamPipeline(
                     queueDepth = packetQueue.size,
                     networkLatencyMs = networkLatencyMs,
                     durationMs = duration,
-                    reconnectAttempts = reconnectCount
+                    reconnectAttempts = reconnectionManager.attemptCount,
+                    activeBitrateKbps = abrController.currentBitrateKbps,
+                    networkHealth = networkMonitor.currentHealth.name
                 )
             )
         }
@@ -277,9 +381,7 @@ class StreamPipeline(
     }
 
     /**
-     * Stage-audit log (M6 final review): every ~5 s, log encoder-output (muxer tag) counts vs
-     * RTMP-sent counts vs dropped counts, so the frame-rate at each stage can be traced.
-     * Instrumentation only — no behavior change.
+     * Stage-audit log: traces encoder output vs RTMP sent counts vs queue drops.
      */
     private fun emitStageAudit() {
         val now = SystemClock.elapsedRealtime()
@@ -295,7 +397,8 @@ class StreamPipeline(
             "STAGE-AUDIT muxedV=$muxedVideoTags muxedA=$muxedAudioTags sentV=$videoFramesSent sentA=$audioFramesSent " +
                 "drops=${packetQueue.droppedCount.get()} qDepth=${packetQueue.size} elapsed=${"%.1f".format(elapsedSec)}s " +
                 "muxVfps=${"%.1f".format(muxedVideoTags / elapsedSec)} muxAfps=${"%.1f".format(muxedAudioTags / elapsedSec)} " +
-                "sentVfps=${"%.1f".format(videoFramesSent / elapsedSec)} sentAfps=${"%.1f".format(audioFramesSent / elapsedSec)}"
+                "sentVfps=${"%.1f".format(videoFramesSent / elapsedSec)} sentAfps=${"%.1f".format(audioFramesSent / elapsedSec)} " +
+                "abr=${abrController.currentBitrateKbps}kbps health=${networkMonitor.currentHealth}"
         )
     }
 
@@ -304,6 +407,7 @@ class StreamPipeline(
 
         isRunning.set(false)
         isStreaming = false
+        networkMonitor.setRtmpConnected(false)
         StreamTelemetryNotifier.updateState(RtmpConnectionState.STOPPING)
 
         senderThread?.interrupt()
@@ -316,12 +420,14 @@ class StreamPipeline(
         packetQueue.clear()
         videoPacketizer.reset()
         audioPacketizer.reset()
+        networkMonitor.unregister()
+        networkMonitor.reset()
+        reconnectionManager.reset()
 
         StreamTelemetryNotifier.updateState(RtmpConnectionState.IDLE)
     }
 
     companion object {
         private const val TAG = "StreamPipeline"
-        const val MAX_RECONNECT_ATTEMPTS = 3
     }
 }

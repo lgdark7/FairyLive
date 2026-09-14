@@ -49,15 +49,16 @@ Rebuild **FAIRY LIVE** from scratch as a high-performance, professional native A
       - **M6 revalidation (2026-09-13 13:45 review response)**: Tests A–F passed on-device (full-screen dialog, fresh state, repeated auth cancel/accept, clean stop→restart streams again). Success stream verified: **14,679,930 bytes, 3,129 video + 11,326 audio AUs** over 263s (audio 43.07 AU/s = theory; video ~11.9 fps — full-display swiftshader throttle, M5 single-app was 23 fps).
       - **M6 final review (2026-09-13 14:35)**: per-stage FPS trace added (`STAGE-AUDIT` log in StreamPipeline; 492.56s run: encoder output = muxer tags = RTMP-sent at every sample, drops=0 — zero pipeline loss; fps ceiling upstream VirtualDisplay, not transport). Projection-denied path posts typed CreatorError card (verified on-device: error card + OFFLINE/CAPTURE IDLE + 0 bytes to server). Credential masking verified in UI and logcat.
   - **M7: Broadcast Overlay Compositor** (Revalidated & Approved on 2026-09-13)
-  - **M8: Advanced Overlay System** (Completed & Verified — **WAITING FOR CHATGPT REVIEW**)
-      - **Overlay Suite**: Extensible data-driven overlay model supporting `IMAGE`, `TEXT`, `GOAL`, `LOWER_THIRD`, `QR`, `ALERT`, `WIDGET`, `GIF`.
-      - **Zero-Copy Rendering**: Modular rasterizers (`TextOverlayRasterizer`, `GoalOverlayRasterizer`, `LowerThirdOverlayRasterizer`, `QrOverlayRasterizer`, `AlertOverlayRasterizer`, `WidgetOverlayRasterizer`) render once on configuration change into Bitmaps; GPU textures cached in `OverlayResourceManager`.
-      - **Bounded GIF Engine**: `GifStreamPlayer` utilizes native Android `Movie` engine with 1 reusable Bitmap buffer (zero external dependencies, 0 KB APK overhead).
-      - **Decoupled Alert Audio**: `AlertSoundController` utilizes `SoundPool` for independent sound playback without touching `AudioRecord` or GLES render threads.
-      - **Low-End Limits**: `CompositorLimits` strictly caps active overlays (10), cached textures (32), and texture dimensions (1024).
-      - **A/B Performance Verification**: Live 94.6s stream with 5 simultaneous overlays (PNG logo + Text banner + Follower goal + Live stats widget + Animated GIF) delivered 346 V, 2,968 A, 0 drops, with only +3.8% CPU and +0.7 MB PSS overhead over M7 baseline.
-      - **Test Suite**: **81 Unit Tests** + **5 On-Device Connected Tests** (100% Passing). Added `testMultiOverlaySceneRendering`.
-- **Pending Milestones**: M9 through M15 (strictly gated on ChatGPT M8 approval).
+  - **M8: Advanced Overlay System** (Approved by ChatGPT on 2026-09-14)
+      - Verified ISO/IEC 18004 QR encoder, 1-bitmap Movie GIF player with texture change guard, 24MB texture memory budget, 5-overlay connected test, and controlled A/B test.
+  - **M9: Adaptive Bitrate & Network Resilience Engine** (Completed & Verified — **WAITING FOR CHATGPT REVIEW**)
+      - **Network Quality Monitor (`NetworkQualityMonitor.kt`)**: Zero-allocation hot-path sliding window for TCP write latency, throughput (kbps), socket backpressure, and Android `ConnectivityManager.NetworkCallback` capabilities (WIFI, CELLULAR, UNAVAILABLE). State classification: `EXCELLENT`, `HEALTHY`, `DEGRADED`, `POOR`, `CRITICAL`.
+      - **Adaptive Bitrate Controller (`AdaptiveBitrateController.kt`)**: 4-tier ladder (1200, 800, 500, 300 kbps). Rapid downscaling under congestion (`CRITICAL` clamps to 300 kbps floor, `POOR` drops 2 tiers, `DEGRADED` drops 1 tier); requests IDR keyframe from encoder (`MediaCodec.PARAMETER_KEY_REQUEST_SYNC_FRAME`). Conservative step-up recovery requiring 3 consecutive healthy windows + 3000ms anti-oscillation cooldown.
+      - **Reconnection Engine (`StreamReconnectionManager.kt`)**: Bounded exponential backoff (1s, 2s, 4s, 8s capped at 4 attempts). Prevents infinite retries by transitioning to `FAILED` / `ERROR`.
+      - **State Correctness**: Strict prevention of false `LIVE` state; `DISCONNECTED`, `RECONNECTING`, `FAILED` explicitly surfaced on UI.
+      - **Fault-Injection & Real RTMP Testing**: Verified via `fault_injection_rtmp_server.py` across 4 test modes (Normal baseline, Bandwidth throttle to 300 kbps, Forced socket disconnect & reconnect recovery, Reconnect failure exhaustion).
+      - **Test Suite**: **108 Unit Tests** + **5 On-Device Connected Tests** (100% Passing).
+- **Pending Milestones**: M10 through M15 (strictly gated on ChatGPT M9 approval).
 
 ---
 

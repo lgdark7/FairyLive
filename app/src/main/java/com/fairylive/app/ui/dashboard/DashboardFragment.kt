@@ -744,7 +744,8 @@ class DashboardFragment : Fragment(),
         val ctx = context ?: return
 
         when (state) {
-            com.fairylive.app.core.stream.model.RtmpConnectionState.IDLE -> {
+            com.fairylive.app.core.stream.model.RtmpConnectionState.IDLE,
+            com.fairylive.app.core.stream.model.RtmpConnectionState.DISCONNECTED -> {
                 binding.tvStreamStatusBadge.text = "DISCONNECTED"
                 binding.tvStreamStatusBadge.setTextColor(ContextCompat.getColor(ctx, R.color.status_amber))
             }
@@ -766,13 +767,14 @@ class DashboardFragment : Fragment(),
                 binding.tvStreamStatusBadge.setTextColor(ContextCompat.getColor(ctx, R.color.status_green))
             }
             com.fairylive.app.core.stream.model.RtmpConnectionState.RECONNECTING -> {
-                binding.tvStreamStatusBadge.text = "RECONNECTING (${telemetry.reconnectAttempts}/3)"
+                binding.tvStreamStatusBadge.text = "RECONNECTING (${telemetry.reconnectAttempts}/4)"
                 binding.tvStreamStatusBadge.setTextColor(ContextCompat.getColor(ctx, R.color.status_amber))
             }
             com.fairylive.app.core.stream.model.RtmpConnectionState.STOPPING -> {
                 binding.tvStreamStatusBadge.text = "STOPPING..."
                 binding.tvStreamStatusBadge.setTextColor(ContextCompat.getColor(ctx, R.color.status_amber))
             }
+            com.fairylive.app.core.stream.model.RtmpConnectionState.FAILED,
             com.fairylive.app.core.stream.model.RtmpConnectionState.ERROR -> {
                 binding.tvStreamStatusBadge.text = "STREAM ERROR"
                 binding.tvStreamStatusBadge.setTextColor(ContextCompat.getColor(ctx, R.color.status_red))
@@ -789,7 +791,7 @@ class DashboardFragment : Fragment(),
         val durationStr = String.format(java.util.Locale.US, "%02d:%02d:%02d", hours, minutes, seconds)
 
         binding.tvStreamTelemetry.text =
-            "Sent: $sentDisplay | ${telemetry.bitrateKbps} kbps | Q: ${telemetry.queueDepth} (Drops: ${telemetry.droppedFrames}) | RTT: ${telemetry.networkLatencyMs}ms | $durationStr"
+            "Sent: $sentDisplay | ${telemetry.bitrateKbps} kbps (ABR: ${telemetry.activeBitrateKbps}k [${telemetry.networkHealth}]) | Q: ${telemetry.queueDepth} (Drops: ${telemetry.droppedFrames}) | RTT: ${telemetry.networkLatencyMs}ms | $durationStr"
 
         val videoKbps = EncoderStateNotifier.currentMetrics.bitrateKbps
         val audioKbps = AudioStateNotifier.currentMetrics.bitrateKbps

@@ -1,5 +1,39 @@
 # FAIRY LIVE — DEVELOPMENT LOG
 
+## 2026-09-14 — Milestone 9: Adaptive Bitrate & Network Resilience Engine
+- **Milestone**: M9 — Adaptive Bitrate & Network Resilience Engine (authorized by ChatGPT review)
+- **Scope Implemented & Verified**:
+  1. **Network Quality Monitor (`NetworkQualityMonitor.kt`)**:
+     - Sliding circular-buffer window of TCP write latencies (`LongArray(16)`) with zero hot-path allocation.
+     - Throughput estimation over 1000ms sliding window (bytes/sec and kbps).
+     - Android `ConnectivityManager.NetworkCallback` integration tracking transport availability (`WIFI`, `CELLULAR`, `ETHERNET`, `UNAVAILABLE`).
+     - Strict separation between Android OS network availability (`isNetworkAvailable`) and stream socket health (`isRtmpConnected`).
+     - 5-tier classification: `EXCELLENT`, `HEALTHY`, `DEGRADED`, `POOR`, `CRITICAL`.
+  2. **Adaptive Bitrate Controller (`AdaptiveBitrateController.kt`)**:
+     - Dynamic bitrate ladder: 1200 kbps (Base) -> 800 kbps (Degraded) -> 500 kbps (Poor) -> 300 kbps (Critical floor).
+     - Rapid downscale on congestion: drops 1 tier on `DEGRADED`, drops 2 tiers on `POOR`, drops directly to 300 kbps floor on `CRITICAL`.
+     - Sync keyframe request: automatically requests IDR keyframe from encoder (`MediaCodec.PARAMETER_KEY_REQUEST_SYNC_FRAME`) on significant bitrate drops.
+     - Conservative recovery: requires 3 consecutive healthy evaluation windows + 3000ms anti-oscillation cooldown before cautiously stepping up.
+  3. **Stream Reconnection Engine (`StreamReconnectionManager.kt`)**:
+     - Bounded exponential backoff: 1s, 2s, 4s, 8s (max 4 attempts, 15s total retry window).
+     - State tracking: `IDLE`, `RETRY_SCHEDULED`, `RECONNECTING`, `SUCCESS`, `EXHAUSTED`.
+     - Transition to `FAILED` / `ERROR` upon attempt exhaustion, preventing infinite reconnect storms.
+     - Automatic reset to 0 after sustained stable publishing.
+  4. **State Machine & UI Correctness**:
+     - States: `DISCONNECTED`, `RECONNECTING`, `FAILED`, `PUBLISHING`.
+     - Strict prevention of false `● LIVE` status during disconnection or reconnect attempts.
+     - UI telemetry surfaces active ABR bitrate, network health badge, queue depth, dropped packets, and write latency.
+  5. **Fault-Injection Test Suite (`tools/fault_injection_rtmp_server.py`)**:
+     - Test 1 (Normal baseline): 21.56s stream, 100% video (258/258) & audio (930/930) delivered, 0 drops, ABR at 1200 kbps.
+     - Test 2 (Bandwidth throttle 300 kbps): Verified client queue backpressure, write latency detection, and graceful frame preservation.
+     - Test 3 (Forced socket disconnect & reconnect recovery): Forced socket drop after 6.0s; client immediately exited LIVE, entered RECONNECTING, reconnected via 1s backoff, re-injected metadata + sequence headers, dropped bitrate to 300 kbps, and smoothly stepped up back to 1200 kbps under sustained stability.
+     - Test 4 (Reconnect failure exhaustion): Verified client steps through 1s -> 2s -> 4s -> 8s backoff, exhausts attempts, and halts gracefully in `FAILED`/`ERROR` state without remaining falsely LIVE.
+  6. **Regression Suite**:
+     - Unit Tests: **108/108 passed** (added 16 new tests in `NetworkQualityMonitorTest`, `AdaptiveBitrateControllerTest`, `StreamReconnectionManagerTest`, `NetworkResilienceTest`).
+     - Connected Instrumented Tests: **5/5 passed** on Pixel 8 (AVD) Android 15.
+     - APK Size: **7.0 MB** (strictly <15 MB limit).
+- **Status**: Complete — Verified on Pixel 8 emulator. Ready for ChatGPT M9 review.
+
 ## 2026-09-14 — Milestone 8 Revalidation: Controlled A/B Audit, A/V Sync, GIF Animation & QR Proof
 - **Milestone**: M8 Revalidation (addressing ChatGPT review requirements)
 - **Scope Verified & Delivered**:

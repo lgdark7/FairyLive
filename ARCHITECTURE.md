@@ -32,6 +32,9 @@ Fairy Live is a pure native Android streaming application engineered from the gr
       ├── H264FlvPacketizer (Annex-B -> AVCDecoderConfigurationRecord + Length-prefixed NALUs)
       ├── AacFlvPacketizer (Raw AAC -> AudioSpecificConfig + FLV Audio Tags)
       ├── FlvMetadataBuilder (@setDataFrame onMetaData Script Tags)
+      ├── NetworkQualityMonitor (TCP write latency, throughput sliding window, ConnectivityManager)
+      ├── AdaptiveBitrateController (1200->800->500->300 kbps, hysteresis, IDR keyframe requests)
+      ├── StreamReconnectionManager (1s, 2s, 4s, 8s backoff, state safety, attempt capping)
       │
       ▼
    [ BoundedStreamQueue (Backpressure: Drops delta video frames on congestion) ]
@@ -83,9 +86,11 @@ Fairy Live is a pure native Android streaming application engineered from the gr
   * Capacity: 90 packets / 4 MB memory ceiling.
   * Overflow Eviction: Evicts oldest non-keyframe delta video packets, preserving audio and keyframes.
   * Telemetry: Exposes `droppedFrames`, `queueDepth`, `bitrateBps`, `bytesSent`, `durationMs`.
-- **Reconnection Architecture**:
-  * Automatic retry with exponential backoff on unexpected socket drops (1s, 2s, 4s).
-  * Capped at 3 attempts before signaling terminal error to prevent battery draining tight loops.
+- **Reconnection Architecture & Adaptive Bitrate**:
+  * Automatic retry with exponential backoff on unexpected socket drops (1s, 2s, 4s, 8s).
+  * Capped at 4 attempts (15s total retry window) before transitioning to `FAILED` / `ERROR`.
+  * Dynamic ABR ladder: 1200 kbps, 800 kbps, 500 kbps, 300 kbps minimum floor.
+  * Rapid congestion downscaling and conservative 3-window step-up with 3000ms anti-oscillation cooldown.
 
 ---
 

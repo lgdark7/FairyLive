@@ -335,6 +335,17 @@ class FairyStreamService : Service() {
                     streamPipeline.onAudioFrame(frame)
                 }
 
+                // Wire ABR dynamic adjustments to the hardware video encoder
+                streamPipeline.onAdjustBitrate = { newKbps ->
+                    videoEncoder.adjustBitrate(newKbps)
+                }
+                streamPipeline.onRequestKeyFrame = {
+                    videoEncoder.requestKeyFrame()
+                }
+
+                // Register network quality monitor with Android ConnectivityManager
+                streamPipeline.networkMonitor.register(applicationContext)
+
                 // Listen to transport state to reflect genuine LIVE status
                 StreamTelemetryNotifier.addStateListener(object : com.fairylive.app.core.stream.StreamTelemetryNotifier.StateListener {
                     override fun onConnectionStateChanged(
@@ -343,8 +354,10 @@ class FairyStreamService : Service() {
                     ) {
                         when (newState) {
                             RtmpConnectionState.PUBLISHING -> StreamStateNotifier.updateState(StreamState.STREAMING)
-                            RtmpConnectionState.ERROR -> StreamStateNotifier.updateState(StreamState.ERROR)
+                            RtmpConnectionState.ERROR,
+                            RtmpConnectionState.FAILED -> StreamStateNotifier.updateState(StreamState.ERROR)
                             RtmpConnectionState.RECONNECTING -> StreamStateNotifier.updateState(StreamState.STARTING)
+                            RtmpConnectionState.DISCONNECTED -> StreamStateNotifier.updateState(StreamState.STARTING)
                             RtmpConnectionState.STOPPING -> StreamStateNotifier.updateState(StreamState.STOPPING)
                             RtmpConnectionState.IDLE -> {
                                 if (!videoEncoder.isEncoding && !captureEngine.isCapturing) {

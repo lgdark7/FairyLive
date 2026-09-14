@@ -5,7 +5,31 @@ Testing covers unit tests, instrumentation, system-level execution, memory stabi
 
 ---
 
-## 2. Milestone 8 — Advanced Multi-Overlay System Verification Matrix
+## 2. Milestone 9 — Adaptive Bitrate & Network Resilience Verification Matrix
+
+| Category | Test Case | Target / Command | Result | Evidence |
+|---|---|---|---|---|
+| **Build** | Clean & Assemble | `./gradlew clean assembleDebug` | **PASS** | `BUILD SUCCESSFUL`, 7.0 MB APK (< 15 MB budget) |
+| **Unit Tests** | Complete Suite | `./gradlew testDebugUnitTest` | **PASS** | **108/108 unit tests pass** (16 classes, incl. 16 new M9 resilience tests) |
+| **Device Tests** | On-Device Instrumentation | `connectedDebugAndroidTest` | **PASS** | **5/5 pass** on Pixel 8 Android 15 AVD |
+| **Network Monitor** | Circular buffer latency & zero alloc | `NetworkQualityMonitorTest` | **PASS** | `testSlidingWindowLatencyAveraging`, `testZeroAllocationHotPath` |
+| **Network Monitor** | Throughput & NetworkTransport | `NetworkQualityMonitorTest` | **PASS** | `testThroughputEstimation`, `testNetworkAvailabilityTransition` |
+| **ABR Ladder** | Rapid downscale on congestion | `AdaptiveBitrateControllerTest` | **PASS** | `testImmediateClampingToFloorOnCritical`, `testDownscaleOnPoorNetwork` |
+| **ABR Hysteresis** | Anti-oscillation cooldown & step-up | `AdaptiveBitrateControllerTest` | **PASS** | `testConservativeRecoveryRequiresSustainedHealthyWindows`, `testCooldownPreventsOscillation` |
+| **ABR Keyframe** | Request sync IDR on downscale | `AdaptiveBitrateControllerTest` | **PASS** | `testKeyFrameRequestedOnSignificantDownscale` |
+| **Reconnection** | Exponential backoff sequence | `StreamReconnectionManagerTest`| **PASS** | 1s, 2s, 4s, 8s backoff timings verified |
+| **Reconnection** | Capped attempts & exhaustion | `StreamReconnectionManagerTest`| **PASS** | Max 4 attempts enforced, exhausts to null and `EXHAUSTED` state |
+| **State Machine** | Strict prevention of false LIVE | `NetworkResilienceTest` | **PASS** | `testStrictConnectionStateTransitions`, `DISCONNECTED` & `RECONNECTING` never `isStreaming` |
+| **Queue Eviction** | Delta frame eviction under backpressure | `NetworkResilienceTest` | **PASS** | `testBoundedQueueEvictionUnderBackpressure`: keyframes & seq headers preserved |
+| **Fault Mode A** | Normal baseline streaming | `fault_injection_rtmp_server.py` | **PASS** | 21.56s stream: 100% video (258/258) & audio (930/930), 0 drops, ABR at 1200 kbps |
+| **Fault Mode B** | Bandwidth throttle (300 kbps) | `fault_injection_rtmp_server.py` | **PASS** | 21.03s run: write latency rises, queue backpressure handled, ABR throttled |
+| **Fault Mode C** | Forced disconnect & reconnect | `fault_injection_rtmp_server.py` | **PASS** | Socket closed after 6s; client drops LIVE, backoff 1s reconnects, re-injects headers, steps up 300->1200 kbps |
+| **Fault Mode D** | Reconnect exhaustion | `fault_injection_rtmp_server.py` | **PASS** | Retries 1s, 2s, 4s, 8s, exits gracefully to `FAILED` / `ERROR`, never remains LIVE |
+| **Resource Safety**| Leak-free reconnect cycle | `dumpsys meminfo com.fairylive.app` | **PASS** | PSS 68.4 MB, Native Heap 14.4 MB, 0 orphaned sockets/codecs |
+
+---
+
+## 3. Milestone 8 — Advanced Multi-Overlay System Verification Matrix
 
 | Category | Test Case | Target / Command | Result | Evidence |
 |---|---|---|---|---|

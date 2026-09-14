@@ -26,7 +26,8 @@
    - Static PNG/WebP overlays and dynamic text overlays with position, scale, and opacity controls.
 7. **Network Resilience & RTMP Client**:
    - Reliable streaming transport (RTMP/FLV).
-   - Exponential backoff reconnect logic.
+   - Adaptive Bitrate (ABR ladder: 1200->800->500->300 kbps) with dynamic MediaCodec parameter tuning and sync keyframe insertion.
+   - Bounded exponential backoff reconnect logic (1s, 2s, 4s, 8s, capped at 4 attempts).
    - Adaptive frame-dropping / backpressure handling to prevent memory exhaustion under poor network conditions.
 8. **Foreground Service & Android Lifecycle**:
    - Compliant Android Foreground Service ensuring uninterrupted background streaming while playing games.

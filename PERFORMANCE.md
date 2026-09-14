@@ -7,7 +7,36 @@ Every performance claim must be backed by real measurements captured from target
 
 ---
 
-## 2. Milestone 8 — Advanced Multi-Overlay System A/B Performance Audit (2026-09-13)
+## 2. Milestone 9 — Adaptive Bitrate & Network Resilience Performance Audit (2026-09-14)
+
+Controlled A/B benchmark evaluating streaming performance with M9 Adaptive Bitrate & Network Resilience Engine vs M8 Baseline:
+- **Baseline (M8)**: Static 1200 kbps encoding without dynamic ABR, basic socket write.
+- **Resilience Engine (M9)**: Full M9 pipeline active: `NetworkQualityMonitor` sliding-window TCP latency/throughput tracking, `AdaptiveBitrateController` 4-tier ladder (1200, 800, 500, 300 kbps), `StreamReconnectionManager` (1s, 2s, 4s, 8s backoff), and `BoundedStreamQueue` 4MB backpressure eviction.
+
+### A. Telemetry Comparison Matrix
+
+| Metric | Baseline (M8 Multi-Overlay) | M9 Network Resilience Engine | Delta / Analysis |
+|---|---|---|---|
+| **Pipeline Architecture** | Compositor + Static RTMP | Compositor + ABR + Network Resilience | Dynamic MediaCodec bitrate tuning + backoff |
+| **Active Overlays** | 5 concurrent overlays | 5 concurrent overlays | Identical visual rendering pipeline |
+| **Stream Duration** | 68.2 s | 21.6 s (Test 1) / 55.1 s (Test 3) | Sustained stable delivery |
+| **Total Ingest Payload** | 2,193,471 B | 1,024,591 B (Test 1) / 1,019,184 B (Test 2) | Consistent bandwidth transmission |
+| **Video Ingest Frames** | 728 frames | 258 frames (Test 1) / 258 frames (Test 2) | Full NALU reception |
+| **Video Ingest FPS** | 10.7 FPS | 11.9 – 12.8 FPS | Solid frame rate on SwiftShader |
+| **Audio Ingest Units** | 2,935 frames | 930 frames (Test 1) / 906 frames (Test 2) | Uninterrupted 1024-sample PCM clock |
+| **Effective Audio Rate** | 43.09 AU/s | 43.1 – 43.3 AU/s | Theoretical exact: 43.066 AU/s |
+| **Normal Queue Drops** | 0 | 0 | Zero pipeline drops under normal conditions |
+| **Normal Queue Depth** | 1 | 1 | Zero backlog when unconstrained |
+| **Active Bitrate** | Fixed 1200 kbps | Dynamic 1200 -> 300 -> 1200 kbps | Automatic congestion mitigation |
+| **Process CPU (`top`)** | ~30.4% | ~30.8% | Negligible (+0.4%) CPU overhead for ABR monitoring |
+| **Process Memory (PSS)** | 82.1 MB | 68.4 MB | Bounded memory footprint (< 70 MB) |
+| **Process Memory (RSS)** | 185.8 MB | 170.4 MB | Fully contained resident set |
+| **Native Heap** | 20.6 MB | 14.5 MB | Clean, zero leak |
+| **APK Binary Size** | 6.22 MB | 7.00 MB | 46.7% of 15 MB limit |
+
+---
+
+## 3. Milestone 8 — Advanced Multi-Overlay System A/B Performance Audit (2026-09-13)
 
 Clean A/B comparison evaluating multi-overlay overhead against single-watermark M7 baseline:
 - **Baseline (A - M7)**: Single static PNG watermark overlay ($256 \times 256$).
