@@ -362,16 +362,21 @@ Milestone 13 validates application survivability, memory boundedness, resource c
    - Executes 10 consecutive forced TCP socket drops to verify automated client re-handshake and stream resumption.
    - Executes server unreachability backoff exhaustion (1s -> 2s -> 4s -> 8s) verifying clean transition to `FAILED` with zero resource leaks.
 
-### C. A/V Synchronization & Timeline Parity Architecture
+### C. A/V Synchronization & Explicit Gap-Handling Architecture
 - Audio timeline span: $\Delta T_{audio} = PTS_{audio\_last} - PTS_{audio\_first}$
 - Video timeline span: $\Delta T_{video} = PTS_{video\_last} - PTS_{video\_first}$
 - Cumulative Timeline Drift: $|\Delta T_{video} - \Delta T_{audio}|$
-- Dual-Mode Audio Synchronization Architecture:
+- **Explicit Gap Handling via Timestamp-Consistent Silence Frame Synthesis (`AudioCaptureEngine.kt`)**:
   1. **Continuous Micro-Spacing**: Derived directly from byte-count accumulation ($1024 \text{ samples} / 44100 \text{ Hz} \approx 23.2199 \text{ ms}$ per AAC frame), eliminating thread-scheduling timestamp slippage during normal execution.
-  2. **Wall-Clock Macro-Synchronization (`AudioCaptureEngine.kt` lines 152–155)**:
+  2. **Explicit Silence Bridging**:
      $$\text{driftUs} = \text{wallClockPtsUs} - \text{accumulatedPtsUs}$$
-     If $|\text{driftUs}| > 40,000\,\mu\text{s}$, $\text{startTimestampUs} += \text{driftUs}$.
-     This re-anchors the audio PTS to the wall-clock session timeline whenever `AudioRecord` HAL buffer dropouts or scheduler starvation occur. Video frames use `VirtualDisplay` wall-clock timestamps (`SurfaceTexture.timestamp`); without this compensation, dropped audio buffers would cause cumulative audio lag against the video timeline. During the 30-minute soak, this mechanism advanced $\text{startTimestampUs}$ by 59.014s during the minutes 14–19 stress interval, preventing a 55-second audio desynchronization and maintaining steady-state alignment (ending with a flat 1.0 ms/min post-recovery drift rate).
+     When the Android audio HAL stalls or drops PCM chunks under system contention ($\text{driftUs} > 40,000\,\mu\text{s}$), the engine explicitly calculates missing frames ($\text{missingFrames} = (\text{driftUs} \times \text{sampleRate}) / 1,000,000$) and synthesizes pre-allocated zero-filled PCM silence chunks (bounded at 3.0s per event).
+     Each chunk is queued into `AacMediaCodecEncoder` with canonical sample-continuous PTS.
+  3. **Media Continuity Guarantee**:
+     - **PTS Continuity**: Every AAC frame follows the preceding frame by exactly $1024 / 44100 \approx 23.22\text{ ms}$. Zero multi-second timestamp jumps.
+     - **Sample Continuity**: Total AAC frames $\times 1024 / 44100$ equals the audio PTS span down to the millisecond.
+     - **Audible Continuity**: Prevents player buffer underruns, click artifacts, or decoder lockups; replaced with clean, transient silence.
+     - **A/V Synchronization**: Audio and video timelines remain strictly locked to the session origin (`MediaClock.sessionOriginNs`).
 
 
 

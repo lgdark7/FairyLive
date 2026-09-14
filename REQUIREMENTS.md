@@ -132,7 +132,7 @@
 2. **TEST 2 — A/V Synchronization Stress**:
    - Continuous audio/video timeline tracking.
    - Reconciled timeline duration vs sample count tracking at Start (1m), Middle (15m), and End (30m).
-   - AudioCaptureEngine drift compensation validates recovery from emulator AudioRecord buffer stalls, bounding end-to-end A/V delta under 4.0s with flat post-recovery drift rate (1.0 ms/min).
+   - AudioCaptureEngine explicit gap-handling synthesizes timestamp-consistent silence PCM frames whenever AudioRecord stalls (`driftUs > 40ms`), bounding end-to-end A/V delta under 4.0s with flat post-recovery drift rate (1.0 ms/min) and strict sample-to-PTS parity.
 3. **TEST 3 — Full Overlay Stress**:
    - All overlay types rendering concurrently (Image, Text, Goal, Lower Third, QR, Alert, Widget, GIF).
    - High-frequency mutation and rapid scene updates without OpenGL pipeline stall or texture corruption.

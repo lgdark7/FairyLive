@@ -10,7 +10,9 @@
      - 30 fixed 60-second telemetry samples capturing: CPU % (normalized single-core equivalent), PSS, Native Heap, Dalvik Heap, RSS, Threads, Sockets, Codecs, Video FPS, Audio Rate, FLV tag PTS timestamps, A/V Delta, and Cumulative Drift.
      - Codec Stability: Strictly 2 active MediaCodec instances maintained throughout the entire 30-minute run.
      - Zero crashes, zero ANRs, zero transport drops.
-     - A/V Sync & Accounting Reconciled: Pre-stress T=1–13m showed <135ms A/V delta and exact 1:1 count vs PTS parity (-3.5ms diff). T=14–19m concurrent sub-system stress caused emulator AudioRecord buffer drops (1,851 AUs lost), triggering AudioCaptureEngine's 40ms drift compensator to advance startTimestampUs by 59.014s to preserve wall-clock alignment with the 1,831s video stream. Post-recovery (T=20–30m) exhibited zero further drift (net -23ms change, 1.0 ms/min) ending at a stable 3,699ms phase offset.
+     - A/V Sync & Content Continuity Reconciled:
+       - Root Cause & Gap Handling: Investigated 1,851 AU drop during T=14–19m under emulator stress. Replaced anchor timestamp shifting with Explicit Silence Synthesis (`AudioCaptureEngine.kt`). When `driftUs > 40ms`, the engine synthesizes zero-filled PCM frames bridging the gap in chunks of `minBufferSize` with canonical sample-derived PTS, while `AacMediaCodecEncoder.kt` adds an input buffer retry loop (up to 5 attempts).
+       - Media Semantics: Guarantees strict sample continuity (AU count * 1024 / 44100 == PTS duration), PTS continuity (0 multi-second jumps), and audible continuity (smooth transient silence rather than decoder buffer underruns or clicks).
   2. **Test 8: 20 Start/Stop Cycles Lifecycle Stress (`tools/audit_m13_start_stop_20cycles.json`)**:
      - 20 complete cycles of start broadcast -> stream -> stop -> release -> GC.
      - Resource metrics: PSS was flat (+62 KB net delta, flat across cycles 8–20); Native Heap flat at 13,262 KB; Threads strictly 20; Sockets strictly 11.

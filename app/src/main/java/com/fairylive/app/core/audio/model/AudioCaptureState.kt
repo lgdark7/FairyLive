@@ -17,6 +17,7 @@ enum class AudioCaptureState {
 
 data class AudioMetrics(
     val samplesRead: Long = 0L,
+    val silenceFramesInserted: Long = 0L,
     val peakAmplitudePercent: Int = 0,
     val encodedFrames: Long = 0L,
     val bitrateKbps: Long = 0L,

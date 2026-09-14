@@ -231,4 +231,62 @@ class AudioPipelineTest {
         assertTrue(hwMetrics.isHardwareAccelerated)
         assertFalse(hwMetrics.isSoftwareOnly)
     }
+
+    @Test
+    fun testAudioGapBridgingCalculations() {
+        // Simulates the exact gap-filling math in AudioCaptureEngine
+        val sampleRate = 44100
+        val bytesPerFrame = 2
+        val minBufferSize = 4096
+        val silenceFramesPerChunk = (minBufferSize / bytesPerFrame).toLong()
+
+        val stallDurationUs = 200_000L // 200ms stall (e.g. emulator HAL delay)
+        val expectedMissingFrames = (stallDurationUs * sampleRate) / 1_000_000L
+        assertEquals(8820L, expectedMissingFrames)
+
+        var framesToBridge = expectedMissingFrames
+        var totalDispatchedSilence = 0L
+        val dispatchedPts = mutableListOf<Long>()
+        val startTimestampUs = 100_000L
+        var accumulatedSamples = 0L
+
+        while (framesToBridge > 0L) {
+            val chunkFrames = kotlin.math.min(framesToBridge, silenceFramesPerChunk).toInt()
+            val chunkBytes = chunkFrames * bytesPerFrame
+            assertTrue("Chunk bytes must fit within buffer", chunkBytes <= minBufferSize)
+
+            val silencePtsUs = startTimestampUs + (accumulatedSamples * 1_000_000L) / sampleRate
+            dispatchedPts.add(silencePtsUs)
+            accumulatedSamples += chunkFrames
+            totalDispatchedSilence += chunkFrames
+            framesToBridge -= chunkFrames
+        }
+
+        // All missing frames were cleanly synthesized as silence
+        assertEquals(8820L, totalDispatchedSilence)
+        assertEquals(5, dispatchedPts.size) // 2048, 2048, 2048, 2048, 628
+
+        // Verify strictly monotonic PTS progression with zero jumps
+        for (i in 1 until dispatchedPts.size) {
+            assertTrue("PTS must strictly increase", dispatchedPts[i] > dispatchedPts[i - 1])
+        }
+
+        // Next real frame continues with exact continuous sample clock
+        val nextRealPtsUs = startTimestampUs + (accumulatedSamples * 1_000_000L) / sampleRate
+        val totalElapsedUs = nextRealPtsUs - startTimestampUs
+        assertEquals(200_000L, totalElapsedUs)
+    }
+
+    @Test
+    fun testAudioMetricsSilenceTracking() {
+        val metrics = AudioMetrics(
+            samplesRead = 88200L,
+            silenceFramesInserted = 8820L,
+            peakAmplitudePercent = 45,
+            encodedFrames = 86L,
+            bitrateKbps = 96L
+        )
+        assertEquals(88200L, metrics.samplesRead)
+        assertEquals(8820L, metrics.silenceFramesInserted)
+    }
 }

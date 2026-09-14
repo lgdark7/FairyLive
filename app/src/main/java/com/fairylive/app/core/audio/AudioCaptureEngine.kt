@@ -41,8 +41,12 @@ class AudioCaptureEngine {
         private set
 
     private var totalSamplesRead: Long = 0L
+    private var totalSilenceFramesInserted: Long = 0L
     private var startTimestampUs: Long = 0L
     private var lastAmplitudeUpdateTime: Long = 0L
+
+    fun getSilenceFramesInserted(): Long = totalSilenceFramesInserted
+    fun getTotalSamplesProduced(): Long = totalSamplesRead
 
     fun setAudioSampleListener(listener: AudioSampleListener?) {
         this.sampleListener = listener
@@ -103,6 +107,7 @@ class AudioCaptureEngine {
 
         this.audioRecord = record
         this.totalSamplesRead = 0L
+        this.totalSilenceFramesInserted = 0L
         val nowNs = SystemClock.elapsedRealtimeNanos()
         this.startTimestampUs = com.fairylive.app.core.common.MediaClock.toSessionPtsUs(nowNs)
         this.lastAmplitudeUpdateTime = SystemClock.elapsedRealtime()
@@ -131,6 +136,7 @@ class AudioCaptureEngine {
     private fun captureLoop(record: AudioRecord, isDeviceAudio: Boolean) {
         // Pre-allocated reusable buffer to guarantee zero allocations in the capture loop
         val buffer = ByteArray(config.minBufferSize)
+        val silenceBuffer = ByteArray(config.minBufferSize) // Pre-allocated reusable zeroed buffer for gap bridging
         val bytesPerFrame = config.bytesPerFrame
 
         while (isCapturing.get()) {
@@ -147,11 +153,40 @@ class AudioCaptureEngine {
                 // Continuous sample-count accumulation for jitter-free micro-spacing
                 val accumulatedPtsUs = startTimestampUs + (totalSamplesRead * 1_000_000L) / config.sampleRate
 
-                // Drift compensation: if audio HAL stalls or delays delivering PCM chunks,
-                // re-anchor startTimestampUs to prevent audio PTS from lagging behind video.
+                // Explicit Gap Handling & Loss Prevention:
+                // If audio HAL stalls or delays delivering PCM chunks, the real-world wall clock
+                // moves ahead while accumulatedPtsUs falls behind. Instead of jumping startTimestampUs
+                // (which drops audio content and causes PTS discontinuities), we explicitly synthesize
+                // timestamp-consistent silence PCM frames to bridge the gap.
                 val driftUs = wallClockPtsUs - accumulatedPtsUs
-                if (kotlin.math.abs(driftUs) > 40_000L) {
-                    startTimestampUs += driftUs
+                if (driftUs > GAP_COMPENSATION_THRESHOLD_US) {
+                    val missingFrames = (driftUs * config.sampleRate) / 1_000_000L
+                    // Bound gap filling to max 3.0 seconds per stall to prevent thread starvation
+                    val cappedMissingFrames = missingFrames.coerceAtMost(config.sampleRate * 3L)
+                    var framesToBridge = cappedMissingFrames
+                    val silenceChunkFrames = (silenceBuffer.size / bytesPerFrame).toLong()
+
+                    while (framesToBridge > 0L && isCapturing.get()) {
+                        val chunkFrames = kotlin.math.min(framesToBridge, silenceChunkFrames).toInt()
+                        val chunkBytes = chunkFrames * bytesPerFrame
+                        val silencePtsUs = startTimestampUs + (totalSamplesRead * 1_000_000L) / config.sampleRate
+                        totalSamplesRead += chunkFrames
+                        totalSilenceFramesInserted += chunkFrames
+                        framesToBridge -= chunkFrames
+
+                        val listener = sampleListener
+                        if (listener != null) {
+                            listener.onAudioSample(silenceBuffer, chunkBytes, silencePtsUs)
+                        } else {
+                            pcmDroppedCount.increment()
+                        }
+                    }
+
+                    // If drift exceeded the 3-second ceiling, re-anchor the remainder to prevent runaway lag
+                    val residualDriftUs = driftUs - ((cappedMissingFrames * 1_000_000L) / config.sampleRate)
+                    if (residualDriftUs > GAP_COMPENSATION_THRESHOLD_US) {
+                        startTimestampUs += residualDriftUs
+                    }
                 }
 
                 val currentPtsUs = startTimestampUs + (totalSamplesRead * 1_000_000L) / config.sampleRate
@@ -170,6 +205,7 @@ class AudioCaptureEngine {
                     AudioStateNotifier.updateMetrics(
                         AudioStateNotifier.currentMetrics.copy(
                             samplesRead = totalSamplesRead,
+                            silenceFramesInserted = totalSilenceFramesInserted,
                             peakAmplitudePercent = amplitudePercent,
                             isMuted = isMuted,
                             isDeviceAudio = isDeviceAudio
@@ -255,5 +291,6 @@ class AudioCaptureEngine {
 
     companion object {
         private const val TAG = "AudioCaptureEngine"
+        private const val GAP_COMPENSATION_THRESHOLD_US = 40_000L
     }
 }

@@ -164,25 +164,29 @@ class AacMediaCodecEncoder {
     /**
      * Feeds raw PCM samples into the encoder input buffer with canonical presentation timestamp.
      */
-    fun queuePcm(pcmData: ByteArray, size: Int, presentationTimeUs: Long) {
-        if (!isEncoding) return
-        val codec = mediaCodec ?: return
+    fun queuePcm(pcmData: ByteArray, size: Int, presentationTimeUs: Long): Boolean {
+        if (!isEncoding) return false
+        val codec = mediaCodec ?: return false
 
-        try {
-            val inputIndex = codec.dequeueInputBuffer(5_000L)
-            if (inputIndex >= 0) {
-                val inputBuffer: ByteBuffer? = codec.getInputBuffer(inputIndex)
-                if (inputBuffer != null) {
-                    inputBuffer.clear()
-                    inputBuffer.put(pcmData, 0, size)
-                    codec.queueInputBuffer(inputIndex, 0, size, presentationTimeUs, 0)
+        for (attempt in 0..4) {
+            try {
+                val inputIndex = codec.dequeueInputBuffer(5_000L)
+                if (inputIndex >= 0) {
+                    val inputBuffer: ByteBuffer? = codec.getInputBuffer(inputIndex)
+                    if (inputBuffer != null) {
+                        inputBuffer.clear()
+                        inputBuffer.put(pcmData, 0, size)
+                        codec.queueInputBuffer(inputIndex, 0, size, presentationTimeUs, 0)
+                        return true
+                    }
                 }
-            } else {
-                inputTimeoutCount.increment()
+            } catch (e: Exception) {
+                Log.e(TAG, "Error queuing PCM buffer into audio encoder", e)
+                return false
             }
-        } catch (e: Exception) {
-            Log.e(TAG, "Error queuing PCM buffer into audio encoder", e)
         }
+        inputTimeoutCount.increment()
+        return false
     }
 
     private fun drainLoop() {
