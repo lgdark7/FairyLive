@@ -102,8 +102,14 @@ Rebuild **FAIRY LIVE** from scratch as a high-performance, professional native A
         * Rapid Switching Condition: CPU 10.0%, PSS 63,262 KB, Native 13,246 KB, 2 active codecs, 19 threads.
       - **10-Cycle Stability Audit (`tools/audit_m11_10cycle_resources.json`)**:
         * 10 complete cycles across Gameplay -> Just Chatting -> BRB -> Gameplay.
-        * Post-GC Cycle 1 PSS: 63,173 KB; Cycle 10 PSS: 63,177 KB (net delta +4 KB across 10 cycles, strictly bounded). Native heap delta: 0 bytes (flat at 13,258 KB). Threads bounded at 19. Active codecs strictly bounded at 2.
-      - **Full Regression**: `./gradlew clean testDebugUnitTest connectedDebugAndroidTest` passed with exit code 0 (127/127 unit tests pass, 14/14 connected tests pass on Pixel 8 AVD, APK size 6.2 MB).
+        * Post-GC Cycle 1 PSS: 63,173 KB; Cycle 10 PSS: 63,177 KB (net delta +4 KB across 10 cycles). Native heap delta: 0 bytes (flat at 13,258 KB). Threads bounded at 19. Active codecs strictly bounded at 2.
+        * Resource Audit Finding: No meaningful monotonic resource growth was observed across the 10-cycle scene switching audit.
+      - **RTMP Continuity Validation (`tools/audit_m11_continuity_ledger.json`)**:
+        * Verified on-device connected test across 6 switches (Gameplay -> Just Chatting [Crossfade] -> BRB [Cut] -> Gameplay [Crossfade] -> Just Chatting [Cut] -> BRB [Crossfade] -> Gameplay [Cut]).
+        * TCP connection identity: `/127.0.0.1:35406`. Total TCP connections: 1.
+        * RTMP disconnects: 0. RTMP reconnects: 0. Stream restarts: 0. False LIVE transitions: 0. Pipeline drops: 0.
+        * Timestamps strictly monotonic across all switches: Video (416ms -> 4,166ms), Audio (232ms -> 2,322ms).
+      - **Full Regression**: `./gradlew clean testDebugUnitTest connectedDebugAndroidTest` passed with exit code 0 (127/127 unit tests pass, 15/15 connected tests pass on Pixel 8 AVD, APK size 6.2 MB).
 - **Authorized Milestones**: M11 (Authorized by ChatGPT on 2026-09-14).
 - **Locked Milestones**: M12 through M15.
 

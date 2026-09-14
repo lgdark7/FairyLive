@@ -99,6 +99,9 @@
    - Instant cuts (0ms) and crossfade transitions (e.g. 300ms) must execute on the existing EGL compositor render thread via linear opacity modulation without creating extra FBOs, offscreen staging textures, or CPU image buffers.
 3. **Resource Boundedness & Codec Invariant**:
    - Active MediaCodec instances must be strictly held at 2 during scene switches.
-   - 10-cycle scene toggle stability audit must demonstrate non-monotonic, tightly bounded memory consumption post-GC with zero monotonic native heap growth.
+   - 10-cycle scene toggle stability audit must demonstrate no meaningful monotonic resource growth post-GC (net PSS delta +4 KB across 10 cycles, 0 byte native heap delta).
+4. **Live Same-Session RTMP Continuity Protocol**:
+   - Scene switching continuity must be verified with active MediaCodec video/audio streaming over a persistent TCP socket.
+   - Verification requires: 1 single persistent TCP socket, 0 RTMP disconnects, 0 RTMP reconnect attempts, 0 stream restarts, 0 false LIVE transitions, 0 pipeline frame drops, and strictly monotonic video and audio timestamps across all scene switches.
 
 

@@ -9,7 +9,7 @@ Testing covers unit tests, instrumentation, system-level execution, memory stabi
 
 | Category | Test Case | Target / Command | Result | Evidence |
 |---|---|---|---|---|
-| **Build & Regression** | Full Clean Regression | `./gradlew clean testDebugUnitTest connectedDebugAndroidTest` | **PASS (Exit 0)** | **127/127 unit tests pass**, **14/14 connected tests pass**, 71/71 tasks, build duration 1m 1s, 6.2 MB APK (< 15 MB budget) |
+| **Build & Regression** | Full Clean Regression | `./gradlew clean testDebugUnitTest connectedDebugAndroidTest` | **PASS (Exit 0)** | **127/127 unit tests pass**, **15/15 connected tests pass**, 71/71 tasks, build duration 1m 1s, 6.2 MB APK (< 15 MB budget) |
 | **Scene Models** | Immutable Scene Data Structure | `BroadcastSceneTest` | **PASS** | `testBroadcastSceneCreationAndImmutability`: verified immutable scene configs, background modes, facecam transforms, and overlay collections |
 | **Scene Manager** | Preset Initialization & CRUD | `BroadcastSceneTest` | **PASS** | `testDefaultScenesInitialization`: initializes Gameplay, Just Chatting, BRB presets; validates CRUD operations and custom scene registration |
 | **Switching Safety** | Unknown ID & Minimum Safety | `BroadcastSceneTest` | **PASS** | `testSwitchToUnknownSceneGracefullyFails`, `testCannotDeleteActiveScene`, `testCannotDeleteLastRemainingScene` |
@@ -18,8 +18,9 @@ Testing covers unit tests, instrumentation, system-level execution, memory stabi
 | **Live Device Switching** | Compositor scene switch | `SceneInstrumentedTest` | **PASS** | `testCompositorSceneSwitchingOnDevice`: switches across all 3 presets with active GLES Surface and zero crashes |
 | **Transition Lifecycle** | Crossfade progress observer | `SceneInstrumentedTest` | **PASS** | `testCrossfadeTransitionLifecycleOnDevice`: verifies transition progress callback delivery and clean completion |
 | **Rapid Switching** | 10 rapid scene toggles | `SceneInstrumentedTest` | **PASS** | `testRapidSceneSwitchingStability`: verifies compositor stability and unbroken MediaCodec output |
+| **RTMP Continuity** | Live Same-Session Stream Continuity | `SceneInstrumentedTest` | **PASS** | `testLiveRtmpContinuityAcrossSceneSwitches`: verified 1 persistent TCP socket (`/127.0.0.1:35406`), 0 disconnects, 0 reconnects, 0 stream restarts, 0 false LIVE transitions, 0 drops, strictly monotonic video and audio timestamps |
 | **A/B/C Benchmark** | Preset Overhead Audit | `tools/audit_m11_abc_performance.json` | **PASS** | CPU 10.0% flat across all conditions; PSS 57.3 - 63.2 MB; zero pipeline drops; codecs strictly bounded at 2 |
-| **10-Cycle Audit** | Scene Switching Stability Ledger | `tools/audit_m11_10cycle_resources.json` | **PASS** | 10 cycles across Gameplay -> Just Chatting -> BRB -> Gameplay: PSS delta +4 KB, Native heap delta 0 bytes, 2 active codecs, 0 socket disconnects |
+| **10-Cycle Audit** | Scene Switching Stability Ledger | `tools/audit_m11_10cycle_resources.json` | **PASS** | 10 cycles across Gameplay -> Just Chatting -> BRB -> Gameplay: No meaningful monotonic resource growth was observed (PSS delta +4 KB, Native heap delta 0 bytes, 2 active codecs, 0 socket disconnects) |
 
 ---
 

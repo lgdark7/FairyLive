@@ -128,7 +128,19 @@ class FairyStreamService : Service() {
                     "CROSSFADE" -> SceneTransition.CROSSFADE
                     else -> SceneTransition.CUT
                 }
-                overlayCompositor.switchScene(sceneId, transition)
+                val switched = overlayCompositor.switchScene(sceneId, transition)
+                val tele = StreamTelemetryNotifier.currentTelemetry
+                val connState = StreamTelemetryNotifier.currentState
+                val videoCodecActive = videoEncoder.isEncoding
+                val audioCodecActive = audioPipeline.audioEncoder.isEncoding
+                Log.i(
+                    "FairyStreamService",
+                    "[M11_CONTINUITY_AUDIT] sceneId=$sceneId transition=$transitionTypeStr switched=$switched " +
+                    "connState=$connState isPublishing=${connState.isStreaming} reconnects=${tele.reconnectAttempts} " +
+                    "videoCodecActive=$videoCodecActive audioCodecActive=$audioCodecActive " +
+                    "vSent=${tele.videoFramesSent} aSent=${tele.audioFramesSent} drops=${tele.droppedFrames} " +
+                    "bytesSent=${tele.bytesSent} timeMs=${System.currentTimeMillis()}"
+                )
             }
             ACTION_START_AUDIO -> {
                 handleStartAudio(intent)

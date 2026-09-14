@@ -50,10 +50,39 @@ Conducted on Google Pixel 8 AVD, Android 15 (API 35). 10 complete cycles across 
 | **Cycle 10** | 63,177 | 13,258 | 8,049 | 19 | 10 | 2 | LIVE (Unbroken) |
 
 #### Evaluation for Monotonic Resource Growth:
+- **Finding**: **No meaningful monotonic resource growth was observed across the 10-cycle scene switching audit.**
 - **PSS Trajectory**: Total endpoint PSS change across 10 complete scene cycles is **+4 KB** (63,173 KB -> 63,177 KB, +0.4 KB/cycle), demonstrating tightly bounded memory consumption.
 - **Native Heap**: Native heap remained completely flat at **13,258 KB** (**0 bytes delta**) across all 10 cycles.
 - **Active Codecs**: Strictly held at **2 active codecs** throughout (0 resets, 0 leaks).
 - **Stream Invariant**: The RTMP transport socket and MediaCodec session experienced **zero drops, zero reconnects, and zero resets** across all scene switches.
+
+### C. Live RTMP Continuity Validation Across Scene Switches (`tools/audit_m11_continuity_ledger.json`)
+Conducted via on-device instrumented test on Google Pixel 8 AVD (Android 15, API 35) running active streaming pipeline (`StreamPipeline`) with live `OverlayCompositor` across 6 consecutive scene switches:
+
+#### 1. Invariants & Protocol Verification
+| Metric | Observed Value | Required Threshold | Invariant Status |
+|---|---|---|---|
+| **Observed Client Socket** | `/127.0.0.1:35406` | Single persistent TCP socket | **PASS** |
+| **Total TCP Connections** | **1** | Strictly 1 (zero reconnections) | **PASS** |
+| **RTMP Disconnects** | **0** | 0 | **PASS** |
+| **RTMP Reconnect Attempts**| **0** | 0 | **PASS** |
+| **Stream Restarts** | **0** | 0 | **PASS** |
+| **False LIVE Transitions** | **0** | 0 | **PASS** |
+| **Pipeline Frame Drops** | **0** | 0 | **PASS** |
+| **Video Packets Received** | **102** | Continuous | **PASS** |
+| **Audio Packets Received** | **101** | Continuous | **PASS** |
+| **Video Monotonicity** | **true** (416ms -> 4,166ms) | Non-decreasing | **PASS** |
+| **Audio Monotonicity** | **true** (232ms -> 2,322ms) | Non-decreasing | **PASS** |
+
+#### 2. Sequence Ledger Across Scene Switches
+| Switch # | Target Scene | Transition | Epoch Timestamp (ms) | Video TS (Pre -> Post) | Audio TS (Pre -> Post) | Stream State | Reconnects | Drops |
+|---|---|---|---|---|---|---|---|---|
+| **#1** | `scene_chatting` | `CROSSFADE` | 1789385698247 | 416ms -> 1041ms | 232ms -> 580ms | `PUBLISHING` | 0 | 0 |
+| **#2** | `scene_brb` | `CUT` | 1789385698498 | 1041ms -> 1666ms | 580ms -> 928ms | `PUBLISHING` | 0 | 0 |
+| **#3** | `scene_gameplay` | `CROSSFADE` | 1789385698741 | 1666ms -> 2291ms | 928ms -> 1277ms | `PUBLISHING` | 0 | 0 |
+| **#4** | `scene_chatting` | `CUT` | 1789385698990 | 2291ms -> 2916ms | 1277ms -> 1625ms | `PUBLISHING` | 0 | 0 |
+| **#5** | `scene_brb` | `CROSSFADE` | 1789385699234 | 2916ms -> 3541ms | 1625ms -> 1973ms | `PUBLISHING` | 0 | 0 |
+| **#6** | `scene_gameplay` | `CUT` | 1789385699483 | 3541ms -> 4166ms | 1973ms -> 2322ms | `PUBLISHING` | 0 | 0 |
 
 ---
 

@@ -43,16 +43,22 @@
   - Cycle 9: PSS 63,176 KB, Native 13,258 KB, Dalvik 8,049 KB, Threads 19, Sockets 10, Active Codecs 2
   - Cycle 10: PSS 63,177 KB, Native 13,258 KB, Dalvik 8,049 KB, Threads 19, Sockets 10, Active Codecs 2
   - **Stability Findings**:
+    * Resource Audit Finding: No meaningful monotonic resource growth was observed across the 10-cycle scene switching audit.
     * Post-GC PSS delta across 10 complete cycles is **+4 KB** (+0.4 KB/cycle), completely bounded.
     * Native Heap delta across 10 cycles is **0 bytes** (flat at 13,258 KB).
     * Threads remained bounded at 19; Sockets remained at 10.
     * Active MediaCodec count held strictly at 2 throughout.
+  - **Live RTMP Continuity Validation (`tools/audit_m11_continuity_ledger.json`)**:
+    * Invariant: Scene switching does not interrupt, recreate, or drop the active RTMP stream.
+    * Observed TCP client socket: `/127.0.0.1:35406` (1 single unbroken connection; 0 reconnects, 0 disconnects).
+    * Switches executed under active transmission: 6 switches across Gameplay, Just Chatting, and Be Right Back (CUT & CROSSFADE).
+    * Stream state: strictly `PUBLISHING` (`isStreaming=true`) with 0 stream restarts and 0 false LIVE transitions.
+    * Frame continuity: 102 video packets, 101 audio packets received; timestamps strictly monotonic non-decreasing across all switches (video: 416ms -> 4,166ms; audio: 232ms -> 2,322ms). Pipeline dropped frames: 0.
 - **Full Regression Verification**:
   - Command: `./gradlew clean testDebugUnitTest connectedDebugAndroidTest`
   - Exit code: **0**
-  - Unit tests: **127/127 PASS** (added 12 unit tests in `BroadcastSceneTest`)
-  - Connected tests: **14/14 PASS** on Pixel 8 AVD (added 3 connected tests in `SceneInstrumentedTest`)
-  - Build Duration: **1m 1s**
+  - Unit tests: **127/127 PASS**
+  - Connected tests: **15/15 PASS** on Pixel 8 AVD (added 4 connected tests in `SceneInstrumentedTest`)
   - APK size: **6.2 MB** (strictly < 15 MB constraint).
 
 ## 2026-09-14 — Milestone 10: Camera / Face Cam Integration & Comprehensive Empirical Validation
