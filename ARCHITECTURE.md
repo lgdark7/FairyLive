@@ -306,11 +306,11 @@ Low-end Android smartphones (2GB-4GB RAM, MediaTek Helio, Unisoc, Qualcomm Snapd
 
 ### B. Proactive Thermal Mitigation (`ThermalMitigationManager`)
 - Implements `PowerManager.OnThermalStatusChangedListener` on Android 10+ (API 29+) with backward-compatible broadcast monitoring on older versions.
-- Four-tier reactive mitigation ladder:
-  1. `NOMINAL` (Thermal status 0/1): 30 FPS target, 1200 kbps bitrate.
-  2. `MODERATE` (Thermal status 2): 24 FPS target, 900 kbps bitrate.
-  3. `SEVERE` (Thermal status 3): 20 FPS target, 700 kbps bitrate, disabled non-critical UI effects.
-  4. `CRITICAL` / `EMERGENCY` (Thermal status 4+): 15 FPS target, 500 kbps bitrate, absolute CPU/GPU conservation.
+- Four-tier reactive mitigation ladder matched directly to ABR rungs:
+  1. `NOMINAL` (Thermal status 0/1): 30 FPS target, 1200 kbps bitrate ceiling.
+  2. `MODERATE` (Thermal status 2): 24 FPS target, 800 kbps bitrate ceiling.
+  3. `SEVERE` (Thermal status 3): 20 FPS target, 500 kbps bitrate ceiling, disabled non-critical UI effects.
+  4. `CRITICAL` / `EMERGENCY` (Thermal status 4+): 15 FPS target, 300 kbps bitrate ceiling, absolute CPU/GPU conservation.
 - Transparent recovery: As thermal sensors cool, the system automatically restores nominal frame rates and bitrates without disconnecting the live broadcast.
 
 ### C. System Memory Pressure & OOM Protection (`MemoryPressureGuard`)
@@ -318,16 +318,26 @@ Low-end Android smartphones (2GB-4GB RAM, MediaTek Helio, Unisoc, Qualcomm Snapd
 - Multi-stage cache eviction:
   * `TRIM_MEMORY_RUNNING_LOW`: Purges the oldest 50% of cached overlay bitmap textures in `OverlayResourceManager`.
   * `TRIM_MEMORY_RUNNING_CRITICAL`: Completely evicts 100% of cached textures and triggers proactive system garbage collection hints.
+- Safe Resource Recreation: Active layer bitmaps required on the next rendering pass are lazily recreated on-demand via factory suppliers without throwing GLES errors or crashing the compositor pipeline.
 
 ### D. Dynamic FPS Throttler (`DynamicFpsThrottler`)
 - Integrated directly into the `OverlayCompositor` render pipeline.
 - Continuously measures GLES frame draw duration over a rolling 10-frame window.
 - If render duration consistently exceeds 32ms (threatening the 33.3ms budget of 30 FPS), the throttler steps down render presentation interval (30 -> 24 -> 20 -> 15 FPS) to eliminate frame queue stalls and GPU pipeline backpressure.
-- Smoothly recovers back toward 30 FPS once render latency drops below 18ms for 30 consecutive frames.
+- Clamped Recovery: Recovers back toward nominal framerate only up to `thermalCeilingFps` when render latency drops below 18ms for 30 consecutive frames.
 
 ### E. Device Profile Detection (`DeviceProfileDetector`)
 - Automatically classifies hardware at startup into `LOW_END`, `MID_RANGE`, or `FLAGSHIP` based on total RAM, core count, and `ActivityManager.isLowRamDevice`.
 - Tailors initial default encoding profiles and buffer depths to prevent device overload.
+
+### F. Controller Coordination & Precedence Hierarchy
+To prevent controller hunting, oscillation, or feedback loops between network and hardware controllers:
+1. **Thermal Mitigation** establishes the upper performance ceilings: `thermalBitrateCeiling` and `thermalFpsCeiling`.
+2. **Network ABR (`AdaptiveBitrateController`)** dynamically adjusts bitrate inside the range `[300, thermalBitrateCeiling]` based on network packet health, socket latency, and buffer backpressure. ABR cannot upscale above the thermal ceiling during network recovery.
+3. **Dynamic FPS Throttler** dynamically throttles frame presentation inside `[15, thermalFpsCeiling]` based on actual GLES render latency. It cannot upscale above the thermal FPS ceiling during low-latency frames.
+- **Mathematical Invariant**:
+  `Active Bitrate = min(ABR Evaluated Bitrate, Thermal Bitrate Ceiling)`
+  `Active Frame Rate = min(Render Latency Target FPS, Thermal FPS Ceiling)`
 
 
 

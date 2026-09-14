@@ -14,6 +14,9 @@ class DynamicFpsThrottler(
 
     private val targetFps = AtomicInteger(baseFps)
     private val frameIntervalNs = AtomicLong(1_000_000_000L / baseFps)
+    @Volatile
+    var thermalCeilingFps: Int = baseFps
+        private set
 
     private val rollingRenderTimesMs = LongArray(10)
     private var rollingIndex = 0
@@ -27,13 +30,21 @@ class DynamicFpsThrottler(
         get() = frameIntervalNs.get()
 
     fun updateThermalLevel(level: ThermalThrottlingLevel) {
-        val newTarget = when (level) {
+        val oldCeiling = thermalCeilingFps
+        thermalCeilingFps = when (level) {
             ThermalThrottlingLevel.NOMINAL -> baseFps
             ThermalThrottlingLevel.MODERATE -> minOf(baseFps, 24)
             ThermalThrottlingLevel.SEVERE -> minOf(baseFps, 20)
             ThermalThrottlingLevel.CRITICAL -> 15
         }
-        applyTargetFps(newTarget, "thermal level: $level")
+        if (thermalCeilingFps > oldCeiling) {
+            // Thermal recovery: restore target FPS up to new ceiling
+            applyTargetFps(thermalCeilingFps, "thermal recovery: $level (ceiling: $thermalCeilingFps)")
+        } else {
+            // Thermal throttling escalation
+            val clamped = minOf(targetFps.get(), thermalCeilingFps)
+            applyTargetFps(clamped, "thermal level: $level (ceiling: $thermalCeilingFps)")
+        }
     }
 
     fun recordRenderTime(renderTimeMs: Long) {
@@ -56,13 +67,13 @@ class DynamicFpsThrottler(
                 recoveryCounter = 0
                 rollingCount = 0
                 applyTargetFps(newFps, "high render latency: ${avg}ms")
-            } else if (avg < 18 && targetFps.get() < baseFps) {
+            } else if (avg < 18 && targetFps.get() < thermalCeilingFps) {
                 recoveryCounter++
                 if (recoveryCounter >= 30) {
                     val newFps = when (targetFps.get()) {
-                        15 -> 20
-                        20 -> 24
-                        else -> baseFps
+                        15 -> minOf(20, thermalCeilingFps)
+                        20 -> minOf(24, thermalCeilingFps)
+                        else -> thermalCeilingFps
                     }
                     recoveryCounter = 0
                     applyTargetFps(newFps, "render latency recovered: ${avg}ms")

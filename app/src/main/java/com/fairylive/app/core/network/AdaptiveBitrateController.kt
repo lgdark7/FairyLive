@@ -13,6 +13,7 @@ enum class BitrateChangeReason {
     DEGRADED_LATENCY,
     QUEUE_BACKPRESSURE,
     SUSTAINED_HEALTHY_RECOVERY,
+    THERMAL_THROTTLING,
     MANUAL_OVERRIDE
 }
 
@@ -52,8 +53,38 @@ class AdaptiveBitrateController(
     var currentTierIndex: Int = 0
         private set
 
+    var thermalCeilingTierIndex: Int = 0
+        private set
+
     val currentBitrateKbps: Int
         get() = ladderKbps[currentTierIndex]
+
+    fun setThermalBitrateCeiling(ceilingKbps: Int, nowElapsedMs: Long = SystemClock.elapsedRealtime()): BitrateDecision? {
+        val targetIndex = findClosestTierIndex(ceilingKbps)
+        val ceilingChanged = (thermalCeilingTierIndex != targetIndex)
+        thermalCeilingTierIndex = targetIndex
+        if (ceilingChanged) {
+            consecutiveHealthyEvaluations = 0
+            lastDecisionTimeMs = nowElapsedMs
+        }
+        if (currentTierIndex < targetIndex) {
+            val oldKbps = currentBitrateKbps
+            currentTierIndex = targetIndex
+
+            val decision = BitrateDecision(
+                oldBitrateKbps = oldKbps,
+                newBitrateKbps = currentBitrateKbps,
+                reason = BitrateChangeReason.THERMAL_THROTTLING,
+                requestKeyFrame = true,
+                timestampElapsedMs = nowElapsedMs
+            )
+            lastDecision = decision
+            Log.w(TAG, "ABR Thermal Ceiling Enforced: $oldKbps -> $currentBitrateKbps kbps")
+            onBitrateAdjustmentListener?.invoke(decision)
+            return decision
+        }
+        return null
+    }
 
     private var lastDecisionTimeMs: Long = 0L
     private var consecutiveHealthyEvaluations: Int = 0
@@ -176,7 +207,7 @@ class AdaptiveBitrateController(
                 // 2. Recovery Upscaling Path (Conservative Action with Hysteresis & Cooldown)
                 consecutiveHealthyEvaluations++
 
-                if (currentTierIndex > 0 &&
+                if (currentTierIndex > thermalCeilingTierIndex &&
                     timeSinceLastDecision >= cooldownMs &&
                     consecutiveHealthyEvaluations >= hysteresisRequiredHealthyWindows
                 ) {

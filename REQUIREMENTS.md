@@ -112,12 +112,14 @@
 2. **Honesty Regarding Target Hardware**:
    - Testing conducted on Android 15 Pixel 8 AVD must never be presented as low-end physical hardware validation. The physical hardware absence must be explicitly acknowledged in all reports and documentation.
 3. **Thermal Mitigation Invariant**:
-   - Thermal status callbacks must dynamically govern render frame rates (30 -> 24 -> 20 -> 15 FPS) and encoder bitrates (1200 -> 900 -> 700 -> 500 kbps) across `NOMINAL`, `MODERATE`, `SEVERE`, and `CRITICAL` states, with smooth automatic recovery upon cooling.
+   - Thermal status callbacks must dynamically govern render frame rates (30 -> 24 -> 20 -> 15 FPS) and encoder bitrates (1200 -> 800 -> 500 -> 300 kbps) across `NOMINAL`, `MODERATE`, `SEVERE`, and `CRITICAL` states, with smooth automatic recovery upon cooling.
 4. **System Memory & OOM Protection**:
-   - The application must handle `ComponentCallbacks2.onTrimMemory` signals: purging 50% of cached overlay bitmap textures on `TRIM_MEMORY_RUNNING_LOW` and 100% on `TRIM_MEMORY_RUNNING_CRITICAL`.
+   - The application must handle `ComponentCallbacks2.onTrimMemory` signals: purging 50% of cached overlay bitmap textures on `TRIM_MEMORY_RUNNING_LOW` and 100% on `TRIM_MEMORY_RUNNING_CRITICAL`. Active textures required for ongoing composition must safely recreate on demand with zero GLES errors.
 5. **Dynamic Frame Throttler Integrity**:
-   - Compositor frame interval must adapt dynamically when measured frame draw latencies exceed 32ms, preventing compositor thread stalling and buffer queue backpressure.
-6. **Codec and Architecture Preservation**:
+   - Compositor frame interval must adapt dynamically when measured frame draw latencies exceed 32ms, preventing compositor thread stalling and buffer queue backpressure. Frame recovery must be strictly bounded by the thermal FPS ceiling.
+6. **Controller Coordination & Precedence**:
+   - Explicit precedence hierarchy: Thermal mitigation sets maximum bitrate and FPS ceilings; Network ABR operates dynamically within the thermal bitrate ceiling; Dynamic FPS Throttler operates dynamically within the thermal FPS ceiling. Controllers must never oscillate against one another.
+7. **Codec and Architecture Preservation**:
    - The 2-active-MediaCodec invariant (1 AVC, 1 AAC) must be strictly maintained. M0-M11 architecture (RTMP, FLV muxer, audio clock, camera pipeline, scene switcher) must remain fully preserved.
 
 

@@ -145,4 +145,109 @@ class LowEndOptimizationTest {
         }
         assertTrue("FPS must step up toward baseline", throttler.currentTargetFps > 20)
     }
+
+    @Test
+    fun testDynamicFpsThrottlerThermalCeilingPreventsOverRecovery() {
+        val throttler = DynamicFpsThrottler(baseFps = 30)
+        throttler.updateThermalLevel(ThermalThrottlingLevel.MODERATE) // Ceiling = 24
+        assertEquals(24, throttler.currentTargetFps)
+        assertEquals(24, throttler.thermalCeilingFps)
+
+        // Force to 15 to simulate heavy render lag
+        throttler.forceFps(15)
+        assertEquals(15, throttler.currentTargetFps)
+
+        // 50 fast frames (< 18ms)
+        for (i in 0 until 50) {
+            throttler.recordRenderTime(10L)
+        }
+        // It must recover up to the ceiling (24), but NEVER exceed 24!
+        assertEquals(20, throttler.currentTargetFps)
+
+        for (i in 0 until 50) {
+            throttler.recordRenderTime(10L)
+        }
+        assertEquals(24, throttler.currentTargetFps)
+
+        // More fast frames must NOT push it to 30 because thermal ceiling is 24
+        for (i in 0 until 50) {
+            throttler.recordRenderTime(10L)
+        }
+        assertEquals("FPS must remain clamped at thermal ceiling of 24", 24, throttler.currentTargetFps)
+    }
+
+    @Test
+    fun testAbrThermalCeilingEnforcementAndRecoveryClamping() {
+        val abr = com.fairylive.app.core.network.AdaptiveBitrateController(cooldownMs = 0L)
+        abr.initialize(1200, nowElapsedMs = 1000L)
+        assertEquals(1200, abr.currentBitrateKbps)
+        assertEquals(0, abr.thermalCeilingTierIndex)
+
+        // 1. Enforce thermal ceiling to 800 kbps (MODERATE)
+        val decision = abr.setThermalBitrateCeiling(800, nowElapsedMs = 1100L)
+        assertNotNull(decision)
+        assertEquals(800, abr.currentBitrateKbps)
+        assertEquals(com.fairylive.app.core.network.BitrateChangeReason.THERMAL_THROTTLING, decision?.reason)
+        assertTrue("Thermal step down must request IDR keyframe", decision?.requestKeyFrame == true)
+        assertEquals(1, abr.thermalCeilingTierIndex)
+
+        // 2. Simulate healthy network evaluations — recovery must be clamped at 800 kbps
+        val healthyTelem = com.fairylive.app.core.network.NetworkQualityTelemetry(
+            health = com.fairylive.app.core.network.NetworkHealth.EXCELLENT,
+            throughputKbps = 5000,
+            averageLatencyMs = 20,
+            queueDepth = 1,
+            queueFillRatio = 0.01f
+        )
+        for (i in 1..5) {
+            val recDecision = abr.evaluate(healthyTelem, nowElapsedMs = 2000L + i * 100L)
+            assertNull("Recovery cannot exceed thermal ceiling (800 kbps)", recDecision)
+            assertEquals(800, abr.currentBitrateKbps)
+        }
+
+        // 3. Network degrades to POOR — ABR drops down to 300 kbps (below thermal ceiling)
+        val poorTelem = com.fairylive.app.core.network.NetworkQualityTelemetry(
+            health = com.fairylive.app.core.network.NetworkHealth.POOR,
+            throughputKbps = 300,
+            averageLatencyMs = 400,
+            queueDepth = 40,
+            queueFillRatio = 0.45f
+        )
+        val dropDecision = abr.evaluate(poorTelem, nowElapsedMs = 3000L)
+        assertNotNull(dropDecision)
+        assertEquals(300, abr.currentBitrateKbps)
+
+        // 4. Network recovers to HEALTHY — ABR climbs back up, but only up to 800 kbps
+        val rec1 = abr.evaluate(healthyTelem, nowElapsedMs = 3100L)
+        assertNull(rec1) // Waiting for hysteresis (3 windows)
+        abr.evaluate(healthyTelem, nowElapsedMs = 3200L)
+        val recStep1 = abr.evaluate(healthyTelem, nowElapsedMs = 3300L)
+        assertNotNull(recStep1)
+        assertEquals(500, abr.currentBitrateKbps) // Step up 300 -> 500
+
+        // Step up 500 -> 800
+        abr.evaluate(healthyTelem, nowElapsedMs = 3400L)
+        abr.evaluate(healthyTelem, nowElapsedMs = 3500L)
+        val recStep2 = abr.evaluate(healthyTelem, nowElapsedMs = 3600L)
+        assertNotNull(recStep2)
+        assertEquals(800, abr.currentBitrateKbps)
+
+        // Subsequent healthy evaluations CANNOT exceed 800 kbps
+        for (i in 1..5) {
+            val recClamp = abr.evaluate(healthyTelem, nowElapsedMs = 3700L + i * 100L)
+            assertNull("Recovery clamped at thermal ceiling", recClamp)
+            assertEquals(800, abr.currentBitrateKbps)
+        }
+
+        // 5. Thermal recovers to NOMINAL (1200 kbps)
+        abr.setThermalBitrateCeiling(1200, nowElapsedMs = 4500L)
+        assertEquals(0, abr.thermalCeilingTierIndex)
+
+        // Now ABR is permitted to recover from 800 -> 1200 kbps
+        abr.evaluate(healthyTelem, nowElapsedMs = 4600L)
+        abr.evaluate(healthyTelem, nowElapsedMs = 4700L)
+        val fullRec = abr.evaluate(healthyTelem, nowElapsedMs = 4800L)
+        assertNotNull(fullRec)
+        assertEquals(1200, abr.currentBitrateKbps)
+    }
 }

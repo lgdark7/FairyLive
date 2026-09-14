@@ -79,4 +79,33 @@ class LowEndOptimizationInstrumentedTest {
         assertEquals("Critical trim must purge all cached bitmaps", 0, resMgr.cachedCount())
         assertEquals("Total cached bytes must be 0", 0L, resMgr.totalBitmapBytes())
     }
+
+    @Test
+    fun testOnDeviceMemoryTrimSafeResourceRecreation() {
+        val resMgr = OverlayResourceManager(maxCachedBitmaps = 10, maxBitmapBytes = 10_000_000L)
+        var recreationCallCount = 0
+
+        fun createOverlayBitmap(): Bitmap {
+            recreationCallCount++
+            return Bitmap.createBitmap(64, 64, Bitmap.Config.ARGB_8888)
+        }
+
+        val b1 = resMgr.getOrPutBitmap("active_overlay_key") { createOverlayBitmap() }
+        assertNotNull(b1)
+        assertEquals(1, recreationCallCount)
+        assertEquals(1, resMgr.cachedCount())
+
+        // System memory starvation event occurs
+        resMgr.trimMemory(ComponentCallbacks2.TRIM_MEMORY_RUNNING_CRITICAL)
+        assertEquals(0, resMgr.cachedCount())
+        assertEquals(0L, resMgr.totalBitmapBytes())
+
+        // Compositor requires the texture again on the next frame pass
+        val b2 = resMgr.getOrPutBitmap("active_overlay_key") { createOverlayBitmap() }
+        assertNotNull("Recreated bitmap must be non-null", b2)
+        assertFalse("Recreated bitmap must not be recycled", b2!!.isRecycled)
+        assertEquals("Recreation factory must have been invoked", 2, recreationCallCount)
+        assertEquals(1, resMgr.cachedCount())
+        assertTrue("Cache bytes must be positive after recreation", resMgr.totalBitmapBytes() > 0)
+    }
 }

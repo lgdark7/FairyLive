@@ -86,18 +86,17 @@ class FairyStreamService : Service() {
                     rawStatus: Int
                 ) {
                     overlayCompositor.fpsThrottler.updateThermalLevel(level)
-                    when (level) {
-                        com.fairylive.app.core.optimization.model.ThermalThrottlingLevel.NOMINAL -> {
-                            videoEncoder.adjustBitrate(1200)
-                        }
-                        com.fairylive.app.core.optimization.model.ThermalThrottlingLevel.MODERATE -> {
-                            videoEncoder.adjustBitrate(900)
-                        }
-                        com.fairylive.app.core.optimization.model.ThermalThrottlingLevel.SEVERE -> {
-                            videoEncoder.adjustBitrate(700)
-                        }
-                        com.fairylive.app.core.optimization.model.ThermalThrottlingLevel.CRITICAL -> {
-                            videoEncoder.adjustBitrate(500)
+                    val ceilingKbps = when (level) {
+                        com.fairylive.app.core.optimization.model.ThermalThrottlingLevel.NOMINAL -> 1200
+                        com.fairylive.app.core.optimization.model.ThermalThrottlingLevel.MODERATE -> 800
+                        com.fairylive.app.core.optimization.model.ThermalThrottlingLevel.SEVERE -> 500
+                        com.fairylive.app.core.optimization.model.ThermalThrottlingLevel.CRITICAL -> 300
+                    }
+                    val decision = streamPipeline.abrController.setThermalBitrateCeiling(ceilingKbps)
+                    if (decision != null) {
+                        videoEncoder.adjustBitrate(decision.newBitrateKbps)
+                        if (decision.requestKeyFrame) {
+                            videoEncoder.requestKeyFrame()
                         }
                     }
                 }
