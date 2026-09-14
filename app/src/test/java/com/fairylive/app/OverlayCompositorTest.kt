@@ -5,6 +5,7 @@ import com.fairylive.app.core.compositor.OverlayScene
 import com.fairylive.app.core.compositor.model.OverlayElement
 import com.fairylive.app.core.compositor.model.OverlayTransform
 import com.fairylive.app.core.compositor.model.OverlayType
+import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -223,8 +224,9 @@ class OverlayCompositorTest {
 
     @Test
     fun testQrMatrixGenerationHasValidFinders() {
-        val url = "https://fairylive.app/stream"
-        val matrix = com.fairylive.app.core.compositor.rasterizer.QrOverlayRasterizer.generateQrMatrix(url)
+        // v1-M byte-mode capacity = 14 bytes max; use short URL within bounds
+        val url = "https://fl.app" // 13 bytes
+        val matrix = com.fairylive.app.core.compositor.rasterizer.QrMatrixEncoder.encode(url)
         assertEquals(21, matrix.size)
         assertEquals(21, matrix[0].size)
 
@@ -236,6 +238,46 @@ class OverlayCompositorTest {
         assertTrue(matrix[3][17])
         // Bottom-left finder center (row 17, col 3) must be dark
         assertTrue(matrix[17][3])
+    }
+
+    @Test
+    fun testQrEncoderReedSolomonRemainderKnownVector() {
+        // Deterministic vector check: message "https://fairy.live" (14 bytes) -> 16 data codewords,
+        // EC remainder must match a reference GF(256) computation.
+        val data = intArrayOf(
+            65, 38, 135, 71, 71, 7, 51, 162, 242, 246, 102, 22, 151, 39, 146, 230
+        )
+        val ec = com.fairylive.app.core.compositor.rasterizer.QrMatrixEncoder.reedSolomonRemainderForTest(data)
+        assertArrayEquals(
+            "EC remainder of known QR v1-M vector",
+            intArrayOf(141, 0, 1, 2, 91, 145, 219, 127, 188, 154),
+            ec
+        )
+    }
+
+    @Test
+    fun testQrEncoderFormatInfoBitsKnownValue() {
+        // Standard ISO 18004 value for EC=M + Mask 0 = 0x5412 (after the fixed BCH XOR).
+        val fmt = com.fairylive.app.core.compositor.rasterizer.QrMatrixEncoder.formatInfoForTest()
+        assertEquals(0x5412, fmt and 0x7FFF)
+    }
+
+    @Test
+    fun testQrEncoderDecodeBackRoundTrip() {
+        val payloads = listOf(
+            "https://fl.app",
+            "fairy.live",
+            "FAIRYLIVE",
+            "A1",
+            "HELLO-WORLD"
+        )
+
+        for (payload in payloads) {
+            val matrix = com.fairylive.app.core.compositor.rasterizer.QrMatrixEncoder.encode(payload)
+            // independent decoder must yield the exact same payload
+            val decoded = com.fairylive.app.core.compositor.rasterizer.QrMatrixDecoder.decode(matrix)
+            assertEquals("Round-trip QR decode for '$payload'", payload, decoded)
+        }
     }
 
     @Test

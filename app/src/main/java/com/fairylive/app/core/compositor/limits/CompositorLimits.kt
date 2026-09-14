@@ -15,17 +15,24 @@ object CompositorLimits {
     const val MAX_ACTIVE_OVERLAYS = 10
 
     /**
-     * Maximum number of textures retained in the GPU texture LRU cache.
-     * At 512x512 RGBA (~1 MB each), 32 textures consume ~32 MB VRAM maximum,
-     * safely below the 120 MB total app memory budget.
+     * Maximum GPU texture memory budget in bytes (24 MB).
+     * Textures are admitted and LRU-evicted based on estimated RGBA memory footprint
+     * (width * height * 4 bytes).
+     */
+    const val MAX_TEXTURE_MEMORY_BYTES = 24L * 1024 * 1024
+
+    /**
+     * Maximum number of textures retained in the GPU texture cache.
+     * Secondary count limit alongside [MAX_TEXTURE_MEMORY_BYTES].
      */
     const val MAX_CACHED_TEXTURES = 32
 
     /**
-     * Maximum number of decoded animated frames buffered concurrently in RAM.
-     * Prevents loading complete multi-megabyte GIFs into memory.
+     * Maximum number of concurrent animated GIFs allowed in a scene.
+     * Each active GIF allocates exactly ONE reusable Bitmap buffer (width * height * 4 bytes)
+     * in RAM, decoded on-demand via native [android.graphics.Movie].
      */
-    const val MAX_ANIMATED_FRAMES_BUFFERED = 4
+    const val MAX_ACTIVE_GIFS = 2
 
     /**
      * Maximum texture width or height in pixels.

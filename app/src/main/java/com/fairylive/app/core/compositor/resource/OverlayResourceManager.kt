@@ -21,20 +21,32 @@ import java.util.concurrent.atomic.AtomicInteger
  */
 class OverlayResourceManager(
     private val maxCachedBitmaps: Int = CompositorLimits.MAX_CACHED_TEXTURES,
-    private val maxBitmapBytes: Long = 24L * 1024 * 1024 // 24 MB memory cap
+    private val maxBitmapBytes: Long = CompositorLimits.MAX_TEXTURE_MEMORY_BYTES
 ) {
+
+    /** Runtime memory accounting emitted at session end and used by instrumentation. */
+    data class TextureMemoryStats(
+        val activeBytes: Long,
+        val maxBytes: Long,
+        val cachedCount: Int,
+        val largestBytes: Long,
+        val evictions: Long
+    )
 
     private val bitmapCache = object : LinkedHashMap<String, CachedBitmap>(64, 0.75f, true) {
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, CachedBitmap>?): Boolean {
             val shouldEvict = size > maxCachedBitmaps
             if (shouldEvict && eldest != null) {
                 totalBytes.addAndGet(-eldest.value.bytes.toInt())
+                evictionCount++
             }
             return shouldEvict
         }
     }
     private val cacheLock = Any()
     private val totalBytes = AtomicInteger(0)
+    private var largestBitmapBytes: Long = 0L
+    private var evictionCount: Long = 0L
 
     /** GPU texture handles allocated by the renderer, tracked for clean disposal. */
     private val allocatedTextures = mutableSetOf<Int>()
@@ -75,11 +87,13 @@ class OverlayResourceManager(
                 val removed = bitmapCache.remove(oldestKey)
                 if (removed != null) {
                     totalBytes.addAndGet(-removed.bytes.toInt())
+                    evictionCount++
                 }
             }
             if (totalBytes.get() + size <= maxBitmapBytes) {
                 bitmapCache[key] = CachedBitmap(bitmap, size)
                 totalBytes.addAndGet(size.toInt())
+                largestBitmapBytes = maxOf(largestBitmapBytes, size)
             } else {
                 Log.w(TAG, "Overlay bitmap too large to cache (${size / 1024} KB) — returning transient")
             }
@@ -129,6 +143,16 @@ class OverlayResourceManager(
     fun cachedCount(): Int = synchronized(cacheLock) { bitmapCache.size }
 
     fun totalBitmapBytes(): Long = totalBytes.get().toLong()
+
+    fun textureMemoryStats(): TextureMemoryStats = synchronized(cacheLock) {
+        TextureMemoryStats(
+            activeBytes = totalBytes.get().toLong(),
+            maxBytes = maxBitmapBytes,
+            cachedCount = bitmapCache.size,
+            largestBytes = largestBitmapBytes,
+            evictions = evictionCount
+        )
+    }
 
     /** Releases all cached Bitmaps and associated GPU textures. Must run on GL thread for GL deletes. */
     fun release() {

@@ -165,7 +165,9 @@ FAIRY LIVE M8 establishes a modular, decoupled overlay architecture that support
 - `MAX_ACTIVE_OVERLAYS = 10`: Strict ceiling on simultaneous scene layers.
 - `MAX_CACHED_TEXTURES = 32`: Maximum texture LRU cache capacity.
 - `MAX_TEXTURE_DIMENSION = 1024`: Clamped maximum texture resolution to protect 2GB RAM devices.
-- `MAX_ANIMATED_FRAMES_BUFFERED = 4`: Ring buffer constraint for animated frames.
+- `MAX_TEXTURE_MEMORY_BYTES = 24 MiB`: Global bitmap-cache admission budget with LRU eviction accounting.
+- GIF playback uses exactly one reusable Bitmap per active GIF; there is no decoded-frame ring buffer.
+- `MAX_ACTIVE_GIFS = 2`: Concurrent animated-overlay ceiling.
 - `MAX_CONCURRENT_ALERTS = 3`: Queue ceiling for broadcast alerts.
 
 

@@ -167,16 +167,51 @@ class CompositorInstrumentedTest {
                 scene.add(OverlayElement.createGoal("goal", com.fairylive.app.core.compositor.model.GoalOverlayConfig("Subs", 100, 200), 0.5f, 0.05f, 0.45f, zIndex = 15))
                 // 4. Widget
                 scene.add(OverlayElement.createWidget("stat", com.fairylive.app.core.compositor.model.WidgetOverlayConfig("STATS", "FPS", "24.0"), 0.05f, 0.90f, 0.35f, zIndex = 15))
+                // 5. Animated orbital GIF
+                val gifConfig = com.fairylive.app.core.compositor.model.GifOverlayConfig("assets://sample_animation.gif")
+                scene.add(OverlayElement.createGif("gif", gifConfig, 0.35f, 0.45f, 0.3f, zIndex = 20))
+
+                // Verify GIF engine explicitly: object exists, frames advance, one reusable buffer
+                val gifPlayer = com.fairylive.app.core.compositor.animation.GifStreamPlayer(context.assets)
+                val initialFrame = gifPlayer.getFrame(gifConfig, 0L)
+                assertNotNull("GIF initial frame must load", initialFrame)
+                val (initialBitmap, initialChanged) = initialFrame!!
+                assertTrue("Initial frame must report changed=true", initialChanged)
+                assertTrue("Initial frame must have positive dimensions", initialBitmap.width > 0 && initialBitmap.height > 0)
+
+                val sameTimeFrame = gifPlayer.getFrame(gifConfig, 0L)
+                assertNotNull("GIF same-time frame must return", sameTimeFrame)
+                org.junit.Assert.assertFalse("Same timestamp must not trigger frame update", sameTimeFrame!!.second)
+                org.junit.Assert.assertSame("Must reuse the exact same Bitmap instance", initialBitmap, sameTimeFrame.first)
+
+                val advancedFrame = gifPlayer.getFrame(gifConfig, 250L)
+                assertNotNull("GIF advanced frame must return", advancedFrame)
+                assertTrue("Advancing timestamp must report frameChanged=true", advancedFrame!!.second)
+                org.junit.Assert.assertSame("Must reuse the single Bitmap buffer across animation frames", initialBitmap, advancedFrame.first)
+                gifPlayer.release()
 
                 renderer.composite(scene, resources)
 
-                // Verify textures uploaded for all 4 overlays
-                org.junit.Assert.assertEquals(4, scene.size)
+                // Verify textures uploaded for all 5 overlays simultaneously
+                assertEquals(5, scene.size)
+                val requiredTypes = setOf(
+                    OverlayType.IMAGE,
+                    OverlayType.TEXT,
+                    OverlayType.GOAL,
+                    OverlayType.WIDGET,
+                    OverlayType.GIF
+                )
+                val activeTypes = scene.orderedLayers.map { it.element.type }.toSet()
+                assertEquals("All five overlay categories must be active", requiredTypes, activeTypes)
+
                 scene.orderedLayers.forEach { layer ->
-                    assertTrue("Layer ${layer.element.id} must have valid texture handle", layer.textureHandle != 0)
+                    assertTrue("Layer ${layer.element.id} (${layer.element.type}) must have valid texture handle", layer.textureHandle != 0)
                 }
 
                 renderer.drawFrame(scene, resources)
+                val glError = android.opengl.GLES20.glGetError()
+                assertEquals("Composition of all 5 overlays must yield GL_NO_ERROR", android.opengl.GLES20.GL_NO_ERROR, glError)
+
                 renderer.release()
                 resources.release()
             } catch (t: Throwable) {

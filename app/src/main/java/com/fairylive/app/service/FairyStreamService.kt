@@ -260,8 +260,13 @@ class FairyStreamService : Service() {
             if (enableCompositor) {
                 try {
                     captureSurface = overlayCompositor.start(encoderSurface, encW, encH)
-                    // Seed realistic broadcast multi-overlay scene (M8: PNG logo + Text banner + Goal + Stats widget)
-                    overlayCompositor.addSampleMultiOverlayScene()
+                    val singleOverlayOnly = intent.getBooleanExtra(EXTRA_SINGLE_OVERLAY, false)
+                    if (singleOverlayOnly) {
+                        overlayCompositor.addSampleSingleOverlayScene()
+                    } else {
+                        // Seed realistic broadcast multi-overlay scene (M8: PNG logo + Text banner + Goal + Stats widget + Animated GIF)
+                        overlayCompositor.addSampleMultiOverlayScene()
+                    }
                 } catch (e: Exception) {
                     Log.e("FairyStreamService", "Compositor start failed: ${e.message}")
                     com.fairylive.app.core.common.CreatorErrorNotifier.postError(
@@ -439,6 +444,16 @@ class FairyStreamService : Service() {
         activeMediaProjection = null
         MediaClock.stopSession()
 
+        // Session-end diagnostic: audio-path drop counters (M8 revalidation).
+        Log.i(
+            "FairyStreamService",
+            "AUDIO-DIAG capture.pcmDropped=${audioPipeline.captureEngine.pcmDroppedCount.sum()} " +
+                "encoder.inputTimeout=${audioPipeline.audioEncoder.inputTimeoutCount.sum()} " +
+                "queueDropped=${streamPipeline.packetQueueDropped} " +
+                "muxedV=${streamPipeline.muxedVideoTagCount} muxedA=${streamPipeline.muxedAudioTagCount} " +
+                "sentV=${streamPipeline.videoFramesSent} sentA=${streamPipeline.audioFramesSent}"
+        )
+
         StreamStateNotifier.updateState(StreamState.IDLE)
         CaptureStateNotifier.updateState(CaptureState.IDLE)
         AudioStateNotifier.updateState(AudioCaptureState.IDLE)
@@ -558,6 +573,7 @@ class FairyStreamService : Service() {
         const val EXTRA_ENABLE_AUDIO = "extra_enable_audio"
         const val EXTRA_ENABLE_RTMP = "extra_enable_rtmp"
         const val EXTRA_ENABLE_COMPOSITOR = "extra_enable_compositor"
+        const val EXTRA_SINGLE_OVERLAY = "extra_single_overlay"
         const val EXTRA_RTMP_URL = "extra_rtmp_url"
         const val EXTRA_STREAM_KEY = "extra_stream_key"
         const val EXTRA_BITRATE_KBPS = "extra_bitrate_kbps"
@@ -598,6 +614,7 @@ class FairyStreamService : Service() {
             enableAudio: Boolean = true,
             enableRtmp: Boolean = false,
             enableCompositor: Boolean = false,
+            singleOverlayOnly: Boolean = false,
             rtmpUrl: String = "",
             streamKey: String = "",
             bitrateKbps: Int = 1200,
@@ -614,6 +631,7 @@ class FairyStreamService : Service() {
                 putExtra(EXTRA_ENABLE_AUDIO, enableAudio)
                 putExtra(EXTRA_ENABLE_RTMP, enableRtmp)
                 putExtra(EXTRA_ENABLE_COMPOSITOR, enableCompositor)
+                putExtra(EXTRA_SINGLE_OVERLAY, singleOverlayOnly)
                 putExtra(EXTRA_RTMP_URL, rtmpUrl)
                 putExtra(EXTRA_STREAM_KEY, streamKey)
                 putExtra(EXTRA_BITRATE_KBPS, bitrateKbps)

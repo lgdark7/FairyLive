@@ -45,6 +45,11 @@ class StreamPipeline(
     var audioFramesSent: Long = 0L
         private set
 
+    /** Diagnostic accessors (M8 revalidation audit). */
+    val packetQueueDropped: Long get() = packetQueue.droppedCount.get()
+    val muxedVideoTagCount: Long get() = muxedVideoTags
+    val muxedAudioTagCount: Long get() = muxedAudioTags
+
     // Stage-audit counters (M6 final review: per-stage FPS trace).
     // Muxer-tag counters: FLV tags produced by the packetizers (encoder output consumers).
     private var muxedVideoTags: Long = 0L

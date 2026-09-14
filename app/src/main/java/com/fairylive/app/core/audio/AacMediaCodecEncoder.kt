@@ -12,6 +12,7 @@ import com.fairylive.app.core.audio.model.EncodedAudioFrame
 import com.fairylive.app.core.capability.model.EncoderType
 import java.nio.ByteBuffer
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.LongAdder
 
 data class AudioCodecSelection(
     val codecName: String,
@@ -31,6 +32,9 @@ data class AudioCodecSelection(
  * fallback to platform software Codec2/OMX codecs (e.g. c2.android.aac.encoder).
  */
 class AacMediaCodecEncoder {
+
+    /** Count of PCM buffers dropped because dequeueInputBuffer timed out (diagnostic only). */
+    val inputTimeoutCount = LongAdder()
 
     fun interface EncodedAudioFrameListener {
         fun onAudioFrameEncoded(frame: EncodedAudioFrame)
@@ -173,6 +177,8 @@ class AacMediaCodecEncoder {
                     inputBuffer.put(pcmData, 0, size)
                     codec.queueInputBuffer(inputIndex, 0, size, presentationTimeUs, 0)
                 }
+            } else {
+                inputTimeoutCount.increment()
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error queuing PCM buffer into audio encoder", e)

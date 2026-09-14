@@ -245,15 +245,18 @@ class OverlayCompositor(
         if (!isRunning.get() && renderThread == null) return
         val now = SystemClock.elapsedRealtime()
         val elapsedSec = (now - auditStartElapsed) / 1000.0
+        val memory = resources.textureMemoryStats()
         Log.i(
             TAG,
             "COMPOSITOR-FINAL-AUDIT captureFrames=${captureFramesReceived.get()} " +
                 "textureUpdates=${surfaceTextureUpdates.get()} " +
                 "renders=${renderIterations.get()} " +
                 "dupesSkipped=${duplicateRendersSkipped.get()} " +
-                "elapsed=${"%.1f".format(elapsedSec)}s " +
+                "overlays=${scene.size} elapsed=${"%.1f".format(elapsedSec)}s " +
                 "sourceFps=${"%.1f".format(if (elapsedSec > 0) surfaceTextureUpdates.get() / elapsedSec else 0.0)} " +
-                "renderFps=${"%.1f".format(if (elapsedSec > 0) renderIterations.get() / elapsedSec else 0.0)}"
+                "renderFps=${"%.1f".format(if (elapsedSec > 0) renderIterations.get() / elapsedSec else 0.0)} " +
+                "texActive=${memory.activeBytes} texMax=${memory.maxBytes} texCount=${memory.cachedCount} " +
+                "texLargest=${memory.largestBytes} texEvictions=${memory.evictions}"
         )
 
         CompositorStateNotifier.updateState(CompositorState.STOPPING)
@@ -360,6 +363,21 @@ class OverlayCompositor(
         renderHandler?.postDelayed({
             removeOverlay("stream_alert")
         }, durationMs)
+    }
+
+    /** Configures a single watermark overlay scene (M7 baseline for A/B comparison). */
+    fun addSampleSingleOverlayScene() {
+        addOverlay(
+            OverlayElement.createImage(
+                id = "watermark",
+                resourcePath = DEFAULT_OVERLAY_ASSET,
+                x = 0.76f,
+                y = 0.88f,
+                width = 0.18f,
+                opacity = 0.85f,
+                zIndex = 10
+            )
+        )
     }
 
     /** Configures a realistic broadcast multi-overlay scene (M8). */

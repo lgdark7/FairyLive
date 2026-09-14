@@ -254,10 +254,19 @@ class GlesRenderer {
         if (!layer.liveVisible || layer.liveOpacity <= 0f) return
         if (overlayProgram == 0) return
 
-        // Ensure the overlay texture is uploaded once, or updated if animated
+        // Static overlays upload once. GIFs reuse their single Bitmap and only replace
+        // the GPU texture when Movie's timeline has actually advanced to a new frame.
         val isGif = layer.element.type == OverlayType.GIF
-        if (layer.textureHandle == 0 || isGif) {
-            val bitmap = resolveLayerBitmap(layer, resources)
+        val gifFrame = if (isGif) {
+            layer.element.gifConfig?.let { config ->
+                gifStreamPlayer?.getFrame(config, android.os.SystemClock.elapsedRealtime())
+            }
+        } else {
+            null
+        }
+        val needsUpload = layer.textureHandle == 0 || (isGif && gifFrame?.second == true)
+        if (needsUpload) {
+            val bitmap = gifFrame?.first ?: resolveLayerBitmap(layer, resources)
             if (bitmap != null) {
                 if (isGif && layer.textureHandle != 0) {
                     GLES20.glDeleteTextures(1, intArrayOf(layer.textureHandle), 0)

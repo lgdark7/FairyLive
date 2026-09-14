@@ -684,6 +684,16 @@
                     android:textColor="@color/text_primary"
                     android:textSize="13sp" />
 
+                <com.google.android.material.checkbox.MaterialCheckBox
+                    android:id="@+id/checkbox_single_overlay_mode"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:checked="false"
+                    android:text="Single Watermark Overlay Only (A/B Baseline)"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="12sp" />
+
                 <TextView
                     android:id="@+id/tv_compositor_status"
                     android:layout_width="match_parent"

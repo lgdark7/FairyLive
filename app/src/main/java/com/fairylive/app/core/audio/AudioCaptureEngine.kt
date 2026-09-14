@@ -12,6 +12,7 @@ import com.fairylive.app.core.audio.model.AudioCaptureState
 import com.fairylive.app.core.audio.model.AudioMetrics
 import com.fairylive.app.core.audio.model.AudioSourceType
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.LongAdder
 import kotlin.math.sqrt
 
 /**
@@ -20,6 +21,9 @@ import kotlin.math.sqrt
  * mute with timestamp continuity, and drift-free monotonic PTS generation.
  */
 class AudioCaptureEngine {
+
+    /** PCM buffers not dispatched because no listener was attached (diagnostic only). */
+    val pcmDroppedCount = LongAdder()
 
     fun interface AudioSampleListener {
         fun onAudioSample(data: ByteArray, size: Int, presentationTimeUs: Long)
@@ -134,6 +138,22 @@ class AudioCaptureEngine {
 
             if (bytesRead > 0) {
                 val framesRead = bytesRead / bytesPerFrame
+                val bufferDurationUs = (framesRead * 1_000_000L) / config.sampleRate
+
+                // Compute wall clock session PTS
+                val nowNs = SystemClock.elapsedRealtimeNanos()
+                val wallClockPtsUs = (com.fairylive.app.core.common.MediaClock.toSessionPtsUs(nowNs) - bufferDurationUs).coerceAtLeast(0L)
+
+                // Continuous sample-count accumulation for jitter-free micro-spacing
+                val accumulatedPtsUs = startTimestampUs + (totalSamplesRead * 1_000_000L) / config.sampleRate
+
+                // Drift compensation: if audio HAL stalls or delays delivering PCM chunks,
+                // re-anchor startTimestampUs to prevent audio PTS from lagging behind video.
+                val driftUs = wallClockPtsUs - accumulatedPtsUs
+                if (kotlin.math.abs(driftUs) > 40_000L) {
+                    startTimestampUs += driftUs
+                }
+
                 val currentPtsUs = startTimestampUs + (totalSamplesRead * 1_000_000L) / config.sampleRate
                 totalSamplesRead += framesRead
 
@@ -157,7 +177,12 @@ class AudioCaptureEngine {
                     )
                 }
 
-                sampleListener?.onAudioSample(buffer, bytesRead, currentPtsUs)
+                val listener = sampleListener
+                if (listener != null) {
+                    listener.onAudioSample(buffer, bytesRead, currentPtsUs)
+                } else {
+                    pcmDroppedCount.increment()
+                }
             } else if (bytesRead < 0) {
                 Log.w(TAG, "AudioRecord read error: $bytesRead")
                 if (bytesRead == AudioRecord.ERROR_INVALID_OPERATION) {
