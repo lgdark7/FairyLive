@@ -1,0 +1,12 @@
+[
+  "09-14 12:54:27.339 W/StreamPipeline(31546): Streaming connection interrupted: Broken pipe",
+  "09-14 12:54:27.358 I/StreamPipeline(31546): Attempting reconnect #1/4 in 1000ms...",
+  "09-14 12:54:28.364 W/StreamPipeline(31546): Streaming connection interrupted: Unexpected EOF reading S0",
+  "09-14 12:54:28.365 I/StreamPipeline(31546): Attempting reconnect #2/4 in 2000ms...",
+  "09-14 12:54:30.375 W/StreamPipeline(31546): Streaming connection interrupted: Unexpected EOF reading S0",
+  "09-14 12:54:30.375 I/StreamPipeline(31546): Attempting reconnect #3/4 in 4000ms...",
+  "09-14 12:54:34.379 W/StreamPipeline(31546): Streaming connection interrupted: Unexpected EOF reading S0",
+  "09-14 12:54:34.380 I/StreamPipeline(31546): Attempting reconnect #4/4 in 8000ms...",
+  "09-14 12:54:42.384 W/StreamPipeline(31546): Streaming connection interrupted: Unexpected EOF reading S0",
+  "09-14 12:54:42.384 E/StreamPipeline(31546): Reconnection limit reached or stopped. Halting stream."
+]

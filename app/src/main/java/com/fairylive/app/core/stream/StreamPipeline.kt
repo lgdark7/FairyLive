@@ -380,6 +380,11 @@ class StreamPipeline(
         videoPacketizer.setSpsPps(sps, pps)
     }
 
+    val queueEvictions: Long get() = packetQueue.queueEvictions.get()
+    val deltaFramesEvicted: Long get() = packetQueue.deltaFramesEvicted.get()
+    val keyframesEvicted: Long get() = packetQueue.keyframesEvicted.get()
+    val unbufferedDrops: Long get() = packetQueue.unbufferedDrops.get()
+
     /**
      * Stage-audit log: traces encoder output vs RTMP sent counts vs queue drops.
      */
@@ -395,7 +400,9 @@ class StreamPipeline(
         Log.i(
             TAG,
             "STAGE-AUDIT muxedV=$muxedVideoTags muxedA=$muxedAudioTags sentV=$videoFramesSent sentA=$audioFramesSent " +
-                "drops=${packetQueue.droppedCount.get()} qDepth=${packetQueue.size} elapsed=${"%.1f".format(elapsedSec)}s " +
+                "drops=${packetQueue.droppedCount.get()} qEvict=${packetQueue.queueEvictions.get()} deltaEvict=${packetQueue.deltaFramesEvicted.get()} " +
+                "keyEvict=${packetQueue.keyframesEvicted.get()} unbufDrop=${packetQueue.unbufferedDrops.get()} " +
+                "qDepth=${packetQueue.size} elapsed=${"%.1f".format(elapsedSec)}s " +
                 "muxVfps=${"%.1f".format(muxedVideoTags / elapsedSec)} muxAfps=${"%.1f".format(muxedAudioTags / elapsedSec)} " +
                 "sentVfps=${"%.1f".format(videoFramesSent / elapsedSec)} sentAfps=${"%.1f".format(audioFramesSent / elapsedSec)} " +
                 "abr=${abrController.currentBitrateKbps}kbps health=${networkMonitor.currentHealth}"

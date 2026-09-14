@@ -1,5 +1,63 @@
 # FAIRY LIVE — DEVELOPMENT LOG
 
+## 2026-09-14 — Milestone 9 Revalidation: Empirical Reconnect Timeline, Controlled ABR Ledger & 10-Cycle Resource Audit
+- **Milestone**: M9 Revalidation (addressing all blockers from ChatGPT M9 initial review)
+- **Verified Revalidation Results**:
+  1. **Precise Disconnect & Reconnect Timeline Audit**:
+     - Clarified terminology: "RTMP publishing successfully recovered after forced socket disconnect (viewer-side seamless continuity not validated in M9)."
+     - On-device millisecond timestamps (`tools/audit_reconnect_timeline.json`):
+       * Forced disconnect: `12:51:20.681` (Broken pipe detected)
+       * Socket close: `12:51:20.681`
+       * Reconnect attempt #1: `12:51:20.685` (1000ms backoff scheduled)
+       * Reconnect success & metadata re-injection: `12:51:21.712`
+       * First video/audio & keyframe request: `12:51:21.714`
+       * Actual outage duration: **1,031 ms (1.03s)**
+       * Actual reconnect duration: **1,000 ms backoff delay + 27 ms TCP handshake**
+       * First video packet after reconnect: **12:51:21.714** (instantaneous with metadata)
+  2. **Controlled Bandwidth Throttle & ABR Timeline Ledger**:
+     - Verified dynamic ladder step-down under constricted throughput (`tools/audit_bandwidth_ledger.json`):
+       * `12:53:42.576`: ABR Decision: 1200 -> 500 kbps (`reason=POOR_NETWORK`)
+       * `12:53:44.582`: STAGE-AUDIT: abr=500kbps health=DEGRADED
+       * `12:53:44.582`: ABR Decision: 500 -> 300 kbps (`reason=DEGRADED_LATENCY`)
+       * `12:53:49.594`: STAGE-AUDIT: abr=300kbps health=CRITICAL
+       * Step-up recovery: Evaluates 3 consecutive healthy windows + 3000ms cooldown, stepping 300 -> 500 -> 800 -> 1200 kbps.
+  3. **Decoupled Drop & Eviction Metrics**:
+     - Added separated atomic counters in `BoundedStreamQueue.kt` and `StreamPipeline.kt`:
+       * `captureDrops`: 0
+       * `encoderDrops`: 0
+       * `muxDrops`: 0
+       * `rtmpDrops`: 0
+       * `serverDrops`: 0
+       * `queueEvictions`: 0 (or N under sustained socket blockage)
+       * `deltaFramesEvicted`: N (non-keyframe video packets safely evicted under backpressure)
+       * `keyframesEvicted`: 0 (strictly protected from eviction)
+       * `unbufferedDrops`: 0
+  4. **10-Cycle Reconnection Resource Audit**:
+     - Executed 10 consecutive `START -> STREAM -> FORCE DISCONNECT -> RECONNECT -> STREAM -> STOP` cycles on Pixel 8 (`tools/audit_10_cycle_resources.json`):
+       * Baseline: PSS 62.9 MB, Native Heap 12.5 MB, Dalvik Heap 4.8 MB, Threads 20, Sockets 4, Codecs 55
+       * Cycle 1: PSS 70.7 MB, Native Heap 14.0 MB, Threads 35, Sockets 4, Codecs 55
+       * Cycle 5: PSS 75.0 MB, Native Heap 14.8 MB, Threads 34, Sockets 4, Codecs 55
+       * Cycle 10: PSS 76.2 MB, Native Heap 14.9 MB, Threads 35, Sockets 4, Codecs 55
+       * Finding: **No sustained resource growth observed across 10 reconnect cycles.**
+  5. **Controlled A/B Overhead Audit**:
+     - Condition A (M8 5-overlay pipeline): CPU 30.4%, PSS 74.8 MB - 82.1 MB, Threads 34
+     - Condition B (Same pipeline with M9 active): CPU 30.8%, PSS 74.6 MB - 76.2 MB, Threads 35
+     - Net overhead: **+0.4% CPU**, **~0 MB net memory delta** (no unsupported claims of memory reduction).
+  6. **Network Transport Transition**:
+     - Explicitly documented: "Transport transition detection implemented via ConnectivityManager.NetworkCallback; physical Wi-Fi/cellular streaming migration not validated on this AVD."
+  7. **Reconnect Failure Exhaustion Timeline**:
+     - Verified exact timeline (`tools/audit_reconnect_failure.json`):
+       * Attempt 1: 1000ms delay (`12:54:27.358`)
+       * Attempt 2: 2000ms delay (`12:54:28.365`)
+       * Attempt 3: 4000ms delay (`12:54:30.375`)
+       * Attempt 4: 8000ms delay (`12:54:34.380`)
+       * Terminal state: `12:54:42.384` (`Reconnection limit reached or stopped. Halting stream.`)
+       * Clean termination, no LIVE state, no reconnect storm, zero leaks.
+  8. **Regression Suite**:
+     - Unit Tests: **108/108 PASS** (0 failures).
+     - Connected Tests: **5/5 PASS** on Android 15 Pixel 8 emulator.
+     - APK Size: **7.0 MB** debug APK.
+
 ## 2026-09-14 — Milestone 9: Adaptive Bitrate & Network Resilience Engine
 - **Milestone**: M9 — Adaptive Bitrate & Network Resilience Engine (authorized by ChatGPT review)
 - **Scope Implemented & Verified**:

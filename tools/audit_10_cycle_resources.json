@@ -1,0 +1,134 @@
+[
+  {
+    "cycle": 0,
+    "metrics": {
+      "pss_kb": 62941,
+      "rss_kb": 0,
+      "native_heap_kb": 12558,
+      "dalvik_heap_kb": 4845,
+      "threads": 20,
+      "sockets": 4,
+      "codecs": 55
+    }
+  },
+  {
+    "cycle": 1,
+    "metrics": {
+      "pss_kb": 70708,
+      "rss_kb": 0,
+      "native_heap_kb": 14020,
+      "dalvik_heap_kb": 8207,
+      "threads": 35,
+      "sockets": 4,
+      "codecs": 55
+    }
+  },
+  {
+    "cycle": 2,
+    "metrics": {
+      "pss_kb": 74061,
+      "rss_kb": 0,
+      "native_heap_kb": 14180,
+      "dalvik_heap_kb": 11179,
+      "threads": 35,
+      "sockets": 4,
+      "codecs": 55
+    }
+  },
+  {
+    "cycle": 3,
+    "metrics": {
+      "pss_kb": 74496,
+      "rss_kb": 0,
+      "native_heap_kb": 14492,
+      "dalvik_heap_kb": 11231,
+      "threads": 34,
+      "sockets": 4,
+      "codecs": 55
+    }
+  },
+  {
+    "cycle": 4,
+    "metrics": {
+      "pss_kb": 74631,
+      "rss_kb": 0,
+      "native_heap_kb": 14856,
+      "dalvik_heap_kb": 10939,
+      "threads": 34,
+      "sockets": 4,
+      "codecs": 55
+    }
+  },
+  {
+    "cycle": 5,
+    "metrics": {
+      "pss_kb": 75056,
+      "rss_kb": 0,
+      "native_heap_kb": 14884,
+      "dalvik_heap_kb": 11195,
+      "threads": 34,
+      "sockets": 4,
+      "codecs": 55
+    }
+  },
+  {
+    "cycle": 6,
+    "metrics": {
+      "pss_kb": 75058,
+      "rss_kb": 0,
+      "native_heap_kb": 14900,
+      "dalvik_heap_kb": 11047,
+      "threads": 34,
+      "sockets": 4,
+      "codecs": 55
+    }
+  },
+  {
+    "cycle": 7,
+    "metrics": {
+      "pss_kb": 75396,
+      "rss_kb": 0,
+      "native_heap_kb": 14852,
+      "dalvik_heap_kb": 11283,
+      "threads": 35,
+      "sockets": 4,
+      "codecs": 55
+    }
+  },
+  {
+    "cycle": 8,
+    "metrics": {
+      "pss_kb": 75489,
+      "rss_kb": 0,
+      "native_heap_kb": 14880,
+      "dalvik_heap_kb": 11191,
+      "threads": 35,
+      "sockets": 4,
+      "codecs": 55
+    }
+  },
+  {
+    "cycle": 9,
+    "metrics": {
+      "pss_kb": 75962,
+      "rss_kb": 0,
+      "native_heap_kb": 14904,
+      "dalvik_heap_kb": 11503,
+      "threads": 35,
+      "sockets": 4,
+      "codecs": 55
+    }
+  },
+  {
+    "cycle": 10,
+    "metrics": {
+      "pss_kb": 76207,
+      "rss_kb": 0,
+      "native_heap_kb": 14920,
+      "dalvik_heap_kb": 11591,
+      "threads": 35,
+      "sockets": 4,
+      "codecs": 55
+    }
+  }
+]

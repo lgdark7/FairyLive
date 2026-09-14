@@ -1,0 +1,15 @@
+{
+  "stage_audits": [
+    "09-14 12:51:19.659 I/StreamPipeline(25793): STAGE-AUDIT muxedV=99 muxedA=217 sentV=99 sentA=216 drops=0 qEvict=0 deltaEvict=0 keyEvict=0 unbufDrop=0 qDepth=1 elapsed=5.0s muxVfps=19.8 muxAfps=43.3 sentVfps=19.8 sentAfps=43.1 abr=1200kbps health=HEALTHY",
+    "09-14 12:51:24.696 I/StreamPipeline(25793): STAGE-AUDIT muxedV=150 muxedA=433 sentV=149 sentA=433 drops=0 qEvict=0 deltaEvict=0 keyEvict=0 unbufDrop=0 qDepth=1 elapsed=10.0s muxVfps=14.9 muxAfps=43.1 sentVfps=14.8 sentAfps=43.1 abr=500kbps health=EXCELLENT",
+    "09-14 12:51:29.716 I/StreamPipeline(25793): STAGE-AUDIT muxedV=200 muxedA=651 sentV=199 sentA=651 drops=0 qEvict=0 deltaEvict=0 keyEvict=0 unbufDrop=0 qDepth=1 elapsed=15.1s muxVfps=13.3 muxAfps=43.2 sentVfps=13.2 sentAfps=43.2 abr=1200kbps health=HEALTHY"
+  ],
+  "disconnect": "09-14 12:51:20.681 W/StreamPipeline(25793): Streaming connection interrupted: Broken pipe",
+  "attempt_1": "09-14 12:51:20.685 I/StreamPipeline(25793): Attempting reconnect #1/4 in 1000ms...",
+  "reconnect_success": "09-14 12:51:21.712 I/StreamPipeline(25793): Reconnected: re-injected metadata and requested sync keyframe",
+  "abr_decisions": [
+    "09-14 12:51:21.714 I/StreamPipeline(25793): ABR Decision: 1200 -> 500 kbps (reason=POOR_NETWORK)",
+    "09-14 12:51:24.784 I/StreamPipeline(25793): ABR Decision: 500 -> 800 kbps (reason=SUSTAINED_HEALTHY_RECOVERY)",
+    "09-14 12:51:27.842 I/StreamPipeline(25793): ABR Decision: 800 -> 1200 kbps (reason=SUSTAINED_HEALTHY_RECOVERY)"
+  ]
+}

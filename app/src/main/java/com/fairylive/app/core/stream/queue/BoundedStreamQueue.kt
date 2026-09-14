@@ -22,6 +22,11 @@ class BoundedStreamQueue(
 
     private var currentByteCount: Long = 0L
     val droppedCount = AtomicLong(0L)
+    val queueEvictions = AtomicLong(0L)
+    val deltaFramesEvicted = AtomicLong(0L)
+    val keyframesEvicted = AtomicLong(0L)
+    val audioPacketsEvicted = AtomicLong(0L)
+    val unbufferedDrops = AtomicLong(0L)
 
     val size: Int
         get() = lock.withLock { queue.size }
@@ -44,12 +49,11 @@ class BoundedStreamQueue(
                     // Could not safely evict (e.g. queue only contains sequence headers)
                     // If the incoming packet is not a sequence header or keyframe, drop it
                     if (!packet.isSequenceHeader && !packet.isKeyFrame) {
+                        unbufferedDrops.incrementAndGet()
                         droppedCount.incrementAndGet()
                         return false
                     }
                     break
-                } else {
-                    droppedCount.incrementAndGet()
                 }
             }
 
@@ -72,6 +76,9 @@ class BoundedStreamQueue(
             if (p.isVideo && !p.isKeyFrame && !p.isSequenceHeader) {
                 iterator.remove()
                 currentByteCount -= p.payload.size
+                queueEvictions.incrementAndGet()
+                deltaFramesEvicted.incrementAndGet()
+                droppedCount.incrementAndGet()
                 return true
             }
         }
@@ -83,6 +90,9 @@ class BoundedStreamQueue(
             if (p.isAudio && !p.isSequenceHeader) {
                 audioIter.remove()
                 currentByteCount -= p.payload.size
+                queueEvictions.incrementAndGet()
+                audioPacketsEvicted.incrementAndGet()
+                droppedCount.incrementAndGet()
                 return true
             }
         }
@@ -111,5 +121,14 @@ class BoundedStreamQueue(
             currentByteCount = 0L
             notEmpty.signalAll()
         }
+    }
+
+    fun resetCounters() {
+        droppedCount.set(0L)
+        queueEvictions.set(0L)
+        deltaFramesEvicted.set(0L)
+        keyframesEvicted.set(0L)
+        audioPacketsEvicted.set(0L)
+        unbufferedDrops.set(0L)
     }
 }

@@ -108,6 +108,7 @@ def run_fault_server():
     parser = argparse.ArgumentParser(description="FAIRY LIVE M9 Fault-Injection RTMP Server")
     parser.add_argument("--port", type=int, default=19350)
     parser.add_argument("--throttle-kbps", type=float, default=0.0, help="Throttle reception to simulate low bandwidth")
+    parser.add_argument("--throttle-schedule", type=str, default="", help="Time-based schedule: '0:1500,6:350,15:1500'")
     parser.add_argument("--disconnect-after", type=float, default=0.0, help="Force socket disconnect after N seconds")
     parser.add_argument("--disconnect-count", type=int, default=0, help="Number of times to force disconnect")
     parser.add_argument("--fail-reconnect", action="store_true", help="Reject reconnect attempts")
@@ -171,9 +172,18 @@ def run_fault_server():
                             conn.close()
                             break
 
-                    # Artificial bandwidth throttling
-                    if args.throttle_kbps > 0:
-                        max_bytes_per_sec = (args.throttle_kbps * 1000) / 8.0
+                    # Dynamic or static bandwidth throttling
+                    effective_throttle = args.throttle_kbps
+                    if args.throttle_schedule:
+                        sess_elapsed = time.time() - session_start
+                        for part in args.throttle_schedule.split(","):
+                            if ":" in part:
+                                st_t, st_r = part.split(":")
+                                if sess_elapsed >= float(st_t):
+                                    effective_throttle = float(st_r)
+
+                    if effective_throttle > 0:
+                        max_bytes_per_sec = (effective_throttle * 1000) / 8.0
                         now = time.time()
                         window_elapsed = now - throttle_time_window
                         if window_elapsed >= 0.1:

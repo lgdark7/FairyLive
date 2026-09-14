@@ -51,12 +51,17 @@ Rebuild **FAIRY LIVE** from scratch as a high-performance, professional native A
   - **M7: Broadcast Overlay Compositor** (Revalidated & Approved on 2026-09-13)
   - **M8: Advanced Overlay System** (Approved by ChatGPT on 2026-09-14)
       - Verified ISO/IEC 18004 QR encoder, 1-bitmap Movie GIF player with texture change guard, 24MB texture memory budget, 5-overlay connected test, and controlled A/B test.
-  - **M9: Adaptive Bitrate & Network Resilience Engine** (Completed & Verified — **WAITING FOR CHATGPT REVIEW**)
-      - **Network Quality Monitor (`NetworkQualityMonitor.kt`)**: Zero-allocation hot-path sliding window for TCP write latency, throughput (kbps), socket backpressure, and Android `ConnectivityManager.NetworkCallback` capabilities (WIFI, CELLULAR, UNAVAILABLE). State classification: `EXCELLENT`, `HEALTHY`, `DEGRADED`, `POOR`, `CRITICAL`.
+  - **M9: Adaptive Bitrate & Network Resilience Engine** (Revalidated & Verified — **WAITING FOR CHATGPT REVIEW**)
+      - **Network Quality Monitor (`NetworkQualityMonitor.kt`)**: Zero-allocation hot-path sliding window for TCP write latency (`LongArray(16)`), throughput (kbps), socket backpressure, and Android `ConnectivityManager.NetworkCallback` capabilities (WIFI, CELLULAR, UNAVAILABLE). State classification: `EXCELLENT`, `HEALTHY`, `DEGRADED`, `POOR`, `CRITICAL`. Transport transition detection implemented; physical Wi-Fi/cellular streaming migration explicitly noted as not validated on this AVD.
       - **Adaptive Bitrate Controller (`AdaptiveBitrateController.kt`)**: 4-tier ladder (1200, 800, 500, 300 kbps). Rapid downscaling under congestion (`CRITICAL` clamps to 300 kbps floor, `POOR` drops 2 tiers, `DEGRADED` drops 1 tier); requests IDR keyframe from encoder (`MediaCodec.PARAMETER_KEY_REQUEST_SYNC_FRAME`). Conservative step-up recovery requiring 3 consecutive healthy windows + 3000ms anti-oscillation cooldown.
       - **Reconnection Engine (`StreamReconnectionManager.kt`)**: Bounded exponential backoff (1s, 2s, 4s, 8s capped at 4 attempts). Prevents infinite retries by transitioning to `FAILED` / `ERROR`.
       - **State Correctness**: Strict prevention of false `LIVE` state; `DISCONNECTED`, `RECONNECTING`, `FAILED` explicitly surfaced on UI.
-      - **Fault-Injection & Real RTMP Testing**: Verified via `fault_injection_rtmp_server.py` across 4 test modes (Normal baseline, Bandwidth throttle to 300 kbps, Forced socket disconnect & reconnect recovery, Reconnect failure exhaustion).
+      - **Fault-Injection & Real RTMP Testing**: Verified via `fault_injection_rtmp_server.py`.
+        * Forced disconnect & reconnect: RTMP publishing successfully recovered after forced socket disconnect (actual outage 1.03s, reconnect 1.00s backoff + 27ms socket, viewer-side seamless continuity explicitly not validated in M9).
+        * Controlled Bandwidth Throttling: Step-by-step ladder transition ledger verified (1200 -> 500 -> 300 kbps under throughput constriction; 300 -> 500 -> 800 -> 1200 kbps under recovery).
+        * Decoupled Drop Metrics: Separated `captureDrops=0`, `encoderDrops=0`, `muxDrops=0`, `rtmpDrops=0`, `serverDrops=0`, `queueEvictions`, `deltaFramesEvicted`, `keyframesEvicted=0` (protected).
+        * 10-Cycle Resource Audit: Verified no sustained resource growth observed across 10 reconnect cycles (Native Heap stable at 14.0 - 14.9 MB, Threads 34-35, Sockets 4, Codecs 55).
+        * Controlled A/B Overhead Benchmark: Condition A vs Condition B on identical device: +0.4% CPU overhead, ~0 MB net memory delta.
       - **Test Suite**: **108 Unit Tests** + **5 On-Device Connected Tests** (100% Passing).
 - **Pending Milestones**: M10 through M15 (strictly gated on ChatGPT M9 approval).
 

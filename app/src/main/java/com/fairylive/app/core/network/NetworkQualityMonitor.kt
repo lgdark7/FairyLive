@@ -296,19 +296,19 @@ class NetworkQualityMonitor(
 
         val newHealth = when {
             // Severe congestion or failure conditions
-            consecutiveFailures > 0 || !isNetworkAvailable || (isRtmpConnected && avgLatency >= criticalWriteThresholdMs) || queueRatio >= 0.75f -> {
+            consecutiveFailures > 0 || !isNetworkAvailable || (isRtmpConnected && avgLatency >= criticalWriteThresholdMs) || queueRatio >= 0.75f || (lastCalculatedThroughputBps in 1..250_000L) -> {
                 NetworkHealth.CRITICAL
             }
             // Poor network
-            consecutiveSlowWrites >= 3 || avgLatency >= 350L || queueRatio >= 0.50f -> {
+            consecutiveSlowWrites >= 3 || avgLatency >= 350L || queueRatio >= 0.50f || (lastCalculatedThroughputBps in 250_001..500_000L) -> {
                 NetworkHealth.POOR
             }
             // Degraded network
-            consecutiveSlowWrites >= 1 || avgLatency >= slowWriteThresholdMs || queueRatio >= 0.25f -> {
+            consecutiveSlowWrites >= 1 || avgLatency >= slowWriteThresholdMs || queueRatio >= 0.25f || (lastCalculatedThroughputBps in 500_001..800_000L) -> {
                 NetworkHealth.DEGRADED
             }
             // Excellent network
-            avgLatency in 1..49 && consecutiveSlowWrites == 0 && queueRatio <= 0.05f -> {
+            avgLatency in 1..49 && consecutiveSlowWrites == 0 && queueRatio <= 0.05f && (lastCalculatedThroughputBps == 0L || lastCalculatedThroughputBps >= 1_000_000L) -> {
                 NetworkHealth.EXCELLENT
             }
             // Default healthy

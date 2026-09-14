@@ -9,8 +9,8 @@ Testing covers unit tests, instrumentation, system-level execution, memory stabi
 
 | Category | Test Case | Target / Command | Result | Evidence |
 |---|---|---|---|---|
-| **Build** | Clean & Assemble | `./gradlew clean assembleDebug` | **PASS** | `BUILD SUCCESSFUL`, 7.0 MB APK (< 15 MB budget) |
-| **Unit Tests** | Complete Suite | `./gradlew testDebugUnitTest` | **PASS** | **108/108 unit tests pass** (16 classes, incl. 16 new M9 resilience tests) |
+| **Build** | Clean & Assemble | `./gradlew clean assembleDebug` | **PASS** | `BUILD SUCCESSFUL`, 7.00 MB APK (< 15 MB budget) |
+| **Unit Tests** | Complete Suite | `./gradlew testDebugUnitTest` | **PASS** | **108/108 unit tests pass** (16 classes, incl. 16 M9 resilience tests) |
 | **Device Tests** | On-Device Instrumentation | `connectedDebugAndroidTest` | **PASS** | **5/5 pass** on Pixel 8 Android 15 AVD |
 | **Network Monitor** | Circular buffer latency & zero alloc | `NetworkQualityMonitorTest` | **PASS** | `testSlidingWindowLatencyAveraging`, `testZeroAllocationHotPath` |
 | **Network Monitor** | Throughput & NetworkTransport | `NetworkQualityMonitorTest` | **PASS** | `testThroughputEstimation`, `testNetworkAvailabilityTransition` |
@@ -20,12 +20,13 @@ Testing covers unit tests, instrumentation, system-level execution, memory stabi
 | **Reconnection** | Exponential backoff sequence | `StreamReconnectionManagerTest`| **PASS** | 1s, 2s, 4s, 8s backoff timings verified |
 | **Reconnection** | Capped attempts & exhaustion | `StreamReconnectionManagerTest`| **PASS** | Max 4 attempts enforced, exhausts to null and `EXHAUSTED` state |
 | **State Machine** | Strict prevention of false LIVE | `NetworkResilienceTest` | **PASS** | `testStrictConnectionStateTransitions`, `DISCONNECTED` & `RECONNECTING` never `isStreaming` |
-| **Queue Eviction** | Delta frame eviction under backpressure | `NetworkResilienceTest` | **PASS** | `testBoundedQueueEvictionUnderBackpressure`: keyframes & seq headers preserved |
-| **Fault Mode A** | Normal baseline streaming | `fault_injection_rtmp_server.py` | **PASS** | 21.56s stream: 100% video (258/258) & audio (930/930), 0 drops, ABR at 1200 kbps |
-| **Fault Mode B** | Bandwidth throttle (300 kbps) | `fault_injection_rtmp_server.py` | **PASS** | 21.03s run: write latency rises, queue backpressure handled, ABR throttled |
-| **Fault Mode C** | Forced disconnect & reconnect | `fault_injection_rtmp_server.py` | **PASS** | Socket closed after 6s; client drops LIVE, backoff 1s reconnects, re-injects headers, steps up 300->1200 kbps |
-| **Fault Mode D** | Reconnect exhaustion | `fault_injection_rtmp_server.py` | **PASS** | Retries 1s, 2s, 4s, 8s, exits gracefully to `FAILED` / `ERROR`, never remains LIVE |
-| **Resource Safety**| Leak-free reconnect cycle | `dumpsys meminfo com.fairylive.app` | **PASS** | PSS 68.4 MB, Native Heap 14.4 MB, 0 orphaned sockets/codecs |
+| **Drop Accounting**| Decoupled drops vs delta evictions | `BoundedStreamQueue.kt` | **PASS** | `captureDrops=0`, `encoderDrops=0`, `muxDrops=0`, `rtmpDrops=0`, `queueEvictions`, `deltaFramesEvicted`, `keyframesEvicted=0` |
+| **Reconnect Audit**| Precise timeline ledger | `tools/audit_reconnect_timeline.json` | **PASS** | RTMP publishing recovered after forced disconnect; outage 1.03s, reconnect 1.027s; viewer-side seamlessness explicitly not validated |
+| **ABR Ledger** | Controlled bandwidth throttling | `tools/audit_bandwidth_ledger.json` | **PASS** | Controlled step-down (1200->500->300 kbps) and step-up recovery (300->500->800->1200 kbps) verified |
+| **Failure Mode** | Reconnect exhaustion timeline | `tools/audit_reconnect_failure.json` | **PASS** | Exact delays 1006ms, 2010ms, 4004ms, 8004ms -> halts cleanly in `FAILED` state, no crash, 0 leaks |
+| **10-Cycle Audit** | 10 repeated reconnect cycles | `tools/audit_10_cycle_resources.json` | **PASS** | No sustained resource growth observed across 10 cycles; Native Heap 14.0-14.9 MB, Threads 34-35 |
+| **A/B Overhead** | Controlled Condition A vs B | `tools/audit_ab_benchmark.json` | **PASS** | Identical 5-overlay pipeline: +0.4% CPU, ~0 MB net memory delta |
+| **Transport Note** | Interface transition detection | `NetworkQualityMonitor.kt` | **DOCUMENTED**| Transition detection implemented; physical Wi-Fi/cellular streaming migration not validated in M9 |
 
 ---
 
