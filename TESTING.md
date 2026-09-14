@@ -179,7 +179,26 @@ Testing covers unit tests, instrumentation, system-level execution, memory stabi
 
 ---
 
-## 3. Historical Milestone Results
+## 4. Milestone 13 — Comprehensive Stress Testing Matrix
+
+| Test Case | Description & Methodology | Target / Command | Result | Empirical Evidence |
+|---|---|---|---|---|
+| **TEST 1: 30-Min Soak** | 30 min continuous live RTMP streaming | `tools/run_m13_30min_soak_test.py` | **PASS** | 30/30 samples captured; 0 crashes; 0 ANRs; PSS stabilized at ~75-80 MB |
+| **TEST 2: A/V Sync** | Timeline span delta at Start (1m), Mid (15m), End (30m) | PTS delta from RTMP server | **PASS** | Monotonic audio sample-clock; bounded drift <100ms across 30 min |
+| **TEST 3: Overlay Stress** | 9 overlay types active + rapid mutation | `testRapidOverlayAdditionAndMutationUnderLoad` | **PASS** | 50 rapid frames composited with 0 GLES errors (`GL_NO_ERROR`) |
+| **TEST 4: Camera + Stream** | Screen + Facecam PIP continuous compositing | `testConcurrentCameraAndScreenComposition` | **PASS** | Bounded GPU memory; 0 pipeline disruption |
+| **TEST 5: Network Stress** | Healthy -> Degraded -> Poor -> Critical -> Recovery | `testAbrFullLadderCyclingUnderOscillatingNetwork` | **PASS** | Downward step-down immediate; upward recovery enforces 8s cooldown |
+| **TEST 6: ABR Cycling** | Full ladder traversal: 1200 <-> 800 <-> 500 <-> 300 kbps | `AdaptiveBitrateControllerTest` | **PASS** | 3-sample hysteresis prevents hunting; 300 kbps floor preserved |
+| **TEST 7: Reconnect Stress** | 10 disconnect cycles + 1 exhaustion cycle | `tools/run_m13_reconnect_10cycles.py` | **PASS** | 10 cycles reconnected in ~4.5s; exhaustion cleanly reaches `FAILED` |
+| **TEST 8: Start/Stop Stress** | 20 complete start -> stream -> stop -> release cycles | `tools/run_m13_start_stop_stress.py` | **PASS** | 0 thread leaks (20); 0 socket leaks (11); flat PSS (+62 KB delta) |
+| **TEST 9: Camera Lifecycle** | 10 rapid FRONT <-> BACK lens switches | `testCameraLifecycleRapidCycling` | **PASS** | Safe HandlerThread teardown; 0 camera deadlocks or leaked sessions |
+| **TEST 10: Memory Pressure** | RUNNING_LOW (50%) & RUNNING_CRITICAL (100%) cache eviction | `testMemoryTrimUnderActiveCompositing` | **PASS** | 100% textures evicted; on-demand recreation safe with 0 GL errors |
+| **TEST 11: Thermal Steps** | NOMINAL -> MODERATE -> SEVERE -> CRITICAL -> NOMINAL | `testThermalLadderSteppingAndCeilings` | **PASS** | Bitrate clamped [1200, 800, 500, 300]; FPS clamped [30, 24, 20, 15] |
+| **TEST 12: Failure Injection** | Socket drops, format resets, corrupted chunks | `testFailureInjectionRecovery` | **PASS** | Bounded retry backoff; graceful failure states; zero process crashes |
+
+---
+
+## 5. Historical Milestone Results
 - **M0**: Cold launch (2,419 ms), PSS (48 MB), 2 baseline tests.
 - **M1**: Service lifecycle, navigation, capability detection, 17 tests.
 - **M2**: Zero-copy VirtualDisplay capture at 30 fps, even-dimension clamping, 20 tests.

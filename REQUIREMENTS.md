@@ -122,5 +122,38 @@
 7. **Codec and Architecture Preservation**:
    - The 2-active-MediaCodec invariant (1 AVC, 1 AAC) must be strictly maintained. M0-M11 architecture (RTMP, FLV muxer, audio clock, camera pipeline, scene switcher) must remain fully preserved.
 
+---
+
+## Milestone 13: Stress Testing Requirements
+1. **TEST 1 — Long-Duration Stream Test**:
+   - Minimum 30 minutes continuous RTMP streaming without manual intervention.
+   - Telemetry sampled at fixed 60s intervals: CPU, PSS, Native Heap, Dalvik Heap, RSS, Threads, Sockets, Codecs, FPS, Audio Rate, drops, ABR state.
+   - Bounded resources: Zero runaway memory, zero descriptor leaks, strictly 2 active MediaCodecs, zero ANRs, zero crashes.
+2. **TEST 2 — A/V Synchronization Stress**:
+   - Continuous audio/video timeline tracking.
+   - Audio timeline duration vs video timeline duration delta measured at Start (1m), Middle (15m), and End (30m).
+   - Absolute timeline drift bounded under 100 ms threshold.
+3. **TEST 3 — Full Overlay Stress**:
+   - All overlay types rendering concurrently (Image, Text, Goal, Lower Third, QR, Alert, Widget, GIF).
+   - High-frequency mutation and rapid scene updates without OpenGL pipeline stall or texture corruption.
+4. **TEST 4 & 9 — Camera + Stream Stress & Lifecycle**:
+   - Simultaneous camera and screen composition under sustained streaming.
+   - Rapid camera switching (FRONT <-> BACK) and facecam toggling across 10+ cycles with clean teardown.
+5. **TEST 5 & 6 — Network Degradation & ABR Cycling**:
+   - Controlled network throttling across full ladder: 1200 <-> 800 <-> 500 <-> 300 kbps.
+   - Asymmetric recovery: rapid congestion step-down vs 8s cooldown / 3-sample hysteresis upward recovery.
+6. **TEST 7 — Reconnection Cycling & Exhaustion**:
+   - 10 consecutive forced disconnect/reconnect cycles with bounded outage duration (~4.5s).
+   - Exhaustion sequence (1s -> 2s -> 4s -> 8s) terminating in `FAILED` without infinite retry loops.
+7. **TEST 8 — 20 Start/Stop Cycles Lifecycle Stress**:
+   - 20 complete start broadcast -> stream -> stop -> release cycles.
+   - Monotonic resource growth audit: 0 socket leaks, 0 thread leaks, flat PSS.
+8. **TEST 10 & 11 — Memory Pressure & Thermal Transitions**:
+   - OS memory trim signals (`RUNNING_LOW`, `RUNNING_CRITICAL`) handled with cache eviction and on-demand recreation.
+   - Thermal state transitions (NOMINAL -> MODERATE -> SEVERE -> CRITICAL -> NOMINAL) imposing strict ceilings.
+9. **TEST 12 — Failure Injection**:
+   - Resilient recovery from socket resets, encoder resets, and pipeline stalls without process crash.
+
+
 
 

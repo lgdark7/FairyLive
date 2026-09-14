@@ -339,6 +339,36 @@ To prevent controller hunting, oscillation, or feedback loops between network an
   `Active Bitrate = min(ABR Evaluated Bitrate, Thermal Bitrate Ceiling)`
   `Active Frame Rate = min(Render Latency Target FPS, Thermal FPS Ceiling)`
 
+---
+
+## 13. Stress Testing & Reliability Verification Architecture (Milestone 13)
+
+### A. Testing Philosophy & Empirical Verification Gate
+Milestone 13 validates application survivability, memory boundedness, resource cleanup, and timeline integrity under sustained operational stress. All evaluations adhere to strict empirical measurement on Android 15 (Google Pixel 8 AVD, API 35) with zero simulated or fabricated metrics.
+
+### B. Core Stress Test Harnesses (`tools/`)
+1. **Long-Duration Soak Harness (`tools/run_m13_30min_soak_test.py`)**:
+   - Manages a 30-minute continuous RTMP streaming session against a spec-compliant FLV/RTMP chunk reassembly server.
+   - Integrates `RtmpChunkParser` for spec-compliant chunk multiplexing across all basic header formats (fmt 0, 1, 2, 3).
+   - Samples 30 comprehensive minute-by-minute snapshots capturing:
+     * Memory: PSS, Native Heap, Dalvik Heap, RSS.
+     * System: CPU %, active threads, open sockets, active MediaCodec instances.
+     * Media: Video FPS, Audio AU rate, total frames sent.
+     * Synchronization: FLV video/audio PTS timestamps, A/V delta, cumulative drift.
+2. **Start/Stop Lifecycle Stress Harness (`tools/run_m13_start_stop_stress.py`)**:
+   - Drives 20 full cycles of `START` -> `STREAM` -> `STOP` -> `RELEASE` -> `GC`.
+   - Validates zero monotonic growth across PSS, native allocations, thread counts, and socket descriptors.
+3. **Reconnection & Network Stress Harness (`tools/run_m13_reconnect_10cycles.py`)**:
+   - Executes 10 consecutive forced TCP socket drops to verify automated client re-handshake and stream resumption.
+   - Executes server unreachability backoff exhaustion (1s -> 2s -> 4s -> 8s) verifying clean transition to `FAILED` with zero resource leaks.
+
+### C. A/V Synchronization & Timeline Parity Architecture
+- Audio timeline span: $\Delta T_{audio} = PTS_{audio\_last} - PTS_{audio\_first}$
+- Video timeline span: $\Delta T_{video} = PTS_{video\_last} - PTS_{video\_first}$
+- Cumulative Timeline Drift: $|\Delta T_{video} - \Delta T_{audio}|$
+- MediaClock enforces sample-exact monotonic progression derived directly from byte count accumulation ($1024 \text{ samples} / 44100 \text{ Hz} \approx 23.2199 \text{ ms}$ per AAC frame), eliminating thread-scheduling timestamp slippage.
+
+
 
 
 

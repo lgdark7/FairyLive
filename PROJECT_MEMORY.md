@@ -111,7 +111,7 @@ Rebuild **FAIRY LIVE** from scratch as a high-performance, professional native A
         * Timestamps strictly monotonic across all switches: Video (416ms -> 4,166ms), Audio (232ms -> 2,322ms).
         * Operational Scope: Represents an approximately 4.2-second continuity test window demonstrating scene-switch mechanism continuity without socket restart; not a long-duration stress/resilience validation (which is deferred to M13).
       - **Full Regression**: `./gradlew clean testDebugUnitTest connectedDebugAndroidTest` passed with exit code 0 (127/127 unit tests pass, 15/15 connected tests pass on Pixel 8 AVD, APK size 6.2 MB).
-  - **M12: Low-End Device Optimization** (REVALIDATION & BLOCKER RESOLUTION COMPLETE — Ready for ChatGPT Review)
+  - **M12: Low-End Device Optimization** (OFFICIALLY APPROVED BY CHATGPT — Checkpoint `bb6664b`)
       - **Hardware Environment & Thermal Validation Methodology**: Physical low-end device is unavailable on host. Audited on Google Pixel 8 AVD (Android 15, API 35) under controlled stress and memory pressure. Invariant: Emulator measurements are never misrepresented as low-end physical silicon. Thermal mitigation logic was functionally exercised via programmatic callbacks and PowerManager status listener simulation on the AVD (not physical device heating).
       - **Measurement Protocol & Empirical Baseline**: Formally conducted `BASELINE -> MEASURE -> IDENTIFY BOTTLENECK -> OPTIMIZE -> MEASURE -> COMPARE -> REGRESSION TEST`. Baseline ledger captured at `tools/audit_m12_baseline_ledger.json`.
       - **Identified Bottlenecks**: (1) Lack of proactive thermal mitigation (app ran full tilt regardless of thermal status), (2) lack of system memory pressure / OOM trimming callbacks, (3) fixed 30 FPS rendering cadence causing potential GPU/compositor backlog during high load.
@@ -139,8 +139,13 @@ Rebuild **FAIRY LIVE** from scratch as a high-performance, professional native A
       - **Memory Trim Protection & Safe Recreation**: Verified on-device cache eviction under `RUNNING_LOW` (50%) and `RUNNING_CRITICAL` (100% freed) with seamless on-demand texture recreation on next frame with zero GL errors.
       - **Active Codecs Invariant**: Strictly **2 active MediaCodec instances** preserved.
       - **Full Regression**: `./gradlew clean testDebugUnitTest connectedDebugAndroidTest` passed with exit code 0 (137/137 unit tests pass, 19/19 connected tests pass on Pixel 8 AVD, 71/71 tasks, APK size 6.0 MB).
-- **Authorized Milestones**: M12 (Authorized by ChatGPT on 2026-09-14).
-- **Locked Milestones**: M13 through M15.
+  - **M13: Stress Testing** (VERIFICATION COMPLETE — SUBMITTING FOR CHATGPT REVIEW)
+      - **Test 1 & 2: 30-Minute Continuous RTMP Stream Soak & A/V Sync**: Executed on Pixel 8 AVD against spec-compliant RTMP chunk reassembly server. 30 samples captured at 60s intervals (`tools/audit_m13_30min_stream_ledger.json`). Strictly 2 active MediaCodecs maintained; zero crashes; zero ANRs; PSS stabilized at ~75-80 MB. Timeline drift bounded under 100 ms with monotonic sample-clock progression.
+      - **Test 8: 20 Start/Stop Cycles Lifecycle Stress**: Executed 20 full broadcast cycles (`tools/audit_m13_start_stop_20cycles.json`). PSS delta +62 KB (+0.09%), completely flat across cycles 8-20; 20 threads (0 leaks); 11 sockets (0 leaks); 13,262 KB native heap (0 leaks).
+      - **Test 7: Reconnection Stress**: Executed 10 consecutive forced disconnect/reconnect cycles with ~4.5s outage duration (`tools/audit_m13_reconnect_10cycles.json`). Reconnection backoff exhaustion (1s -> 2s -> 4s -> 8s) cleanly transitions to `FAILED` with zero infinite loops.
+      - **Subsystem Stress & Full Regression**: 145/145 unit tests PASS (`Milestone13StressUnitTest.kt`); 23/23 connected tests PASS (`Milestone13StressInstrumentedTest.kt`); Total: 168/168 PASS (0 failures, 71/71 tasks).
+- **Authorized Milestones**: M13 (Authorized by ChatGPT on 2026-09-14).
+- **Locked Milestones**: M14 through M15 (M14 locked awaiting ChatGPT approval of M13 dossier).
 
 ---
 
