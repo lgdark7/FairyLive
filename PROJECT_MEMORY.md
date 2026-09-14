@@ -51,7 +51,7 @@ Rebuild **FAIRY LIVE** from scratch as a high-performance, professional native A
   - **M7: Broadcast Overlay Compositor** (Revalidated & Approved on 2026-09-13)
   - **M8: Advanced Overlay System** (Approved by ChatGPT on 2026-09-14)
       - Verified ISO/IEC 18004 QR encoder, 1-bitmap Movie GIF player with texture change guard, 24MB texture memory budget, 5-overlay connected test, and controlled A/B test.
-  - **M9: Adaptive Bitrate & Network Resilience Engine** (Revalidated & Empirical Verification Complete — **WAITING FOR CHATGPT REVIEW**)
+  - **M9: Adaptive Bitrate & Network Resilience Engine** (APPROVED by ChatGPT — Checkpoint `1cb6145`)
       - **Network Quality Monitor (`NetworkQualityMonitor.kt`)**: Zero-allocation hot-path sliding window for TCP write latency (`LongArray(16)`), throughput (kbps), socket backpressure, and Android `ConnectivityManager.NetworkCallback` capabilities (WIFI, CELLULAR, UNAVAILABLE). State classification: `EXCELLENT`, `HEALTHY`, `DEGRADED`, `POOR`, `CRITICAL`. Transport transition detection implemented; physical Wi-Fi/cellular streaming migration explicitly noted as not validated on this AVD.
       - **Adaptive Bitrate Controller (`AdaptiveBitrateController.kt`)**: 4-tier ladder (1200, 800, 500, 300 kbps).
         * Intentional rapid downscaling rule: Under acute `POOR` network degradation (throughput < 500 kbps or latency > 350 ms), the controller intentionally drops 2 rungs (`1200 -> 500 kbps`, reason=`POOR_NETWORK`, keyframe requested) to immediately relieve acute channel collapse and protect keyframes. Under mild `DEGRADED` conditions, it steps down 1 rung (`1200 -> 800 kbps`, reason=`DEGRADED_LATENCY` / `QUEUE_BACKPRESSURE`). Under sustained pressure, it drops to floor (`500 -> 300 kbps`).
