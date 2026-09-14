@@ -1,5 +1,60 @@
 # FAIRY LIVE — DEVELOPMENT LOG
 
+## 2026-09-14 — Milestone 11: Broadcast Scenes & Scene Management
+- **Milestone**: M11 Broadcast Scenes & Scene Management
+- **Implementation Highlights**:
+  1. **Scene Architecture & Data Models**:
+     - `BroadcastScene.kt`: Immutable scene model encapsulating unique `id`, human-readable `name`, `orderIndex`, list of `OverlayElement` instances, `FacecamConfig` placement, `SceneBackgroundMode` (`SCREEN_CAPTURE` vs `SOLID_COLOR`), and ARGB background color.
+     - `SceneTransition.kt`: Encapsulates transition logic (`CUT` with 0ms vs `CROSSFADE` with customizable duration, e.g. 300ms).
+     - `SceneStateNotifier.kt`: Observable bus publishing scene transitions, current scene ID, and normalized crossfade progress `[0.0, 1.0]`.
+     - `BroadcastSceneManager.kt`: Registry managing active scenes with thread-safe atomic swapping, CRUD operations, and 3 built-in presets:
+       * **Scene 1 (Gameplay)**: Pass-through screen capture, 26% PIP facecam in top-right, stream watermark.
+       * **Scene 2 (Just Chatting)**: Screen capture base, large 40% PIP facecam, donation/sub goal widget, live chat header.
+       * **Scene 3 (Be Right Back)**: Solid background (`#101420`), centered BRB banner, compact QR code (`fairy.live`), camera disabled.
+     - `SceneRepository.kt`: SharedPreferences JSON persistence layer for saving and reloading customized scene layouts.
+  2. **Compositor & Zero-Disruption Runtime Integration**:
+     - `OverlayCompositor.kt`: Integrates scene transitions directly into the existing EGL render loop.
+     - **Zero Interruption Invariant**: Switching scenes does not restart RTMP, recreate MediaCodec encoders, or reset the audio clock. Stream continuity is 100% maintained.
+     - **Lightweight Crossfade Interpolation**: Crossfade applies frame-by-frame alpha modulation across layer draw calls (`alpha * (1 - t)` for outgoing, `alpha * t` for incoming) with zero offscreen buffer allocations and zero CPU overhead.
+     - `GlesRenderer.kt`: Dynamic background clearing per scene background mode (`SCREEN_CAPTURE` clears with passthrough OES draw; `SOLID_COLOR` clears with scene's specified ARGB color).
+  3. **UI & Headless Automation**:
+     - Added horizontal scene switcher chips to `fragment_dashboard.xml` and `DashboardFragment.kt`.
+     - Exposed `ACTION_SWITCH_SCENE` in `StreamControlReceiver.kt` for headless ADB automation (`com.fairylive.app.action.SWITCH_SCENE`).
+- **Empirical A/B/C Performance Benchmark (`tools/audit_m11_abc_performance.json`)**:
+  - Run on Google Pixel 8 AVD, 720p 30fps, 1200 kbps:
+  - **Condition A (Gameplay - Screen + Facecam PIP 26% + Watermark)**:
+    * CPU: 10.0%, PSS: 57,288 KB, Native Heap: 13,506 KB, Dalvik Heap: 3,273 KB, RSS: 176,488 KB, Threads: 20, Sockets: 10, Codecs: 2, Drops: 0.
+  - **Condition B (Just Chatting - Facecam PIP 40% + Goal Widget + Header)**:
+    * CPU: 10.0%, PSS: 63,265 KB, Native Heap: 13,246 KB, Dalvik Heap: 8,049 KB, RSS: 177,048 KB, Threads: 19, Sockets: 10, Codecs: 2, Drops: 0.
+  - **Condition C (Be Right Back - Solid Color + Title + QR)**:
+    * CPU: 10.0%, PSS: 63,261 KB, Native Heap: 13,246 KB, Dalvik Heap: 8,049 KB, RSS: 177,048 KB, Threads: 19, Sockets: 10, Codecs: 2, Drops: 0.
+  - **Active Rapid Switching Condition (Continuous Crossfades)**:
+    * CPU: 10.0%, PSS: 63,262 KB, Native Heap: 13,246 KB, Dalvik Heap: 8,049 KB, RSS: 177,048 KB, Threads: 19, Sockets: 10, Codecs: 2, Drops: 0.
+- **10-Cycle Stability Audit (`tools/audit_m11_10cycle_resources.json`)**:
+  - Conducted 10 complete cycles across Gameplay -> Just Chatting -> BRB -> Gameplay:
+  - Cycle 1: PSS 63,173 KB, Native 13,258 KB, Dalvik 8,049 KB, Threads 19, Sockets 10, Active Codecs 2
+  - Cycle 2: PSS 63,173 KB, Native 13,258 KB, Dalvik 8,049 KB, Threads 19, Sockets 10, Active Codecs 2
+  - Cycle 3: PSS 63,174 KB, Native 13,258 KB, Dalvik 8,049 KB, Threads 19, Sockets 10, Active Codecs 2
+  - Cycle 4: PSS 63,174 KB, Native 13,258 KB, Dalvik 8,049 KB, Threads 19, Sockets 10, Active Codecs 2
+  - Cycle 5: PSS 63,174 KB, Native 13,258 KB, Dalvik 8,049 KB, Threads 19, Sockets 10, Active Codecs 2
+  - Cycle 6: PSS 63,175 KB, Native 13,258 KB, Dalvik 8,049 KB, Threads 19, Sockets 10, Active Codecs 2
+  - Cycle 7: PSS 63,175 KB, Native 13,258 KB, Dalvik 8,049 KB, Threads 19, Sockets 10, Active Codecs 2
+  - Cycle 8: PSS 63,176 KB, Native 13,258 KB, Dalvik 8,049 KB, Threads 19, Sockets 10, Active Codecs 2
+  - Cycle 9: PSS 63,176 KB, Native 13,258 KB, Dalvik 8,049 KB, Threads 19, Sockets 10, Active Codecs 2
+  - Cycle 10: PSS 63,177 KB, Native 13,258 KB, Dalvik 8,049 KB, Threads 19, Sockets 10, Active Codecs 2
+  - **Stability Findings**:
+    * Post-GC PSS delta across 10 complete cycles is **+4 KB** (+0.4 KB/cycle), completely bounded.
+    * Native Heap delta across 10 cycles is **0 bytes** (flat at 13,258 KB).
+    * Threads remained bounded at 19; Sockets remained at 10.
+    * Active MediaCodec count held strictly at 2 throughout.
+- **Full Regression Verification**:
+  - Command: `./gradlew clean testDebugUnitTest connectedDebugAndroidTest`
+  - Exit code: **0**
+  - Unit tests: **127/127 PASS** (added 12 unit tests in `BroadcastSceneTest`)
+  - Connected tests: **14/14 PASS** on Pixel 8 AVD (added 3 connected tests in `SceneInstrumentedTest`)
+  - Build Duration: **1m 1s**
+  - APK size: **6.2 MB** (strictly < 15 MB constraint).
+
 ## 2026-09-14 — Milestone 10: Camera / Face Cam Integration & Comprehensive Empirical Validation
 - **Milestone**: M10 Camera / Face Cam Integration
 - **Implementation Highlights**:

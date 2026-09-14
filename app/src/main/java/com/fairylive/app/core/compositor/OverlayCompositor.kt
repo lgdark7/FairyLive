@@ -10,6 +10,11 @@ import com.fairylive.app.core.camera.model.FacecamConfig
 import com.fairylive.app.core.compositor.model.OverlayElement
 import com.fairylive.app.core.compositor.render.GlesRenderer
 import com.fairylive.app.core.compositor.resource.OverlayResourceManager
+import com.fairylive.app.core.scene.BroadcastSceneManager
+import com.fairylive.app.core.scene.SceneStateNotifier
+import com.fairylive.app.core.scene.model.BroadcastScene
+import com.fairylive.app.core.scene.model.SceneTransition
+import com.fairylive.app.core.scene.model.SceneTransitionType
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 
@@ -69,7 +74,23 @@ class OverlayCompositor(
 
     val overlayScene: OverlayScene get() = scene
 
+    private val sceneManager = BroadcastSceneManager()
+    val broadcastSceneManager: BroadcastSceneManager get() = sceneManager
+
+    @Volatile
+    private var isTransitionActive: Boolean = false
+    @Volatile
+    private var transitionStartTimeMs: Long = 0L
+    @Volatile
+    private var transitionDurationMs: Long = 0L
+    @Volatile
+    private var outboundScene: BroadcastScene? = null
+    @Volatile
+    private var targetScene: BroadcastScene? = null
+
     fun isEnabled(): Boolean = enabled
+
+    val isStarted: Boolean get() = isRunning.get()
 
     @Synchronized
     fun setEnabled(value: Boolean) {
@@ -126,6 +147,7 @@ class OverlayCompositor(
                 }
                 isRunning.set(true)
                 available = true
+                applySceneImmediate(sceneManager.activeScene)
                 CompositorStateNotifier.updateState(CompositorState.RUNNING)
                 captureSurface
             } catch (e: Exception) {
@@ -200,6 +222,31 @@ class OverlayCompositor(
         if (!isCaptureNew && !isCameraNew) {
             duplicateRendersSkipped.incrementAndGet()
             return
+        }
+        if (isTransitionActive) {
+            val now = SystemClock.elapsedRealtime()
+            val elapsed = now - transitionStartTimeMs
+            val progress = (elapsed.toFloat() / transitionDurationMs.toFloat()).coerceIn(0f, 1f)
+
+            val from = outboundScene
+            val to = targetScene
+            if (from != null && to != null) {
+                SceneStateNotifier.notifyTransitionProgress(progress, from, to)
+                for (elem in from.overlayElements) {
+                    scene.get("out_" + elem.id)?.let {
+                        it.liveOpacity = elem.opacity * (1f - progress)
+                    }
+                }
+                for (elem in to.overlayElements) {
+                    scene.get("in_" + elem.id)?.let {
+                        it.liveOpacity = elem.opacity * progress
+                    }
+                }
+            }
+            if (progress >= 1f) {
+                isTransitionActive = false
+                targetScene?.let { applySceneImmediate(it) }
+            }
         }
         surfaceTextureUpdates.incrementAndGet()
         if (enabled) {
@@ -370,6 +417,76 @@ class OverlayCompositor(
 
     fun setOverlayScale(id: String, scale: Float) {
         scene.get(id)?.let { it.liveScale = scale.coerceIn(0.1f, 5f) }
+    }
+
+    /**
+     * Seamlessly transitions the compositor to a target [BroadcastScene].
+     * If [transition] is [SceneTransitionType.CUT], the change is atomic on the next frame.
+     * If [transition] is [SceneTransitionType.CROSSFADE], alpha is smoothly interpolated.
+     * RTMP connection, MediaCodec encoders, and audio pipeline remain 100% active and continuous.
+     */
+    fun switchScene(sceneId: String, transition: SceneTransition = SceneTransition.CUT): Boolean {
+        val target = sceneManager.getScene(sceneId) ?: run {
+            Log.w(TAG, "Cannot switch to unknown scene: $sceneId")
+            return false
+        }
+        val current = sceneManager.activeScene
+        if (target.id == current.id && !isTransitionActive) {
+            Log.d(TAG, "Scene $sceneId is already active")
+            return true
+        }
+
+        val handler = renderHandler
+        if (handler == null) {
+            applySceneImmediate(target)
+            sceneManager.switchScene(sceneId, transition)
+            return true
+        }
+
+        handler.post {
+            if (transition.type == SceneTransitionType.CUT || transition.durationMs <= 0L) {
+                applySceneImmediate(target)
+                sceneManager.switchScene(sceneId, transition)
+            } else {
+                startSceneTransition(current, target, transition)
+            }
+        }
+        return true
+    }
+
+    private fun applySceneImmediate(target: BroadcastScene) {
+        clearOverlays()
+        for (element in target.overlayElements) {
+            addOverlay(element)
+        }
+        updateFacecamConfig(target.facecamConfig)
+        renderer.backgroundMode = target.backgroundMode
+        renderer.backgroundColorArgb = target.backgroundColorArgb
+        isTransitionActive = false
+        outboundScene = null
+        targetScene = null
+    }
+
+    private fun startSceneTransition(from: BroadcastScene, to: BroadcastScene, transition: SceneTransition) {
+        outboundScene = from
+        targetScene = to
+        transitionStartTimeMs = SystemClock.elapsedRealtime()
+        transitionDurationMs = transition.durationMs
+        isTransitionActive = true
+
+        scene.clear()
+        for (elem in from.overlayElements) {
+            val layer = scene.add(elem.copy(id = "out_" + elem.id))
+            layer.liveOpacity = elem.opacity
+        }
+        for (elem in to.overlayElements) {
+            val layer = scene.add(elem.copy(id = "in_" + elem.id))
+            layer.liveOpacity = 0.0f
+        }
+        updateFacecamConfig(to.facecamConfig)
+        renderer.backgroundMode = to.backgroundMode
+        renderer.backgroundColorArgb = to.backgroundColorArgb
+        sceneManager.switchScene(to.id, transition)
     }
 
     /** Triggers a real-time broadcast alert overlay with optional sound and automatic dismissal. */

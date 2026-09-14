@@ -763,6 +763,82 @@
                     android:textColor="@color/text_muted"
                     android:textSize="10sp" />
 
+                <!-- M11: Broadcast Scene Switcher -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Active Broadcast Scene:"
+                        android:textColor="@color/fairy_cyan"
+                        android:textSize="12sp"
+                        android:textStyle="bold" />
+
+                    <HorizontalScrollView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:scrollbars="none">
+
+                        <LinearLayout
+                            android:id="@+id/layout_scene_chips"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal">
+
+                            <com.google.android.material.button.MaterialButton
+                                android:id="@+id/btn_scene_gameplay"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginEnd="6dp"
+                                android:backgroundTint="@color/fairy_cyan"
+                                android:text="🎮 Gameplay"
+                                android:textColor="@color/bg_primary"
+                                android:textSize="11sp"
+                                app:cornerRadius="6dp" />
+
+                            <com.google.android.material.button.MaterialButton
+                                android:id="@+id/btn_scene_chatting"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginEnd="6dp"
+                                android:backgroundTint="@color/bg_surface"
+                                android:text="💬 Chatting"
+                                android:textColor="@color/text_primary"
+                                android:textSize="11sp"
+                                app:cornerRadius="6dp"
+                                app:strokeColor="@color/bg_card_stroke"
+                                app:strokeWidth="1dp" />
+
+                            <com.google.android.material.button.MaterialButton
+                                android:id="@+id/btn_scene_brb"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:backgroundTint="@color/bg_surface"
+                                android:text="☕ Be Right Back"
+                                android:textColor="@color/text_primary"
+                                android:textSize="11sp"
+                                app:cornerRadius="6dp"
+                                app:strokeColor="@color/bg_card_stroke"
+                                app:strokeWidth="1dp" />
+                        </LinearLayout>
+                    </HorizontalScrollView>
+
+                    <TextView
+                        android:id="@+id/tv_scene_status"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="2dp"
+                        android:fontFamily="monospace"
+                        android:text="Scene: Gameplay (Screen + Facecam + HUD)"
+                        android:textColor="@color/text_muted"
+                        android:textSize="10sp" />
+                </LinearLayout>
+
                 <TextView
                     android:id="@+id/tv_stream_endpoint_info"
                     android:layout_width="match_parent"

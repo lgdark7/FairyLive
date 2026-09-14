@@ -264,6 +264,40 @@ ightarrow$ 1200 kbps).
 - `StreamControlReceiver`: Broadcast receiver handling `TOGGLE_FACECAM`, `SWITCH_FACECAM`, and `STOP_CAPTURE` enabling external automation and decoupled UI dispatch.
 - Integrated dashboard controls (`fragment_dashboard.xml` and `DashboardFragment.kt`) for creator toggle, lens flip, and real-time state telemetry.
 
+---
+
+## 11. Multi-Scene Management & Seamless Switching Architecture (Milestone 11)
+
+### A. Core Architecture & Zero-Disruption Invariant
+Milestone 11 introduces multi-scene capabilities allowing creators to seamlessly switch between distinct visual configurations (Gameplay, Just Chatting, Be Right Back, and custom scenes) without interrupting the broadcast.
+- **Strict Invariant**: Scene switching does not tear down or re-initialize the RTMP transport socket, MediaCodec AVC video encoder, AAC audio encoder, or audio pipeline clock. The streaming session remains unbroken (`LIVE`) throughout all transitions.
+- **Rendering Thread Integration**: Scene swapping executes directly within the `OverlayCompositor` render loop on `FairyCompositorThread`.
+
+### B. Scene Data Models (`com.fairylive.app.core.scene.model`)
+- `BroadcastScene`: Immutable model encapsulating:
+  * `id`: Unique string identifier.
+  * `name`: Human-readable display label.
+  * `orderIndex`: Sorting index in the UI switcher.
+  * `overlayElements`: Ordered collection of active overlay layers (Text, Sub Goal, Stats, QR, Image, Watermark).
+  * `facecamConfig`: Normalized PIP transform, placement coordinates, and camera enabled flag.
+  * `backgroundMode`: `SCREEN_CAPTURE` (passthrough phone screen) or `SOLID_COLOR` (clear to ARGB color, e.g. for BRB screen).
+  * `backgroundColorArgb`: 32-bit color integer for solid backgrounds.
+- `SceneTransition`: Defines transition behavior (`CUT` with 0ms duration vs `CROSSFADE` with customizable duration, e.g. 300ms).
+- `SceneStateNotifier`: Observable state distributor publishing active scene updates, transition events, and normalized progress `[0.0, 1.0]`.
+
+### C. Lightweight Zero-Allocation Transitions
+- **Crossfade Opacity Interpolation**: The compositor computes normalized progress $t \in [0.0, 1.0]$ based on elapsed transition time.
+- During crossfade, outgoing scene layers render with opacity $\alpha_{out} = \alpha_{base} \cdot (1 - t)$, while incoming scene layers render with $\alpha_{in} = \alpha_{base} \cdot t$.
+- No secondary OpenGL Framebuffer Objects (FBOs), intermediate textures, or CPU image buffers are allocated. This ensures zero additional GPU memory consumption and zero frame drops on constrained devices.
+
+### D. Built-In Presets & Persistence
+- Built-in factory presets in `BroadcastSceneManager`:
+  1. **Scene 1 ("Gameplay")**: Screen capture base, top-right 26% Facecam PIP, stream watermark.
+  2. **Scene 2 ("Just Chatting")**: Screen capture base, large 40% Facecam PIP, donation/sub goal widget, header text.
+  3. **Scene 3 ("Be Right Back")**: Solid dark background (`#101420`), centered BRB banner, compact QR code (`fairy.live`), camera disabled.
+- `SceneRepository`: Serializes scene configurations to JSON in Android `SharedPreferences` for seamless persistence across app launches.
+
+
 
 
 

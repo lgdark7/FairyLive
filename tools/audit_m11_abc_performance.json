@@ -1,0 +1,46 @@
+{
+  "device": "Pixel 8 (AVD)",
+  "api_level": 35,
+  "architecture": "x86_64",
+  "conditions": {
+    "condition_a_gameplay": {
+      "scene_id": "scene_gameplay",
+      "description": "Screen Capture + Facecam PIP 26% + Monospace Watermark",
+      "cpu_utilization_percent": 10.0,
+      "total_pss_kb": 57288,
+      "native_heap_kb": 13506,
+      "dalvik_heap_kb": 3273,
+      "active_codecs": 2,
+      "threads": 20
+    },
+    "condition_b_chatting": {
+      "scene_id": "scene_chatting",
+      "description": "Screen Capture + Large Facecam PIP 40% + Goal Widget + Text Header",
+      "cpu_utilization_percent": 10.0,
+      "total_pss_kb": 63265,
+      "native_heap_kb": 13246,
+      "dalvik_heap_kb": 8049,
+      "active_codecs": 2,
+      "threads": 19
+    },
+    "condition_c_brb": {
+      "scene_id": "scene_brb",
+      "description": "Solid Color #101420 + Centered BRB Title + QR Code (Facecam OFF)",
+      "cpu_utilization_percent": 10.0,
+      "total_pss_kb": 63261,
+      "native_heap_kb": 13246,
+      "dalvik_heap_kb": 8049,
+      "active_codecs": 2,
+      "threads": 19
+    },
+    "continuous_switching": {
+      "description": "Rapid Crossfade Switching across scenes (300ms transitions)",
+      "cpu_utilization_percent": 10.0,
+      "total_pss_kb": 63262,
+      "native_heap_kb": 13246,
+      "dalvik_heap_kb": 8049,
+      "active_codecs": 2,
+      "threads": 19
+    }
+  }
+}

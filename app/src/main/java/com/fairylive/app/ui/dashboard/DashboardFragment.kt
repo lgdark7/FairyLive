@@ -27,6 +27,9 @@ import com.fairylive.app.core.capture.model.CaptureState
 import com.fairylive.app.core.lifecycle.StreamState
 import com.fairylive.app.core.lifecycle.StreamStateNotifier
 import com.fairylive.app.core.permission.PermissionManager
+import com.fairylive.app.core.scene.BroadcastSceneManager
+import com.fairylive.app.core.scene.SceneStateNotifier
+import com.fairylive.app.core.scene.model.BroadcastScene
 import com.fairylive.app.core.video.EncoderStateNotifier
 import com.fairylive.app.core.video.model.EncoderMetrics
 import com.fairylive.app.core.video.model.EncoderState
@@ -124,6 +127,12 @@ class DashboardFragment : Fragment(),
         }
     }
 
+    private val sceneStateListener: (BroadcastScene) -> Unit = { scene ->
+        activity?.runOnUiThread {
+            if (_binding != null) updateSceneUI(scene)
+        }
+    }
+
     override fun onCreateView(
         inflater: LayoutInflater,
         container: ViewGroup?,
@@ -147,8 +156,10 @@ class DashboardFragment : Fragment(),
         com.fairylive.app.core.compositor.CompositorStateNotifier.addMetricsListener(compositorMetricsListener)
         com.fairylive.app.core.camera.CameraStateNotifier.addStateListener(cameraStateListener)
         com.fairylive.app.core.camera.CameraStateNotifier.addMetricsListener(cameraMetricsListener)
+        SceneStateNotifier.addListener(sceneStateListener)
         updateCompositorUI()
         updateCameraUI()
+        updateSceneUI(SceneStateNotifier.currentScene)
 
         bindDeviceCapability()
         bindCaptureControls()
@@ -185,6 +196,7 @@ class DashboardFragment : Fragment(),
         com.fairylive.app.core.compositor.CompositorStateNotifier.removeMetricsListener(compositorMetricsListener)
         com.fairylive.app.core.camera.CameraStateNotifier.removeStateListener(cameraStateListener)
         com.fairylive.app.core.camera.CameraStateNotifier.removeMetricsListener(cameraMetricsListener)
+        SceneStateNotifier.removeListener(sceneStateListener)
         _binding = null
     }
 
@@ -734,6 +746,60 @@ class DashboardFragment : Fragment(),
                 Toast.makeText(requireContext(), "Start stream first to switch Facecam", Toast.LENGTH_SHORT).show()
             }
         }
+
+        binding.btnSceneGameplay.setOnClickListener {
+            try {
+                FairyStreamService.switchScene(requireContext(), BroadcastSceneManager.DEFAULT_SCENE_GAMEPLAY_ID, "CROSSFADE")
+            } catch (e: Exception) {
+                Toast.makeText(requireContext(), "Error switching scene", Toast.LENGTH_SHORT).show()
+            }
+        }
+
+        binding.btnSceneChatting.setOnClickListener {
+            try {
+                FairyStreamService.switchScene(requireContext(), BroadcastSceneManager.DEFAULT_SCENE_CHATTING_ID, "CROSSFADE")
+            } catch (e: Exception) {
+                Toast.makeText(requireContext(), "Error switching scene", Toast.LENGTH_SHORT).show()
+            }
+        }
+
+        binding.btnSceneBrb.setOnClickListener {
+            try {
+                FairyStreamService.switchScene(requireContext(), BroadcastSceneManager.DEFAULT_SCENE_BRB_ID, "CROSSFADE")
+            } catch (e: Exception) {
+                Toast.makeText(requireContext(), "Error switching scene", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    private fun updateSceneUI(scene: BroadcastScene) {
+        if (_binding == null) return
+        val isGameplay = scene.id == BroadcastSceneManager.DEFAULT_SCENE_GAMEPLAY_ID
+        val isChatting = scene.id == BroadcastSceneManager.DEFAULT_SCENE_CHATTING_ID
+        val isBrb = scene.id == BroadcastSceneManager.DEFAULT_SCENE_BRB_ID
+
+        binding.btnSceneGameplay.backgroundTintList = android.content.res.ColorStateList.valueOf(
+            requireContext().getColor(if (isGameplay) R.color.fairy_cyan else R.color.bg_surface)
+        )
+        binding.btnSceneGameplay.setTextColor(
+            requireContext().getColor(if (isGameplay) R.color.bg_primary else R.color.text_primary)
+        )
+
+        binding.btnSceneChatting.backgroundTintList = android.content.res.ColorStateList.valueOf(
+            requireContext().getColor(if (isChatting) R.color.fairy_cyan else R.color.bg_surface)
+        )
+        binding.btnSceneChatting.setTextColor(
+            requireContext().getColor(if (isChatting) R.color.bg_primary else R.color.text_primary)
+        )
+
+        binding.btnSceneBrb.backgroundTintList = android.content.res.ColorStateList.valueOf(
+            requireContext().getColor(if (isBrb) R.color.fairy_cyan else R.color.bg_surface)
+        )
+        binding.btnSceneBrb.setTextColor(
+            requireContext().getColor(if (isBrb) R.color.bg_primary else R.color.text_primary)
+        )
+
+        binding.tvSceneStatus.text = "Scene: ${scene.name} (${scene.overlayElements.size} overlays | Facecam: ${if (scene.facecamConfig.enabled) "ON" else "OFF"})"
     }
 
     private fun updateCameraUI() {

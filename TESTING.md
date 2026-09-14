@@ -5,7 +5,25 @@ Testing covers unit tests, instrumentation, system-level execution, memory stabi
 
 ---
 
-## 2. Milestone 10 — Camera / Face Cam Integration Verification Matrix
+## 2. Milestone 11 — Broadcast Scenes & Scene Management Verification Matrix
+
+| Category | Test Case | Target / Command | Result | Evidence |
+|---|---|---|---|---|
+| **Build & Regression** | Full Clean Regression | `./gradlew clean testDebugUnitTest connectedDebugAndroidTest` | **PASS (Exit 0)** | **127/127 unit tests pass**, **14/14 connected tests pass**, 71/71 tasks, build duration 1m 1s, 6.2 MB APK (< 15 MB budget) |
+| **Scene Models** | Immutable Scene Data Structure | `BroadcastSceneTest` | **PASS** | `testBroadcastSceneCreationAndImmutability`: verified immutable scene configs, background modes, facecam transforms, and overlay collections |
+| **Scene Manager** | Preset Initialization & CRUD | `BroadcastSceneTest` | **PASS** | `testDefaultScenesInitialization`: initializes Gameplay, Just Chatting, BRB presets; validates CRUD operations and custom scene registration |
+| **Switching Safety** | Unknown ID & Minimum Safety | `BroadcastSceneTest` | **PASS** | `testSwitchToUnknownSceneGracefullyFails`, `testCannotDeleteActiveScene`, `testCannotDeleteLastRemainingScene` |
+| **Crossfade Math** | Linear Opacity Interpolation | `BroadcastSceneTest` | **PASS** | `testCrossfadeTransitionProgressInterpolation`: validates progress formula from 0.0 to 1.0 without allocating extra GPU memory |
+| **Persistence** | SharedPreferences JSON Storage | `BroadcastSceneTest` | **PASS** | `testSceneRepositoryPersistence`: verifies JSON serialization and deserialization across process restarts |
+| **Live Device Switching** | Compositor scene switch | `SceneInstrumentedTest` | **PASS** | `testCompositorSceneSwitchingOnDevice`: switches across all 3 presets with active GLES Surface and zero crashes |
+| **Transition Lifecycle** | Crossfade progress observer | `SceneInstrumentedTest` | **PASS** | `testCrossfadeTransitionLifecycleOnDevice`: verifies transition progress callback delivery and clean completion |
+| **Rapid Switching** | 10 rapid scene toggles | `SceneInstrumentedTest` | **PASS** | `testRapidSceneSwitchingStability`: verifies compositor stability and unbroken MediaCodec output |
+| **A/B/C Benchmark** | Preset Overhead Audit | `tools/audit_m11_abc_performance.json` | **PASS** | CPU 10.0% flat across all conditions; PSS 57.3 - 63.2 MB; zero pipeline drops; codecs strictly bounded at 2 |
+| **10-Cycle Audit** | Scene Switching Stability Ledger | `tools/audit_m11_10cycle_resources.json` | **PASS** | 10 cycles across Gameplay -> Just Chatting -> BRB -> Gameplay: PSS delta +4 KB, Native heap delta 0 bytes, 2 active codecs, 0 socket disconnects |
+
+---
+
+## 3. Milestone 10 — Camera / Face Cam Integration Verification Matrix
 
 | Category | Test Case | Target / Command | Result | Evidence |
 |---|---|---|---|---|

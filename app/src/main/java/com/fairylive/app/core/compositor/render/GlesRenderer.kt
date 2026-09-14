@@ -20,6 +20,7 @@ import com.fairylive.app.core.compositor.OverlayScene
 import com.fairylive.app.core.compositor.animation.GifStreamPlayer
 import com.fairylive.app.core.compositor.model.OverlayType
 import com.fairylive.app.core.compositor.resource.OverlayResourceManager
+import com.fairylive.app.core.scene.model.SceneBackgroundMode
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.nio.FloatBuffer
@@ -124,6 +125,12 @@ class GlesRenderer {
     /** Invoked on the render thread whenever the capture SurfaceTexture has a new frame. */
     @Volatile
     var onFrameAvailable: (() -> Unit)? = null
+
+    @Volatile
+    var backgroundMode: SceneBackgroundMode = SceneBackgroundMode.SCREEN_CAPTURE
+
+    @Volatile
+    var backgroundColorArgb: Int = 0xFF000000.toInt()
 
     private var lastCaptureTimestampNanos: Long = -1L
 
@@ -320,9 +327,16 @@ class GlesRenderer {
         if (eglDisplay == EGL14.EGL_NO_DISPLAY || eglSurface == EGL14.EGL_NO_SURFACE) return
 
         GLES20.glViewport(0, 0, streamWidth, streamHeight)
+        val r = ((backgroundColorArgb shr 16) and 0xFF) / 255.0f
+        val g = ((backgroundColorArgb shr 8) and 0xFF) / 255.0f
+        val b = (backgroundColorArgb and 0xFF) / 255.0f
+        val a = ((backgroundColorArgb ushr 24) and 0xFF) / 255.0f
+        GLES20.glClearColor(r, g, b, a)
         GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT)
 
-        drawCapture()
+        if (backgroundMode == SceneBackgroundMode.SCREEN_CAPTURE) {
+            drawCapture()
+        }
         if (facecamConfig != null && facecamConfig.enabled) {
             drawFacecam(facecamConfig)
         }

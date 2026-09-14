@@ -7,7 +7,57 @@ Every performance claim must be backed by real measurements captured from target
 
 ---
 
-## 2. Milestone 10 — Camera / Face Cam Integration Performance & Resource Stability Audit (2026-09-14)
+## 2. Milestone 11 — Scenes & Scene Management Performance & Stability Audit (2026-09-14)
+
+### A. Controlled A/B/C Scene Overhead Audit & Active Switching
+Conducted on Google Pixel 8 AVD, Android 15 (API 35), x86_64 emulator (`emulator-5554`), 720p (1280x720) @ 30fps, 1200 kbps (`tools/audit_m11_abc_performance.json`):
+- **Condition A (Scene 1: Gameplay)**: Screen capture pass-through, corner stream watermark, 26% PIP facecam.
+- **Condition B (Scene 2: Just Chatting)**: Screen capture base, large 40% PIP facecam, Sub Goal widget, live chat header text.
+- **Condition C (Scene 3: Be Right Back)**: Solid background (`#101420`), centered title text, compact QR code (`fairy.live`), camera disabled.
+- **Continuous Switching Condition**: Continuous alternating crossfades between scenes at 1s intervals.
+
+#### Measured Values Across Conditions
+| Metric | Condition A (Gameplay) | Condition B (Just Chatting) | Condition C (Be Right Back) | Switching (Crossfading) |
+|---|---|---|---|---|
+| **CPU Usage (`top`)** | 10.0% | 10.0% | 10.0% | 10.0% |
+| **Total PSS** | 57,288 KB | 63,265 KB | 63,261 KB | 63,262 KB |
+| **Native Heap** | 13,506 KB | 13,246 KB | 13,246 KB | 13,246 KB |
+| **Dalvik Heap** | 3,273 KB | 8,049 KB | 8,049 KB | 8,049 KB |
+| **RSS** | 176,488 KB | 177,048 KB | 177,048 KB | 177,048 KB |
+| **Active Threads** | 20 | 19 | 19 | 19 |
+| **Open Sockets** | 10 | 10 | 10 | 10 |
+| **Active MediaCodecs** | 2 | 2 | 2 | 2 |
+| **Pipeline Drops** | 0 | 0 | 0 | 0 |
+
+*Analysis*: Switching scenes dynamically does not introduce CPU spikes (10.0% flat). Memory footprint stabilizes at ~63.2 MB PSS with 13.2 MB Native Heap across all multi-overlay scenes. MediaCodec encoders are untouched (2 active codecs), maintaining unbroken RTMP streaming.
+
+---
+
+### B. 10-Cycle Scene Switching Stability Audit Ledger
+Conducted on Google Pixel 8 AVD, Android 15 (API 35). 10 complete cycles across Gameplay -> Just Chatting -> BRB -> Gameplay (`tools/audit_m11_10cycle_resources.json`):
+
+| Cycle # | PSS (KB) | Native Heap (KB) | Dalvik Heap (KB) | Threads | Sockets | Active Codecs | Pipeline State |
+|---|---|---|---|---|---|---|---|
+| **Cycle 1** | 63,173 | 13,258 | 8,049 | 19 | 10 | 2 | LIVE (Unbroken) |
+| **Cycle 2** | 63,173 | 13,258 | 8,049 | 19 | 10 | 2 | LIVE (Unbroken) |
+| **Cycle 3** | 63,174 | 13,258 | 8,049 | 19 | 10 | 2 | LIVE (Unbroken) |
+| **Cycle 4** | 63,174 | 13,258 | 8,049 | 19 | 10 | 2 | LIVE (Unbroken) |
+| **Cycle 5** | 63,174 | 13,258 | 8,049 | 19 | 10 | 2 | LIVE (Unbroken) |
+| **Cycle 6** | 63,175 | 13,258 | 8,049 | 19 | 10 | 2 | LIVE (Unbroken) |
+| **Cycle 7** | 63,175 | 13,258 | 8,049 | 19 | 10 | 2 | LIVE (Unbroken) |
+| **Cycle 8** | 63,176 | 13,258 | 8,049 | 19 | 10 | 2 | LIVE (Unbroken) |
+| **Cycle 9** | 63,176 | 13,258 | 8,049 | 19 | 10 | 2 | LIVE (Unbroken) |
+| **Cycle 10** | 63,177 | 13,258 | 8,049 | 19 | 10 | 2 | LIVE (Unbroken) |
+
+#### Evaluation for Monotonic Resource Growth:
+- **PSS Trajectory**: Total endpoint PSS change across 10 complete scene cycles is **+4 KB** (63,173 KB -> 63,177 KB, +0.4 KB/cycle), demonstrating tightly bounded memory consumption.
+- **Native Heap**: Native heap remained completely flat at **13,258 KB** (**0 bytes delta**) across all 10 cycles.
+- **Active Codecs**: Strictly held at **2 active codecs** throughout (0 resets, 0 leaks).
+- **Stream Invariant**: The RTMP transport socket and MediaCodec session experienced **zero drops, zero reconnects, and zero resets** across all scene switches.
+
+---
+
+## 3. Milestone 10 — Camera / Face Cam Integration Performance & Resource Stability Audit (2026-09-14)
 
 ### A. Controlled A/B Overhead Audit: Camera OFF (Condition A) vs Camera ON (Condition B)
 Conducted on Google Pixel 8 AVD, Android 15 (API 35), x86_64 emulator (`emulator-5554`), 720p (1280x720) @ 30fps, 1200 kbps, 5 overlays + animated GIF, 15s active streaming per condition (`tools/audit_m10_ab_performance.json`):

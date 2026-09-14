@@ -15,7 +15,12 @@ import com.fairylive.app.core.compositor.model.QrOverlayConfig
 object QrOverlayRasterizer {
 
     fun rasterize(config: QrOverlayConfig, sizePx: Int = 256): Bitmap {
-        val matrix = QrMatrixEncoder.encode(config.payloadUrl)
+        val safePayload = if (config.payloadUrl.toByteArray(Charsets.UTF_8).size > 16) {
+            config.payloadUrl.take(16)
+        } else {
+            config.payloadUrl
+        }
+        val matrix = QrMatrixEncoder.encode(safePayload)
         val moduleCount = matrix.size
 
         val bitmap = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888)

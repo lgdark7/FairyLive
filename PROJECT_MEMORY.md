@@ -90,6 +90,20 @@ Rebuild **FAIRY LIVE** from scratch as a high-performance, professional native A
         * 10 complete cycles of START -> CAMERA ON -> STREAM -> CAMERA OFF -> CAMERA ON -> FRONT/REAR SWITCH -> CAMERA OFF -> STOP -> START -> STOP.
         * Cycle 1 to Cycle 10 post-GC: PSS bounded from 74,934 KB to 75,444 KB (+510 KB endpoint delta across 10 complete cycles; non-monotonic trajectory peaking at 77.4 MB at cycle 8 before settling to 75.4 MB post-GC, demonstrating bounded consumption rather than zero leaks), Dalvik heap decreased from 8,249 KB to 8,038 KB (-211 KB), Threads stable (32-36), active codecs bounded at 2.
       - **Full Regression**: `./gradlew clean testDebugUnitTest connectedDebugAndroidTest` passed with exit code 0 (115/115 unit tests pass, 11/11 connected tests pass, 71/71 tasks, build duration 31.8s, APK size 6.0 MB).
+  - **M11: Scenes & Scene Management** (IMPLEMENTATION & VERIFICATION COMPLETE — Ready for ChatGPT Review)
+      - **Zero-Disruption Scene Architecture**: Built pure-Kotlin scene data models (`BroadcastScene`, `SceneTransition`, `SceneBackgroundMode`), `BroadcastSceneManager` with 3 predefined presets (Gameplay, Just Chatting, Be Right Back), lightweight JSON persistence (`SceneRepository`), and observable event bus (`SceneStateNotifier`).
+      - **Runtime Switching Invariant**: Stream, RTMP connection, AVC video MediaCodec, AAC audio MediaCodec, audio pipeline, and network resilience monitor remain 100% continuous and active during scene transitions. Zero reconnects, zero dropped sockets, and zero false `LIVE` -> `IDLE` state transitions.
+      - **Compositor Integration & Lightweight Transitions**: Integrated into `OverlayCompositor` and `GlesRenderer` with instant CUT (0ms) and linear opacity interpolation CROSSFADE (300ms) without allocating secondary OpenGL framebuffers, duplicate textures, or offscreen staging surfaces.
+      - **UI & IPC Controls**: Dashboard horizontal scene switcher chip bar for one-tap creator switching, backed by exported `StreamControlReceiver` (`ACTION_SWITCH_SCENE`) for headless test automation.
+      - **A/B/C Benchmark (`tools/audit_m11_abc_performance.json`)**:
+        * Condition A (Gameplay - Screen + Facecam PIP 26% + Watermark): CPU 10.0%, PSS 57,288 KB, Native 13,506 KB, Dalvik 3,273 KB, 2 active codecs, 20 threads.
+        * Condition B (Just Chatting - Facecam PIP 40% + Goal Widget + Header): CPU 10.0%, PSS 63,265 KB, Native 13,246 KB, Dalvik 8,049 KB, 2 active codecs, 19 threads.
+        * Condition C (Be Right Back - Solid Color + Title + QR): CPU 10.0%, PSS 63,261 KB, Native 13,246 KB, Dalvik 8,049 KB, 2 active codecs, 19 threads.
+        * Rapid Switching Condition: CPU 10.0%, PSS 63,262 KB, Native 13,246 KB, 2 active codecs, 19 threads.
+      - **10-Cycle Stability Audit (`tools/audit_m11_10cycle_resources.json`)**:
+        * 10 complete cycles across Gameplay -> Just Chatting -> BRB -> Gameplay.
+        * Post-GC Cycle 1 PSS: 63,173 KB; Cycle 10 PSS: 63,177 KB (net delta +4 KB across 10 cycles, strictly bounded). Native heap delta: 0 bytes (flat at 13,258 KB). Threads bounded at 19. Active codecs strictly bounded at 2.
+      - **Full Regression**: `./gradlew clean testDebugUnitTest connectedDebugAndroidTest` passed with exit code 0 (127/127 unit tests pass, 14/14 connected tests pass on Pixel 8 AVD, APK size 6.2 MB).
 - **Authorized Milestones**: M11 (Authorized by ChatGPT on 2026-09-14).
 - **Locked Milestones**: M12 through M15.
 

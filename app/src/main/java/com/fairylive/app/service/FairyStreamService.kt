@@ -34,6 +34,7 @@ import com.fairylive.app.core.common.MediaClock
 import com.fairylive.app.core.lifecycle.StreamState
 import com.fairylive.app.core.lifecycle.StreamStateNotifier
 import com.fairylive.app.core.permission.PermissionManager
+import com.fairylive.app.core.scene.model.SceneTransition
 import com.fairylive.app.core.stream.StreamPipeline
 import com.fairylive.app.core.stream.StreamTelemetryNotifier
 import com.fairylive.app.core.stream.model.RtmpConnectionState
@@ -119,6 +120,15 @@ class FairyStreamService : Service() {
                 if (y >= 0f) cur = cur.copy(normalizedY = y)
                 if (scale > 0f) cur = cur.copy(scale = scale)
                 overlayCompositor.updateFacecamConfig(cur)
+            }
+            ACTION_SWITCH_SCENE -> {
+                val sceneId = intent?.getStringExtra(EXTRA_SCENE_ID) ?: ""
+                val transitionTypeStr = intent?.getStringExtra(EXTRA_TRANSITION) ?: "CUT"
+                val transition = when (transitionTypeStr.uppercase()) {
+                    "CROSSFADE" -> SceneTransition.CROSSFADE
+                    else -> SceneTransition.CUT
+                }
+                overlayCompositor.switchScene(sceneId, transition)
             }
             ACTION_START_AUDIO -> {
                 handleStartAudio(intent)
@@ -649,6 +659,10 @@ class FairyStreamService : Service() {
         const val ACTION_TOGGLE_FACECAM = "com.fairylive.app.action.TOGGLE_FACECAM"
         const val ACTION_SWITCH_FACECAM = "com.fairylive.app.action.SWITCH_FACECAM"
         const val ACTION_UPDATE_FACECAM = "com.fairylive.app.action.UPDATE_FACECAM"
+        const val ACTION_SWITCH_SCENE = "com.fairylive.app.action.SWITCH_SCENE"
+
+        const val EXTRA_SCENE_ID = "extra_scene_id"
+        const val EXTRA_TRANSITION = "extra_transition"
 
         const val EXTRA_ENABLE_FACECAM = "extra_enable_facecam"
         const val EXTRA_FACECAM_X = "extra_facecam_x"
@@ -816,6 +830,15 @@ class FairyStreamService : Service() {
         fun switchFacecam(context: Context) {
             val intent = Intent(context, FairyStreamService::class.java).apply {
                 action = ACTION_SWITCH_FACECAM
+            }
+            context.startService(intent)
+        }
+
+        fun switchScene(context: Context, sceneId: String, transitionType: String = "CUT") {
+            val intent = Intent(context, FairyStreamService::class.java).apply {
+                action = ACTION_SWITCH_SCENE
+                putExtra(EXTRA_SCENE_ID, sceneId)
+                putExtra(EXTRA_TRANSITION, transitionType)
             }
             context.startService(intent)
         }

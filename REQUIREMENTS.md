@@ -89,3 +89,16 @@
 4. **Decoupled IPC & State Safety**:
    - Camera toggling and lens switching must never mutate RTMP stream state or cause false `● LIVE` reporting.
 
+---
+
+## 6. Milestone 11 Verification Standards & Constraints
+1. **Zero-Disruption Runtime Switching**:
+   - Scene transitions (e.g. between Gameplay, Just Chatting, and Be Right Back) must NEVER tear down, restart, or recreate the RTMP client, MediaCodec video/audio encoders, or audio capture pipeline.
+   - The stream status must remain unbroken (`LIVE`) with zero socket reconnects or reset signals.
+2. **Lightweight Transitions**:
+   - Instant cuts (0ms) and crossfade transitions (e.g. 300ms) must execute on the existing EGL compositor render thread via linear opacity modulation without creating extra FBOs, offscreen staging textures, or CPU image buffers.
+3. **Resource Boundedness & Codec Invariant**:
+   - Active MediaCodec instances must be strictly held at 2 during scene switches.
+   - 10-cycle scene toggle stability audit must demonstrate non-monotonic, tightly bounded memory consumption post-GC with zero monotonic native heap growth.
+
+
