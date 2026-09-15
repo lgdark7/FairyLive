@@ -154,6 +154,43 @@
 9. **TEST 12 — Failure Injection**:
    - Resilient recovery from socket resets, encoder resets, and pipeline stalls without process crash.
 
+---
+
+## Milestone 14: Security + Hardening Requirements (AUTHORIZED)
+1. **Secret Audit & Redaction**:
+   - Zero hardcoded secrets, stream keys, tokens, or credentials in source code, logs, or reports.
+   - UI and logcat masking for all stream credentials (`li•••••••••••••56`).
+2. **Secure Settings Storage**:
+   - Cryptographically protect sensitive stream credentials using Android KeyStore / AES-256-GCM encrypted preferences (`EncryptedSharedPreferences` / Jetpack Security).
+   - Clean, safe migration path from plaintext legacy SharedPreferences with fallback resilience.
+3. **IPC & Component Hardening**:
+   - Android Manifest audit: all services, broadcast receivers, and activities evaluated for `exported` necessity.
+   - Non-exported components protected (`android:exported="false"`).
+   - Exported receivers (e.g. `StreamControlReceiver` for automation/testing) strictly protected by custom signature-level permissions or explicit intent filtering.
+   - Rigorous validation of all incoming intent extras (type checking, length limits, content sanitization).
+4. **Foreground Service Lifecycle & Race Hardening**:
+   - `FairyStreamService` hardened against rapid lifecycle re-entrancy: START -> START -> STOP -> STOP -> START -> STOP.
+   - Zero orphaned threads, surfaces, or codec instances under concurrent start/stop races.
+   - Strict prevention of false `● LIVE` reporting under any startup failure.
+5. **Permission Hardening & Graceful Degradation**:
+   - Graceful, controlled failure handling with typed `CreatorError` feedback when MediaProjection, Camera, Microphone, or Notification permissions are denied or revoked mid-stream.
+6. **Network & Input Validation**:
+   - Strict validation of RTMP URL schemes (`rtmp://`, `rtmps://`), hostnames, ports (1–65535), and path structures.
+   - Input length and dimension bounds on all overlays (text length limit, image pixel limits, QR data bounds) preventing memory or CPU exhaustion.
+7. **Pipeline Failure & Error Containment**:
+   - Clean recovery and transition to `FAILED`/`IDLE` on unexpected encoder, camera, audio HAL, or socket dropouts without process crashes.
+8. **Dependency & Release Build Verification**:
+   - Dependency audit confirming minimal footprint and zero vulnerable third-party streaming binaries.
+   - Successful release variant compilation (`assembleRelease`) confirming no debug secrets, test harnesses, or localhost bindings leak into release artifacts.
+
+---
+
+## Milestone 15 & Future Release QA Notes
+1. **Live Forced HAL Gap Verification**:
+   - Dedicated instrumented QA test to force live emulator audio HAL underflow and observe the full cycle: `HAL gap -> silence synthesis -> AAC silence frames -> normal audio resumption` to complement unit-level gap bridging tests.
+2. **Full Product Feature Preservation**:
+   - Milestone 14 and 15 do NOT skip Creator Studio, customizable preview, scene/layer editing, or streamer UX enhancements before final production readiness.
+
 
 
 
