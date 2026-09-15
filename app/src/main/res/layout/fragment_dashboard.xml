@@ -255,10 +255,22 @@
 
                 <!-- Action: Start Capture Button -->
                 <com.google.android.material.button.MaterialButton
-                    android:id="@+id/btn_start_capture"
+                    android:id="@+id/btn_open_creator_studio"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="12dp"
+                    android:backgroundTint="@color/fairy_cyan"
+                    android:text="🎨 OPEN CREATOR STUDIO"
+                    android:textColor="@color/bg_primary"
+                    android:textSize="14sp"
+                    android:textStyle="bold"
+                    app:cornerRadius="8dp" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btn_start_capture"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
                     android:backgroundTint="@color/fairy_purple"
                     android:text="GO LIVE (START BROADCAST)"
                     android:textColor="@color/text_primary"

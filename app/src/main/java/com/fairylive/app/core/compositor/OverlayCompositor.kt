@@ -454,23 +454,28 @@ class OverlayCompositor(
             Log.w(TAG, "Cannot switch to unknown scene: $sceneId")
             return false
         }
+        return applyScene(target, transition)
+    }
+
+    fun applyScene(target: BroadcastScene, transition: SceneTransition = SceneTransition.CUT): Boolean {
         val current = sceneManager.activeScene
-        if (target.id == current.id && !isTransitionActive) {
-            Log.d(TAG, "Scene $sceneId is already active")
+        sceneManager.registerScene(target)
+        if (target.id == current.id && !isTransitionActive && target === current) {
+            Log.d(TAG, "Scene ${target.id} is already active")
             return true
         }
 
         val handler = renderHandler
         if (handler == null) {
             applySceneImmediate(target)
-            sceneManager.switchScene(sceneId, transition)
+            sceneManager.switchScene(target.id, transition)
             return true
         }
 
         handler.post {
             if (transition.type == SceneTransitionType.CUT || transition.durationMs <= 0L) {
                 applySceneImmediate(target)
-                sceneManager.switchScene(sceneId, transition)
+                sceneManager.switchScene(target.id, transition)
             } else {
                 startSceneTransition(current, target, transition)
             }

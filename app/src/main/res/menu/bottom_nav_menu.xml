@@ -5,6 +5,10 @@
         android:icon="@drawable/ic_dashboard"
         android:title="@string/nav_dashboard" />
     <item
+        android:id="@+id/nav_studio"
+        android:icon="@drawable/ic_stream"
+        android:title="@string/nav_studio" />
+    <item
         android:id="@+id/nav_settings"
         android:icon="@drawable/ic_settings"
         android:title="@string/nav_settings" />

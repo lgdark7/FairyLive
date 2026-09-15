@@ -232,6 +232,10 @@ class DashboardFragment : Fragment(),
     }
 
     private fun bindCaptureControls() {
+        binding.btnOpenCreatorStudio.setOnClickListener {
+            (activity as? MainActivity)?.navigateToStudio()
+        }
+
         binding.btnStartCapture.setOnClickListener {
             val ctx = requireContext()
 

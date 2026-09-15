@@ -42,6 +42,10 @@ class MainActivity : AppCompatActivity(), StreamStateNotifier.Listener {
                     switchFragment(DashboardFragment())
                     true
                 }
+                R.id.nav_studio -> {
+                    switchFragment(com.fairylive.app.ui.studio.CreatorStudioFragment())
+                    true
+                }
                 R.id.nav_settings -> {
                     switchFragment(SettingsFragment())
                     true
@@ -63,6 +67,10 @@ class MainActivity : AppCompatActivity(), StreamStateNotifier.Listener {
 
     fun navigateToSettings() {
         binding.bottomNavigation.selectedItemId = R.id.nav_settings
+    }
+
+    fun navigateToStudio() {
+        binding.bottomNavigation.selectedItemId = R.id.nav_studio
     }
 
     private fun updateHeaderStatusBadge(state: StreamState) {

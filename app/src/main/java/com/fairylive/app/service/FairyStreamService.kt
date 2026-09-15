@@ -74,6 +74,7 @@ class FairyStreamService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+        activeService = this
         createNotificationChannel()
 
         deviceProfile = com.fairylive.app.core.optimization.DeviceProfileDetector.detect(this)
@@ -612,6 +613,9 @@ class FairyStreamService : Service() {
         CaptureStateNotifier.updateState(CaptureState.IDLE)
         AudioStateNotifier.updateState(AudioCaptureState.IDLE)
         StreamTelemetryNotifier.updateState(RtmpConnectionState.IDLE)
+        if (activeService === this) {
+            activeService = null
+        }
     }
 
     fun toggleFacecam(): Boolean {
@@ -716,6 +720,10 @@ class FairyStreamService : Service() {
     }
 
     companion object {
+        @Volatile
+        var activeService: FairyStreamService? = null
+            private set
+
         const val CHANNEL_ID = "fairy_stream_channel"
         const val NOTIFICATION_ID = 2026
         const val ACTION_START_SERVICE = "com.fairylive.app.action.START_SERVICE"

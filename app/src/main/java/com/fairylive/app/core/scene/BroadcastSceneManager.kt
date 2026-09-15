@@ -75,6 +75,108 @@ class BroadcastSceneManager(
         return true
     }
 
+    @Synchronized
+    fun createNewScene(
+        name: String,
+        backgroundMode: SceneBackgroundMode = SceneBackgroundMode.SCREEN_CAPTURE,
+        backgroundColorArgb: Int = 0xFF101420.toInt()
+    ): BroadcastScene {
+        val safeName = if (name.isBlank()) "New Scene ${scenes.size + 1}" else name.trim().take(40)
+        val newId = "scene_custom_${System.currentTimeMillis()}_${(100..999).random()}"
+        val newScene = BroadcastScene(
+            id = newId,
+            name = safeName,
+            overlayElements = emptyList(),
+            facecamConfig = FacecamConfig(enabled = false),
+            backgroundMode = backgroundMode,
+            backgroundColorArgb = backgroundColorArgb,
+            orderIndex = scenes.size
+        )
+        scenes.add(newScene)
+        return newScene
+    }
+
+    @Synchronized
+    fun duplicateScene(sceneId: String, newName: String? = null): BroadcastScene? {
+        val source = getScene(sceneId) ?: return false.let { null }
+        val nameToUse = if (newName.isNullOrBlank()) "${source.name} (Copy)" else newName.trim().take(40)
+        val duplicateId = "scene_copy_${System.currentTimeMillis()}_${(100..999).random()}"
+        val duplicateScene = source.copy(
+            id = duplicateId,
+            name = nameToUse,
+            orderIndex = scenes.size
+        )
+        scenes.add(duplicateScene)
+        return duplicateScene
+    }
+
+    @Synchronized
+    fun renameScene(sceneId: String, newName: String): Boolean {
+        if (newName.isBlank()) return false
+        val target = getScene(sceneId) ?: return false
+        val updated = target.copy(name = newName.trim().take(40))
+        registerScene(updated)
+        return true
+    }
+
+    @Synchronized
+    fun updateActiveScene(updater: (BroadcastScene) -> BroadcastScene): BroadcastScene {
+        val updated = updater(_activeScene)
+        registerScene(updated)
+        return updated
+    }
+
+    @Synchronized
+    fun addOverlayToActiveScene(element: OverlayElement): BroadcastScene {
+        return updateActiveScene { current ->
+            val updatedList = current.overlayElements.toMutableList()
+            val existingIdx = updatedList.indexOfFirst { it.id == element.id }
+            if (existingIdx >= 0) {
+                updatedList[existingIdx] = element
+            } else {
+                updatedList.add(element)
+            }
+            current.copy(overlayElements = updatedList)
+        }
+    }
+
+    @Synchronized
+    fun updateOverlayInActiveScene(element: OverlayElement): BroadcastScene {
+        return updateActiveScene { current ->
+            val updatedList = current.overlayElements.map {
+                if (it.id == element.id) element else it
+            }
+            current.copy(overlayElements = updatedList)
+        }
+    }
+
+    @Synchronized
+    fun removeOverlayFromActiveScene(elementId: String): BroadcastScene {
+        return updateActiveScene { current ->
+            val updatedList = current.overlayElements.filterNot { it.id == elementId }
+            current.copy(overlayElements = updatedList)
+        }
+    }
+
+    @Synchronized
+    fun reorderLayersInActiveScene(fromIndex: Int, toIndex: Int): BroadcastScene {
+        return updateActiveScene { current ->
+            val list = current.overlayElements.toMutableList()
+            if (fromIndex in list.indices && toIndex in list.indices && fromIndex != toIndex) {
+                val item = list.removeAt(fromIndex)
+                list.add(toIndex, item)
+            }
+            current.copy(overlayElements = list)
+        }
+    }
+
+    @Synchronized
+    fun updateFacecamInActiveScene(config: FacecamConfig): BroadcastScene {
+        return updateActiveScene { current ->
+            current.copy(facecamConfig = config)
+        }
+    }
+
     companion object {
         private const val TAG = "BroadcastSceneManager"
 

@@ -17,6 +17,12 @@ class FairyLiveApplication : Application() {
     lateinit var settingsRepository: StreamSettingsRepository
         private set
 
+    lateinit var sceneRepository: com.fairylive.app.core.scene.SceneRepository
+        private set
+
+    lateinit var sceneManager: com.fairylive.app.core.scene.BroadcastSceneManager
+        private set
+
     override fun onCreate() {
         super.onCreate()
         instance = this
@@ -25,6 +31,15 @@ class FairyLiveApplication : Application() {
         deviceCapability = detector.detectCapabilities()
 
         settingsRepository = StreamSettingsRepository(this)
+
+        sceneRepository = com.fairylive.app.core.scene.SceneRepository(this)
+        val savedScenes = sceneRepository.loadScenes()
+        val initialScenes = if (savedScenes.isNotEmpty()) savedScenes else com.fairylive.app.core.scene.BroadcastSceneManager.defaultScenes()
+        sceneManager = com.fairylive.app.core.scene.BroadcastSceneManager(initialScenes)
+        val activeId = sceneRepository.loadActiveSceneId()
+        if (activeId != null && sceneManager.getScene(activeId) != null) {
+            sceneManager.switchScene(activeId)
+        }
     }
 
     companion object {

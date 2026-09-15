@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <dimen name="chip_height">36dp</dimen>
+    <dimen name="preview_corner_radius">12dp</dimen>
+    <dimen name="studio_control_height">44dp</dimen>
+</resources>
