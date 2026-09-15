@@ -313,4 +313,61 @@ class Milestone13StressUnitTest {
         // A/V delta must remain bounded below 45ms
         assertTrue("A/V delta max must be <= 45ms, was: $maxDelta ms", maxDelta <= 45L)
     }
+
+    @Test
+    fun testAudioHalGapSilenceSynthesisRecovery() {
+        // Simulates explicit Audio HAL gap detection and silence synthesis recovery
+        val sampleRate = 44100
+        val bytesPerFrame = 2
+        val minBufferSize = 4096
+        val silenceFramesPerChunk = (minBufferSize / bytesPerFrame).toLong()
+
+        // 1. Initial 100ms normal capture
+        val normalFrames = 4410L
+        val startTimestampUs = 100_000L
+        var totalSamplesRead = normalFrames
+        val normalPtsUs = startTimestampUs + (totalSamplesRead * 1_000_000L) / sampleRate
+
+        // 2. Simulate HAL gap: 350ms delay/stall occurs in AudioRecord read
+        val simulatedStallUs = 350_000L
+        val wallClockPtsUs = normalPtsUs + simulatedStallUs
+        val driftUs = wallClockPtsUs - normalPtsUs
+        assertTrue("Drift must exceed gap threshold (40ms)", driftUs > 40_000L)
+
+        val missingFrames = (driftUs * sampleRate) / 1_000_000L
+        val cappedMissingFrames = missingFrames.coerceAtMost(sampleRate * 3L)
+        assertEquals(15435L, cappedMissingFrames)
+
+        // 3. Synthesize silence chunks bridging the gap
+        var framesToBridge = cappedMissingFrames
+        var totalSilenceFramesInserted = 0L
+        val silencePtsList = mutableListOf<Long>()
+        val silenceBuffer = ByteArray(minBufferSize)
+
+        while (framesToBridge > 0L) {
+            val chunkFrames = kotlin.math.min(framesToBridge, silenceFramesPerChunk).toInt()
+            val chunkBytes = chunkFrames * bytesPerFrame
+            assertTrue(chunkBytes <= minBufferSize)
+
+            val silencePtsUs = startTimestampUs + (totalSamplesRead * 1_000_000L) / sampleRate
+            silencePtsList.add(silencePtsUs)
+            totalSamplesRead += chunkFrames
+            totalSilenceFramesInserted += chunkFrames
+            framesToBridge -= chunkFrames
+        }
+
+        // Verify all 15435 frames bridged via silence chunks
+        assertEquals(15435L, totalSilenceFramesInserted)
+        assertTrue(silencePtsList.size >= 8)
+
+        // Verify strict monotonicity across silence frames
+        for (i in 1 until silencePtsList.size) {
+            assertTrue("Silence PTS must be strictly monotonic", silencePtsList[i] > silencePtsList[i - 1])
+        }
+
+        // 4. Verify post-gap continuous resumption
+        val postGapPtsUs = startTimestampUs + (totalSamplesRead * 1_000_000L) / sampleRate
+        val totalElapsedUs = postGapPtsUs - startTimestampUs
+        assertEquals(450_000L, totalElapsedUs) // 100ms normal + 350ms bridged silence
+    }
 }

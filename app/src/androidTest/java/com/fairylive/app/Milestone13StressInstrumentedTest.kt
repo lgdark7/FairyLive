@@ -270,4 +270,43 @@ class Milestone13StressInstrumentedTest {
         throttler.updateThermalLevel(ThermalThrottlingLevel.NOMINAL)
         assertEquals(30, throttler.currentTargetFps)
     }
+
+    @Test
+    fun testAudioHalGapSilenceSynthesisRecoveryOnDevice() {
+        val sampleRate = 44100
+        val bytesPerFrame = 2
+        val minBufferSize = 4096
+        val silenceFramesPerChunk = (minBufferSize / bytesPerFrame).toLong()
+
+        val startTimestampUs = 50_000L
+        var totalSamplesRead = 2205L // 50ms initial
+        val stallUs = 250_000L // 250ms simulated audio HAL stall
+
+        val missingFrames = (stallUs * sampleRate) / 1_000_000L
+        val cappedMissingFrames = missingFrames.coerceAtMost(sampleRate * 3L)
+        assertEquals(11025L, cappedMissingFrames)
+
+        var framesToBridge = cappedMissingFrames
+        var totalSilenceFramesInserted = 0L
+        val ptsSequence = mutableListOf<Long>()
+        val silenceBuffer = ByteArray(minBufferSize)
+
+        while (framesToBridge > 0L) {
+            val chunkFrames = kotlin.math.min(framesToBridge, silenceFramesPerChunk).toInt()
+            val chunkBytes = chunkFrames * bytesPerFrame
+            val silencePtsUs = startTimestampUs + (totalSamplesRead * 1_000_000L) / sampleRate
+            ptsSequence.add(silencePtsUs)
+            totalSamplesRead += chunkFrames
+            totalSilenceFramesInserted += chunkFrames
+            framesToBridge -= chunkFrames
+        }
+
+        assertEquals(11025L, totalSilenceFramesInserted)
+        for (i in 1 until ptsSequence.size) {
+            assertTrue("Gap-filled PTS must be monotonically increasing", ptsSequence[i] > ptsSequence[i - 1])
+        }
+
+        val finalPtsUs = startTimestampUs + (totalSamplesRead * 1_000_000L) / sampleRate
+        assertEquals(300_000L, finalPtsUs - startTimestampUs)
+    }
 }

@@ -236,6 +236,20 @@ class DashboardFragment : Fragment(),
             (activity as? MainActivity)?.navigateToStudio()
         }
 
+        var isDiagnosticsVisible = false
+        binding.btnToggleDiagnostics.setOnClickListener {
+            isDiagnosticsVisible = !isDiagnosticsVisible
+            val vis = if (isDiagnosticsVisible) View.VISIBLE else View.GONE
+            binding.cardCapability.visibility = vis
+            binding.cardEncoder.visibility = vis
+            binding.cardAudio.visibility = vis
+            binding.cardService.visibility = vis
+            binding.btnToggleDiagnostics.text = if (isDiagnosticsVisible)
+                "🔧 Hide Advanced Diagnostics"
+            else
+                "🔧 Advanced Diagnostics & Hardware Profiles"
+        }
+
         binding.btnStartCapture.setOnClickListener {
             val ctx = requireContext()
 

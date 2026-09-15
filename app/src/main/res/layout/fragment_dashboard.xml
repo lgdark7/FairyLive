@@ -90,12 +90,13 @@
             </LinearLayout>
         </androidx.cardview.widget.CardView>
 
-        <!-- Card 1: Device Capability Overview -->
+        <!-- Card 1: Device Capability Overview (Advanced / Diagnostics Collapsible) -->
         <androidx.cardview.widget.CardView
             android:id="@+id/card_capability"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginBottom="16dp"
+            android:visibility="gone"
             app:cardBackgroundColor="@color/bg_card"
             app:cardCornerRadius="12dp"
             app:cardElevation="2dp">
@@ -317,12 +318,13 @@
             </LinearLayout>
         </androidx.cardview.widget.CardView>
 
-        <!-- Card 3: Hardware Video Encoder Telemetry (Milestone 3) -->
+        <!-- Card 3: Hardware Video Encoder Telemetry (Milestone 3) (Diagnostics) -->
         <androidx.cardview.widget.CardView
             android:id="@+id/card_encoder"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginBottom="16dp"
+            android:visibility="gone"
             app:cardBackgroundColor="@color/bg_card"
             app:cardCornerRadius="12dp"
             app:cardElevation="2dp">
@@ -406,12 +408,13 @@
             </LinearLayout>
         </androidx.cardview.widget.CardView>
 
-        <!-- Card 4: Audio Subsystem (Milestone 4) -->
+        <!-- Card 4: Audio Subsystem (Milestone 4) (Diagnostics) -->
         <androidx.cardview.widget.CardView
             android:id="@+id/card_audio"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginBottom="16dp"
+            android:visibility="gone"
             app:cardBackgroundColor="@color/bg_card"
             app:cardCornerRadius="12dp"
             app:cardElevation="2dp">
@@ -553,12 +556,13 @@
             </LinearLayout>
         </androidx.cardview.widget.CardView>
 
-        <!-- Card 5: Foreground Service & Lifecycle Controller -->
+        <!-- Card 5: Foreground Service & Lifecycle Controller (Diagnostics) -->
         <androidx.cardview.widget.CardView
             android:id="@+id/card_service"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginBottom="16dp"
+            android:visibility="gone"
             app:cardBackgroundColor="@color/bg_card"
             app:cardCornerRadius="12dp"
             app:cardElevation="2dp">
@@ -1010,6 +1014,21 @@
 
             </LinearLayout>
         </androidx.cardview.widget.CardView>
+
+        <!-- Diagnostics Toggle for Developers / Advanced Users -->
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_toggle_diagnostics"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:layout_marginBottom="24dp"
+            android:backgroundTint="@color/bg_card"
+            android:text="🔧 Advanced Diagnostics &amp; Hardware Profiles"
+            android:textColor="@color/text_secondary"
+            android:textSize="12sp"
+            app:cornerRadius="8dp"
+            app:strokeColor="@color/fairy_purple_dark"
+            app:strokeWidth="1dp" />
 
     </LinearLayout>
 </ScrollView>
