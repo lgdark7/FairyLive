@@ -6,10 +6,12 @@ import android.content.Context
 import android.content.Intent
 import android.content.res.ColorStateList
 import android.graphics.Color
+import android.net.Uri
 import android.media.projection.MediaProjectionConfig
 import android.media.projection.MediaProjectionManager
 import android.os.Build
 import android.os.Bundle
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -80,6 +82,14 @@ class CreatorStudioFragment : Fragment(),
             startStreamingWithProjection(result.resultCode, result.data!!)
         } else {
             Toast.makeText(requireContext(), "Screen capture permission denied", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private val imagePickerLauncher = registerForActivityResult(
+        ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            importImageFromUri(uri)
         }
     }
 
@@ -183,6 +193,26 @@ class CreatorStudioFragment : Fragment(),
             showSceneManagerDialog()
         }
 
+        binding.btnUndo.setOnClickListener {
+            val app = requireActivity().application as FairyLiveApplication
+            val prev = app.sceneManager.undoActiveScene()
+            if (prev != null) {
+                updateSceneUI(prev)
+                persistAndSyncScene(prev)
+                updateUndoRedoState()
+            }
+        }
+
+        binding.btnRedo.setOnClickListener {
+            val app = requireActivity().application as FairyLiveApplication
+            val next = app.sceneManager.redoActiveScene()
+            if (next != null) {
+                updateSceneUI(next)
+                persistAndSyncScene(next)
+                updateUndoRedoState()
+            }
+        }
+
         // Selected element controls
         binding.btnElementDelete.setOnClickListener {
             val selId = binding.broadcastPreviewView.getSelectedElementId() ?: return@setOnClickListener
@@ -197,6 +227,7 @@ class CreatorStudioFragment : Fragment(),
             binding.broadcastPreviewView.setSelectedElement(null)
             binding.layoutSelectedProperties.visibility = View.GONE
             populateLayersList()
+            updateUndoRedoState()
         }
 
         binding.btnElementVisibility.setOnClickListener {
@@ -208,6 +239,7 @@ class CreatorStudioFragment : Fragment(),
             persistAndSyncScene(newScene)
             binding.btnElementVisibility.text = if (updatedElem.visible) "Hide" else "Show"
             populateLayersList()
+            updateUndoRedoState()
         }
 
         binding.btnElementLayerUp.setOnClickListener {
@@ -219,6 +251,7 @@ class CreatorStudioFragment : Fragment(),
                 val newScene = app.sceneManager.reorderLayersInActiveScene(idx, idx + 1)
                 persistAndSyncScene(newScene)
                 populateLayersList()
+                updateUndoRedoState()
             }
         }
 
@@ -231,7 +264,22 @@ class CreatorStudioFragment : Fragment(),
                 val newScene = app.sceneManager.reorderLayersInActiveScene(idx, idx - 1)
                 persistAndSyncScene(newScene)
                 populateLayersList()
+                updateUndoRedoState()
             }
+        }
+
+        binding.btnElementEdit.setOnClickListener {
+            val selId = binding.broadcastPreviewView.getSelectedElementId() ?: return@setOnClickListener
+            val app = requireActivity().application as FairyLiveApplication
+            val elem = app.sceneManager.activeScene.overlayElements.firstOrNull { it.id == selId } ?: return@setOnClickListener
+            showEditElementDialog(elem)
+        }
+
+        binding.btnElementOpacity.setOnClickListener {
+            val selId = binding.broadcastPreviewView.getSelectedElementId() ?: return@setOnClickListener
+            val app = requireActivity().application as FairyLiveApplication
+            val elem = app.sceneManager.activeScene.overlayElements.firstOrNull { it.id == selId } ?: return@setOnClickListener
+            showOpacityDialog(elem)
         }
     }
 
@@ -559,19 +607,162 @@ class CreatorStudioFragment : Fragment(),
     }
 
     private fun addDefaultImage() {
+        val options = arrayOf("📁 Pick Image from Device Storage", "🎨 Use Default FAIRY Logo")
+        AlertDialog.Builder(requireContext(), android.R.style.Theme_DeviceDefault_Dialog_Alert)
+            .setTitle("Add Image Overlay")
+            .setItems(options) { _, which ->
+                if (which == 0) {
+                    imagePickerLauncher.launch("image/*")
+                } else {
+                    val app = requireActivity().application as FairyLiveApplication
+                    val id = "img_${System.currentTimeMillis() % 10000}"
+                    val elem = OverlayElement.createImage(
+                        id = id,
+                        resourcePath = "overlay_logo.png",
+                        x = 0.75f,
+                        y = 0.05f,
+                        width = 0.20f,
+                        zIndex = 10
+                    )
+                    val newScene = app.sceneManager.addOverlayToActiveScene(elem)
+                    persistAndSyncScene(newScene)
+                    binding.broadcastPreviewView.setSelectedElement(id)
+                    updateUndoRedoState()
+                }
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun importImageFromUri(uri: Uri) {
+        try {
+            val context = requireContext()
+            val assetsDir = java.io.File(context.cacheDir, "studio_assets").apply { mkdirs() }
+            val assetFile = java.io.File(assetsDir, "custom_asset_${System.currentTimeMillis()}.png")
+            context.contentResolver.openInputStream(uri)?.use { input ->
+                java.io.FileOutputStream(assetFile).use { output ->
+                    input.copyTo(output)
+                }
+            }
+
+            val app = requireActivity().application as FairyLiveApplication
+            val id = "img_custom_${System.currentTimeMillis() % 10000}"
+            val elem = OverlayElement.createImage(
+                id = id,
+                resourcePath = assetFile.absolutePath,
+                x = 0.20f,
+                y = 0.20f,
+                width = 0.30f,
+                zIndex = 15
+            )
+            val newScene = app.sceneManager.addOverlayToActiveScene(elem)
+            persistAndSyncScene(newScene)
+            binding.broadcastPreviewView.setSelectedElement(id)
+            updateUndoRedoState()
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to import custom image asset: ${e.message}", e)
+        }
+    }
+
+    private fun showEditElementDialog(elem: OverlayElement) {
         val app = requireActivity().application as FairyLiveApplication
-        val id = "img_${System.currentTimeMillis() % 10000}"
-        val elem = OverlayElement.createImage(
-            id = id,
-            resourcePath = "overlay_logo.png",
-            x = 0.75f,
-            y = 0.05f,
-            width = 0.20f,
-            zIndex = 10
-        )
-        val newScene = app.sceneManager.addOverlayToActiveScene(elem)
-        persistAndSyncScene(newScene)
-        binding.broadcastPreviewView.setSelectedElement(id)
+        when (elem.type) {
+            OverlayType.TEXT -> {
+                val input = EditText(requireContext()).apply {
+                    setText(elem.textConfig?.text ?: "")
+                    setTextColor(Color.WHITE)
+                    setHintTextColor(Color.GRAY)
+                }
+                AlertDialog.Builder(requireContext(), android.R.style.Theme_DeviceDefault_Dialog_Alert)
+                    .setTitle("Edit Text Overlay")
+                    .setView(input)
+                    .setPositiveButton("Save") { _, _ ->
+                        val newText = input.text.toString().trim()
+                        if (newText.isNotEmpty()) {
+                            val updated = elem.copy(textConfig = elem.textConfig?.copy(text = newText))
+                            val newScene = app.sceneManager.updateOverlayInActiveScene(updated)
+                            persistAndSyncScene(newScene)
+                            updateUndoRedoState()
+                        }
+                    }
+                    .setNegativeButton("Cancel", null)
+                    .show()
+            }
+            OverlayType.QR -> {
+                val input = EditText(requireContext()).apply {
+                    setText(elem.qrConfig?.payloadUrl ?: "")
+                    setTextColor(Color.WHITE)
+                    setHintTextColor(Color.GRAY)
+                }
+                AlertDialog.Builder(requireContext(), android.R.style.Theme_DeviceDefault_Dialog_Alert)
+                    .setTitle("Edit QR Payload URL")
+                    .setView(input)
+                    .setPositiveButton("Save") { _, _ ->
+                        val newUrl = input.text.toString().trim()
+                        if (newUrl.isNotEmpty()) {
+                            val updated = elem.copy(qrConfig = elem.qrConfig?.copy(payloadUrl = newUrl))
+                            val newScene = app.sceneManager.updateOverlayInActiveScene(updated)
+                            persistAndSyncScene(newScene)
+                            updateUndoRedoState()
+                        }
+                    }
+                    .setNegativeButton("Cancel", null)
+                    .show()
+            }
+            OverlayType.GOAL -> {
+                val input = EditText(requireContext()).apply {
+                    setText(elem.goalConfig?.title ?: "")
+                    setTextColor(Color.WHITE)
+                    setHintTextColor(Color.GRAY)
+                }
+                AlertDialog.Builder(requireContext(), android.R.style.Theme_DeviceDefault_Dialog_Alert)
+                    .setTitle("Edit Goal Title")
+                    .setView(input)
+                    .setPositiveButton("Save") { _, _ ->
+                        val newTitle = input.text.toString().trim()
+                        if (newTitle.isNotEmpty()) {
+                            val updated = elem.copy(goalConfig = elem.goalConfig?.copy(title = newTitle))
+                            val newScene = app.sceneManager.updateOverlayInActiveScene(updated)
+                            persistAndSyncScene(newScene)
+                            updateUndoRedoState()
+                        }
+                    }
+                    .setNegativeButton("Cancel", null)
+                    .show()
+            }
+            else -> {
+                AlertDialog.Builder(requireContext(), android.R.style.Theme_DeviceDefault_Dialog_Alert)
+                    .setTitle("Layer Properties")
+                    .setMessage("Type: ${elem.type.name}\nZ-Index: ${elem.zIndex}\nPosition: (${(elem.normalizedX * 100).toInt()}%, ${(elem.normalizedY * 100).toInt()}%)")
+                    .setPositiveButton("OK", null)
+                    .show()
+            }
+        }
+    }
+
+    private fun showOpacityDialog(elem: OverlayElement) {
+        val app = requireActivity().application as FairyLiveApplication
+        val options = arrayOf("100%", "80%", "60%", "40%", "20%")
+        val values = floatArrayOf(1.0f, 0.8f, 0.6f, 0.4f, 0.2f)
+        AlertDialog.Builder(requireContext(), android.R.style.Theme_DeviceDefault_Dialog_Alert)
+            .setTitle("Set Layer Opacity")
+            .setItems(options) { _, which ->
+                val newOpacity = values[which]
+                val updated = elem.copy(opacity = newOpacity)
+                val newScene = app.sceneManager.updateOverlayInActiveScene(updated)
+                persistAndSyncScene(newScene)
+                updateUndoRedoState()
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun updateUndoRedoState() {
+        val app = (activity?.application as? FairyLiveApplication) ?: return
+        binding.btnUndo.alpha = if (app.sceneManager.history.canUndo) 1.0f else 0.35f
+        binding.btnUndo.isEnabled = app.sceneManager.history.canUndo
+        binding.btnRedo.alpha = if (app.sceneManager.history.canRedo) 1.0f else 0.35f
+        binding.btnRedo.isEnabled = app.sceneManager.history.canRedo
     }
 
     private fun addDefaultGif() {
@@ -780,5 +971,9 @@ class CreatorStudioFragment : Fragment(),
             if (_binding == null) return@runOnUiThread
             binding.tvHudAudioRate.text = "Audio: ${metrics.samplesRead} spls (${metrics.peakAmplitudePercent}%)"
         }
+    }
+
+    companion object {
+        private const val TAG = "CreatorStudioFragment"
     }
 }

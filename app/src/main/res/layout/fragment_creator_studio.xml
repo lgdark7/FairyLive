@@ -53,6 +53,24 @@
                     android:layout_height="1dp"
                     android:layout_weight="1" />
 
+                <ImageButton
+                    android:id="@+id/btn_undo"
+                    android:layout_width="32dp"
+                    android:layout_height="32dp"
+                    android:layout_marginEnd="4dp"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:src="@android:drawable/ic_menu_revert"
+                    android:contentDescription="Undo" />
+
+                <ImageButton
+                    android:id="@+id/btn_redo"
+                    android:layout_width="32dp"
+                    android:layout_height="32dp"
+                    android:layout_marginEnd="8dp"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:src="@android:drawable/ic_menu_rotate"
+                    android:contentDescription="Redo" />
+
                 <TextView
                     android:id="@+id/tv_active_scene_label"
                     android:layout_width="wrap_content"
@@ -287,6 +305,38 @@
                         android:layout_weight="1"
                         android:backgroundTint="@color/bg_surface"
                         android:text="▼ Send Backward"
+                        android:textAllCaps="false"
+                        android:textColor="@color/text_primary"
+                        android:textSize="10sp" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:id="@+id/layout_element_edit_row"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <Button
+                        android:id="@+id/btn_element_edit"
+                        android:layout_width="0dp"
+                        android:layout_height="32dp"
+                        android:layout_weight="1"
+                        android:layout_marginEnd="4dp"
+                        android:backgroundTint="@color/bg_surface"
+                        android:text="✏️ Edit Content"
+                        android:textAllCaps="false"
+                        android:textColor="@color/text_primary"
+                        android:textSize="10sp" />
+
+                    <Button
+                        android:id="@+id/btn_element_opacity"
+                        android:layout_width="0dp"
+                        android:layout_height="32dp"
+                        android:layout_weight="1"
+                        android:backgroundTint="@color/bg_surface"
+                        android:text="🌓 Opacity"
                         android:textAllCaps="false"
                         android:textColor="@color/text_primary"
                         android:textSize="10sp" />

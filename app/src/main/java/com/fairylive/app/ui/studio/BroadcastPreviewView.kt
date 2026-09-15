@@ -74,6 +74,16 @@ class BroadcastPreviewView @JvmOverloads constructor(
         color = Color.WHITE
     }
 
+    private val guidelinePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE
+        strokeWidth = 1.5f * resources.displayMetrics.density
+        color = Color.parseColor("#FFD600") // Yellow guideline
+        pathEffect = android.graphics.DashPathEffect(floatArrayOf(12f, 8f), 0f)
+    }
+
+    private var snapGuideVerticalX: Float? = null
+    private var snapGuideHorizontalY: Float? = null
+
     private val labelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.WHITE
         textSize = 12f * resources.displayMetrics.scaledDensity
@@ -253,8 +263,26 @@ class BroadcastPreviewView @JvmOverloads constructor(
                 }
                 OverlayType.IMAGE -> {
                     val iv = ImageView(context)
-                    iv.setImageResource(R.drawable.ic_stream)
-                    iv.setBackgroundColor(Color.parseColor("#4000E5FF"))
+                    val path = elem.resourcePath
+                    if (path != null && java.io.File(path).exists()) {
+                        try {
+                            val opts = android.graphics.BitmapFactory.Options().apply {
+                                inSampleSize = 2
+                            }
+                            val bmp = android.graphics.BitmapFactory.decodeFile(path, opts)
+                            if (bmp != null) {
+                                iv.setImageBitmap(bmp)
+                                iv.scaleType = ImageView.ScaleType.FIT_CENTER
+                            } else {
+                                iv.setImageResource(R.drawable.ic_stream)
+                            }
+                        } catch (_: Exception) {
+                            iv.setImageResource(R.drawable.ic_stream)
+                        }
+                    } else {
+                        iv.setImageResource(R.drawable.ic_stream)
+                        iv.setBackgroundColor(Color.parseColor("#4000E5FF"))
+                    }
                     iv
                 }
                 OverlayType.GIF -> {
@@ -305,7 +333,19 @@ class BroadcastPreviewView @JvmOverloads constructor(
 
     override fun dispatchDraw(canvas: Canvas) {
         super.dispatchDraw(canvas)
+        drawGuidelines(canvas)
         drawSelectionOverlay(canvas)
+    }
+
+    private fun drawGuidelines(canvas: Canvas) {
+        val w = width.toFloat()
+        val h = height.toFloat()
+        snapGuideVerticalX?.let { gx ->
+            canvas.drawLine(gx, 0f, gx, h, guidelinePaint)
+        }
+        snapGuideHorizontalY?.let { gy ->
+            canvas.drawLine(0f, gy, w, gy, guidelinePaint)
+        }
     }
 
     private fun drawSelectionOverlay(canvas: Canvas) {
@@ -432,20 +472,65 @@ class BroadcastPreviewView @JvmOverloads constructor(
 
                 when (touchMode) {
                     TouchMode.DRAG -> {
+                        snapGuideVerticalX = null
+                        snapGuideHorizontalY = null
+
+                        val elemW: Float
+                        val elemH: Float
+                        val origX: Float
+                        val origY: Float
+
                         if (selId == "facecam") {
                             val fc = scene.facecamConfig
-                            val newX = (fc.normalizedX + deltaNormX).coerceIn(0f, 1f - fc.normalizedWidth)
-                            val newY = (fc.normalizedY + deltaNormY).coerceIn(0f, 1f - fc.normalizedHeight)
-                            interactionListener?.onFacecamTransformed(newX, newY, fc.normalizedWidth, fc.normalizedHeight)
+                            elemW = fc.normalizedWidth
+                            elemH = fc.normalizedHeight
+                            origX = fc.normalizedX
+                            origY = fc.normalizedY
                         } else {
                             val elem = scene.overlayElements.firstOrNull { it.id == selId } ?: return false
-                            val newX = (elem.normalizedX + deltaNormX).coerceIn(0f, 1f - elem.normalizedWidth)
-                            val elemHNorm = if (elem.normalizedHeight > 0f) elem.normalizedHeight else elem.normalizedWidth * 0.4f
-                            val newY = (elem.normalizedY + deltaNormY).coerceIn(0f, 1f - elemHNorm)
-                            interactionListener?.onElementTransformed(selId, newX, newY, elem.normalizedWidth, elemHNorm)
+                            elemW = elem.normalizedWidth
+                            elemH = if (elem.normalizedHeight > 0f) elem.normalizedHeight else elem.normalizedWidth * 0.4f
+                            origX = elem.normalizedX
+                            origY = elem.normalizedY
+                        }
+
+                        var newX = (origX + deltaNormX).coerceIn(0f, 1f - elemW)
+                        var newY = (origY + deltaNormY).coerceIn(0f, 1f - elemH)
+
+                        // 1. Center & Margin Snap on X axis
+                        val centerX = newX + elemW / 2f
+                        if (Math.abs(centerX - 0.5f) < 0.025f) {
+                            newX = 0.5f - elemW / 2f
+                            snapGuideVerticalX = 0.5f * w
+                        } else if (Math.abs(newX - 0.05f) < 0.02f) {
+                            newX = 0.05f
+                            snapGuideVerticalX = 0.05f * w
+                        } else if (Math.abs((newX + elemW) - 0.95f) < 0.02f) {
+                            newX = 0.95f - elemW
+                            snapGuideVerticalX = 0.95f * w
+                        }
+
+                        // 2. Center & Margin Snap on Y axis
+                        val centerY = newY + elemH / 2f
+                        if (Math.abs(centerY - 0.5f) < 0.025f) {
+                            newY = 0.5f - elemH / 2f
+                            snapGuideHorizontalY = 0.5f * h
+                        } else if (Math.abs(newY - 0.05f) < 0.02f) {
+                            newY = 0.05f
+                            snapGuideHorizontalY = 0.05f * h
+                        } else if (Math.abs((newY + elemH) - 0.95f) < 0.02f) {
+                            newY = 0.95f - elemH
+                            snapGuideHorizontalY = 0.95f * h
+                        }
+
+                        if (selId == "facecam") {
+                            interactionListener?.onFacecamTransformed(newX, newY, elemW, elemH)
+                        } else {
+                            interactionListener?.onElementTransformed(selId, newX, newY, elemW, elemH)
                         }
                         lastTouchX = touchX
                         lastTouchY = touchY
+                        invalidate()
                         return true
                     }
 
@@ -474,7 +559,10 @@ class BroadcastPreviewView @JvmOverloads constructor(
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                 touchMode = TouchMode.NONE
                 activeCorner = -1
+                snapGuideVerticalX = null
+                snapGuideHorizontalY = null
                 parent?.requestDisallowInterceptTouchEvent(false)
+                invalidate()
                 return true
             }
         }

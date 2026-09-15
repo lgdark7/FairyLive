@@ -22,6 +22,8 @@ class BroadcastSceneManager(
     @Volatile
     private var _activeScene: BroadcastScene = scenes.firstOrNull() ?: createDefaultGameplayScene()
 
+    val history = SceneHistoryManager()
+
     val activeScene: BroadcastScene
         get() = _activeScene
 
@@ -120,7 +122,29 @@ class BroadcastSceneManager(
     }
 
     @Synchronized
-    fun updateActiveScene(updater: (BroadcastScene) -> BroadcastScene): BroadcastScene {
+    fun recordSnapshot() {
+        history.pushSnapshot(_activeScene)
+    }
+
+    @Synchronized
+    fun undoActiveScene(): BroadcastScene? {
+        val prev = history.undo(_activeScene) ?: return null
+        registerScene(prev)
+        return prev
+    }
+
+    @Synchronized
+    fun redoActiveScene(): BroadcastScene? {
+        val next = history.redo(_activeScene) ?: return null
+        registerScene(next)
+        return next
+    }
+
+    @Synchronized
+    fun updateActiveScene(recordHistory: Boolean = true, updater: (BroadcastScene) -> BroadcastScene): BroadcastScene {
+        if (recordHistory) {
+            history.pushSnapshot(_activeScene)
+        }
         val updated = updater(_activeScene)
         registerScene(updated)
         return updated
@@ -128,7 +152,7 @@ class BroadcastSceneManager(
 
     @Synchronized
     fun addOverlayToActiveScene(element: OverlayElement): BroadcastScene {
-        return updateActiveScene { current ->
+        return updateActiveScene(recordHistory = true) { current ->
             val updatedList = current.overlayElements.toMutableList()
             val existingIdx = updatedList.indexOfFirst { it.id == element.id }
             if (existingIdx >= 0) {
@@ -141,8 +165,8 @@ class BroadcastSceneManager(
     }
 
     @Synchronized
-    fun updateOverlayInActiveScene(element: OverlayElement): BroadcastScene {
-        return updateActiveScene { current ->
+    fun updateOverlayInActiveScene(element: OverlayElement, recordHistory: Boolean = true): BroadcastScene {
+        return updateActiveScene(recordHistory = recordHistory) { current ->
             val updatedList = current.overlayElements.map {
                 if (it.id == element.id) element else it
             }
@@ -152,7 +176,7 @@ class BroadcastSceneManager(
 
     @Synchronized
     fun removeOverlayFromActiveScene(elementId: String): BroadcastScene {
-        return updateActiveScene { current ->
+        return updateActiveScene(recordHistory = true) { current ->
             val updatedList = current.overlayElements.filterNot { it.id == elementId }
             current.copy(overlayElements = updatedList)
         }
@@ -160,7 +184,7 @@ class BroadcastSceneManager(
 
     @Synchronized
     fun reorderLayersInActiveScene(fromIndex: Int, toIndex: Int): BroadcastScene {
-        return updateActiveScene { current ->
+        return updateActiveScene(recordHistory = true) { current ->
             val list = current.overlayElements.toMutableList()
             if (fromIndex in list.indices && toIndex in list.indices && fromIndex != toIndex) {
                 val item = list.removeAt(fromIndex)
@@ -171,8 +195,8 @@ class BroadcastSceneManager(
     }
 
     @Synchronized
-    fun updateFacecamInActiveScene(config: FacecamConfig): BroadcastScene {
-        return updateActiveScene { current ->
+    fun updateFacecamInActiveScene(config: FacecamConfig, recordHistory: Boolean = true): BroadcastScene {
+        return updateActiveScene(recordHistory = recordHistory) { current ->
             current.copy(facecamConfig = config)
         }
     }

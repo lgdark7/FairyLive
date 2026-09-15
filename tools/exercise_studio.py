@@ -141,8 +141,14 @@ def main():
     print("PASS: Drag gesture completed.")
     screenshot("06_studio_overlay_dragged.png")
     
-    # 8. Camera & Mic Toggle
-    print("8. Testing Camera & Mic Toggle...")
+    # 8. M15-B Polish: Snap Drag & Undo/Redo
+    print("8. Testing Snap Drag gesture...")
+    swipe(700, 800, 540, 800, 400) # Drag to center to trigger snap guideline
+    time.sleep(0.5)
+    print("PASS: Snap drag completed.")
+
+    # 9. Camera & Mic Toggle
+    print("9. Testing Camera & Mic Toggle...")
     tap(95, 1570) # Camera toggle
     time.sleep(0.5)
     tap(242, 1570) # Mic toggle
