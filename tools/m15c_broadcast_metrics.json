@@ -1,0 +1,31 @@
+{
+  "timestamp": "2026-09-15 23:15:58",
+  "duration_seconds": 35.03,
+  "total_bytes_received": 635301,
+  "average_bitrate_kbps": 145.08,
+  "video": {
+    "total_frames": 49,
+    "first_pts_ms": 425,
+    "last_pts_ms": 11606,
+    "pts_span_ms": 11181,
+    "fps": 4.38,
+    "total_bytes": 208325
+  },
+  "audio": {
+    "total_access_units": 1520,
+    "first_pts_ms": 550,
+    "last_pts_ms": 35830,
+    "pts_span_ms": 35280,
+    "sample_derived_duration_ms": 35294.33,
+    "span_vs_sample_discrepancy_ms": 14.33,
+    "max_consecutive_pts_gap_ms": 56,
+    "gaps_over_40ms": 1,
+    "avg_pts_delta_ms": 23.23,
+    "total_bytes": 426295
+  },
+  "av_sync": {
+    "final_delta_ms": 24224,
+    "status": "DRIFT_DETECTED"
+  },
+  "flv_file": "tools/m15c_fresh_broadcast.flv"
+}
