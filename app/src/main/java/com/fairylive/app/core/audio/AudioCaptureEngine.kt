@@ -163,6 +163,7 @@ class AudioCaptureEngine {
                     val missingFrames = (driftUs * config.sampleRate) / 1_000_000L
                     // Bound gap filling to max 3.0 seconds per stall to prevent thread starvation
                     val cappedMissingFrames = missingFrames.coerceAtMost(config.sampleRate * 3L)
+                    android.util.Log.i("AudioCaptureEngine", "Audio HAL gap detected: ${driftUs / 1000}ms. Synthesizing $cappedMissingFrames silence frames.")
                     var framesToBridge = cappedMissingFrames
                     val silenceChunkFrames = (silenceBuffer.size / bytesPerFrame).toLong()
 
