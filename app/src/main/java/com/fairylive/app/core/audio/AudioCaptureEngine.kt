@@ -87,22 +87,33 @@ class AudioCaptureEngine {
 
         // Fallback to microphone capture
         if (record == null) {
-            val bufferSize = config.minBufferSize
-            record = AudioRecord(
-                MediaRecorder.AudioSource.MIC,
-                config.sampleRate,
-                config.channelConfig,
-                config.audioFormat,
-                bufferSize
-            )
-            isDeviceAudio = false
-            Log.i(TAG, "Initialized Standard Microphone AudioRecord (${config.sampleRate}Hz, buffer: $bufferSize)")
+            try {
+                val bufferSize = config.minBufferSize
+                record = AudioRecord(
+                    MediaRecorder.AudioSource.MIC,
+                    config.sampleRate,
+                    config.channelConfig,
+                    config.audioFormat,
+                    bufferSize
+                )
+                isDeviceAudio = false
+                Log.i(TAG, "Initialized Standard Microphone AudioRecord (${config.sampleRate}Hz, buffer: $bufferSize)")
+            } catch (se: SecurityException) {
+                Log.e(TAG, "Audio recording permission denied by system: ${se.message}")
+                AudioStateNotifier.updateState(AudioCaptureState.ERROR)
+                return
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to instantiate AudioRecord: ${e.message}")
+                AudioStateNotifier.updateState(AudioCaptureState.ERROR)
+                return
+            }
         }
 
         if (record.state != AudioRecord.STATE_INITIALIZED) {
             record.release()
             AudioStateNotifier.updateState(AudioCaptureState.ERROR)
-            throw IllegalStateException("AudioRecord failed to initialize (State: ${record.state})")
+            Log.e(TAG, "AudioRecord failed to initialize (State: ${record.state})")
+            return
         }
 
         this.audioRecord = record

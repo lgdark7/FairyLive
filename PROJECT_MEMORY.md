@@ -146,8 +146,21 @@ Rebuild **FAIRY LIVE** from scratch as a high-performance, professional native A
       - **Test 8: 20 Start/Stop Cycles Lifecycle Stress**: Executed 20 full broadcast cycles (`tools/audit_m13_start_stop_20cycles.json`). PSS delta +62 KB (+0.09%), completely flat across cycles 8-20; 20 threads (0 leaks); 11 sockets (0 leaks); 13,262 KB native heap (0 leaks).
       - **Test 7: Reconnection Stress**: Executed 10 consecutive forced disconnect/reconnect cycles with ~4.5s outage duration (`tools/audit_m13_reconnect_10cycles.json`). Reconnection backoff exhaustion (1s -> 2s -> 4s -> 8s) cleanly transitions to `FAILED` with zero infinite loops.
       - **Subsystem Stress & Full Regression**: 147/147 unit tests PASS; 23/23 connected tests PASS; Total: 170/170 PASS (0 failures, 71/71 tasks).
-- **Authorized Milestones**: M14: Security + Hardening (Authorized by ChatGPT on 2026-09-14).
-- **Locked Milestones**: M15: Release QA (M15 locked awaiting M14 completion and ChatGPT review). Future product milestones (Creator Studio, customizable preview, scene/layer editing) remain required before final release.
+  - **M14: Security + Hardening** (APPROVED by ChatGPT on 2026-09-15)
+      - **Repository Credential Audit**: Confirmed zero production API keys, secrets, tokens, or credentials in git history or source tree.
+      - **Android Keystore Credential Protection**: Implemented `SecureCredentialStorage` utilizing Android Keystore-protected AES-256-GCM (hardware-backed key storage is used when supported by the device) with random 12-byte IVs, 128-bit authentication tags, and fallback for JVM test environments.
+      - **Plaintext Stream Key Migration**: `StreamSettingsRepository` automatically migrates legacy plaintext keys into encrypted storage (`fairy_live_secure_credentials.xml`) and permanently removes them from `fairy_live_settings.xml`.
+      - **Stream-Key & Log Sanitization**: Partial masking (`li••••••••••56`) in UI and logs; zero plaintext secrets in Logcat.
+      - **Component & IPC Hardening**: Added `com.fairylive.app.permission.STREAM_CONTROL` (signature protection level) to `StreamControlReceiver`; disabled `android:allowBackup="false"` to prevent `adb backup` data extraction; sanitized all IPC intent extras.
+      - **Lifecycle & Resource Cleanup**: Re-entrancy guard in `FairyStreamService` against rapid start/stop storms; explicit `activeMediaProjection?.stop()` in all teardown paths.
+      - **Graceful Permission Degradation**: Caught `SecurityException` in `AudioCaptureEngine` so stream cleanly degrades to video-only if microphone permission is denied or revoked mid-stream.
+      - **Network & URI Validation**: `StreamConfigurationValidator` strictly enforces `rtmp://` and `rtmps://`, rejecting malicious schemes (`file://`, `javascript://`, `content://`), CRLF injection, path traversal (`..`), and oversized payloads.
+      - **Overlay Input Sanitization**: Clamped overlay texts to 500 chars and stripped control/terminal escape characters.
+      - **Release Build Optimization**: R8 minification via `app/proguard-rules.pro`; release APK size: **2,269,903 bytes (2.16 MB)** — 85% below the 15.0 MB ceiling.
+      - **Test Suite Growth**: 164 Unit Tests + 26 Connected Tests on Pixel 8 (AVD, API 35) = **190/190 Tests Passing** (100%).
+- **Authorized Milestones**: M15: Release QA & Creator Studio (Authorized by ChatGPT on 2026-09-15).
+  - Scope: Creator Studio UI + Customizable Live Preview + Layers + Overlays + Scene Management + Preview ↔ Broadcast Composition Correctness + Polished Streaming Controls + Carried M13 HAL-Gap Recovery QA Test (`HAL gap -> silence synthesis -> AAC silence -> normal audio recovery`) + Final Device/Lifecycle Release QA.
+- **Locked Milestones**: None. M15 is the final major milestone and release gate.
 
 ---
 

@@ -133,16 +133,7 @@ class FairyStreamService : Service() {
                 videoEncoder.resume()
             }
             ACTION_STOP_CAPTURE -> {
-                cameraEngine.stop()
-                overlayCompositor.updateFacecamConfig(overlayCompositor.facecamConfig.copy(enabled = false))
-                captureEngine.stop()
-                videoEncoder.stop()
-                audioPipeline.stop()
-                streamPipeline.stop()
-                videoEncoder.setEncodedFrameListener(null)
-                audioPipeline.setEncodedAudioFrameListener(null)
-                MediaClock.stopSession()
-                updateNotificationContent("Capture, encoders, and stream stopped")
+                handleStopCapture()
             }
             ACTION_TOGGLE_FACECAM -> {
                 toggleFacecam()
@@ -228,7 +219,30 @@ class FairyStreamService : Service() {
         return START_STICKY
     }
 
+    private fun handleStopCapture() {
+        cameraEngine.stop()
+        overlayCompositor.updateFacecamConfig(overlayCompositor.facecamConfig.copy(enabled = false))
+        captureEngine.stop()
+        videoEncoder.stop()
+        audioPipeline.stop()
+        streamPipeline.stop()
+        videoEncoder.setEncodedFrameListener(null)
+        audioPipeline.setEncodedAudioFrameListener(null)
+        MediaClock.stopSession()
+        try {
+            activeMediaProjection?.stop()
+        } catch (_: Exception) {}
+        activeMediaProjection = null
+        updateNotificationContent("Capture, encoders, and stream stopped")
+    }
+
     private fun handleStartCapture(intent: Intent) {
+        // Guard against duplicate start bursts or re-entrancy
+        if (captureEngine.isCapturing || videoEncoder.isEncoding) {
+            Log.w("FairyStreamService", "Capture session already active during start request — recycling previous session")
+            handleStopCapture()
+        }
+
         val resultCode = intent.getIntExtra(EXTRA_RESULT_CODE, 0)
         val resultData = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             intent.getParcelableExtra(EXTRA_RESULT_DATA, Intent::class.java)
@@ -247,16 +261,16 @@ class FairyStreamService : Service() {
             return
         }
 
-        val rawW = intent.getIntExtra(EXTRA_WIDTH, 1080)
-        val rawH = intent.getIntExtra(EXTRA_HEIGHT, 1920)
+        val rawW = intent.getIntExtra(EXTRA_WIDTH, 1080).coerceIn(320, 1920)
+        val rawH = intent.getIntExtra(EXTRA_HEIGHT, 1920).coerceIn(240, 1920)
         val width = (rawW / 2) * 2
         val height = (rawH / 2) * 2
-        val dpi = intent.getIntExtra(EXTRA_DPI, 420)
+        val dpi = intent.getIntExtra(EXTRA_DPI, 420).coerceIn(120, 640)
         val enableEncoding = intent.getBooleanExtra(EXTRA_ENABLE_ENCODING, true)
         val enableAudio = intent.getBooleanExtra(EXTRA_ENABLE_AUDIO, true)
         val enableCompositor = intent.getBooleanExtra(EXTRA_ENABLE_COMPOSITOR, false)
-        val bitrateKbps = intent.getIntExtra(EXTRA_BITRATE_KBPS, 1200)
-        val fps = intent.getIntExtra(EXTRA_FPS, 24)
+        val bitrateKbps = intent.getIntExtra(EXTRA_BITRATE_KBPS, 1200).coerceIn(200, 8000)
+        val fps = intent.getIntExtra(EXTRA_FPS, 24).coerceIn(10, 60)
 
         // Ensure foreground service is running with MediaProjection & Microphone types
         val statusMsg = if (enableEncoding) "Live H.264/AAC Broadcast (${width}x${height})" else "Screen Capture (${width}x${height})"
@@ -542,6 +556,9 @@ class FairyStreamService : Service() {
         streamPipeline.stop()
         videoEncoder.setEncodedFrameListener(null)
         audioPipeline.setEncodedAudioFrameListener(null)
+        try {
+            activeMediaProjection?.stop()
+        } catch (_: Exception) {}
         activeMediaProjection = null
         MediaClock.stopSession()
 
@@ -585,6 +602,9 @@ class FairyStreamService : Service() {
         streamPipeline.stop()
         videoEncoder.setEncodedFrameListener(null)
         audioPipeline.setEncodedAudioFrameListener(null)
+        try {
+            activeMediaProjection?.stop()
+        } catch (_: Exception) {}
         activeMediaProjection = null
         MediaClock.stopSession()
 

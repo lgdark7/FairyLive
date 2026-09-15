@@ -2,13 +2,20 @@ package com.fairylive.app.core.settings
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.util.Log
 import com.fairylive.app.core.capability.model.StreamProfile
+import com.fairylive.app.core.security.SecureCredentialStorage
 
 /**
- * Lightweight repository managing streamer settings via SharedPreferences.
- * Zero-dependency and instant access.
+ * Enterprise-grade repository managing streamer settings via SharedPreferences
+ * with hardware/crypto-backed isolation for sensitive credentials (AES-256-GCM).
+ * Non-sensitive stream configurations remain in fast SharedPreferences, while
+ * stream keys and authentication tokens are encrypted via SecureCredentialStorage.
  */
-class StreamSettingsRepository(context: Context) {
+class StreamSettingsRepository(
+    context: Context,
+    private val secureStorage: SecureCredentialStorage = SecureCredentialStorage(context)
+) {
 
     private val prefs: SharedPreferences =
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -21,9 +28,21 @@ class StreamSettingsRepository(context: Context) {
             defaultProfile
         }
 
+        // 1. Resolve stream key with priority: Secure Storage -> Legacy SharedPreferences migration
+        var streamKey = secureStorage.getStreamKey()
+        if (streamKey == null) {
+            val legacyKey = prefs.getString(KEY_LEGACY_STREAM_KEY, null)
+            if (!legacyKey.isNullOrBlank()) {
+                Log.i(TAG, "Migrating legacy stream key into secure encrypted storage")
+                secureStorage.storeStreamKey(legacyKey)
+                prefs.edit().remove(KEY_LEGACY_STREAM_KEY).apply()
+                streamKey = legacyKey
+            }
+        }
+
         return StreamSettings(
             serverUrl = prefs.getString(KEY_SERVER_URL, "rtmp://live.fairylive.tv/live") ?: "rtmp://live.fairylive.tv/live",
-            streamKey = prefs.getString(KEY_STREAM_KEY, "") ?: "",
+            streamKey = streamKey ?: "",
             profile = profile,
             width = prefs.getInt(KEY_WIDTH, profile.width),
             height = prefs.getInt(KEY_HEIGHT, profile.height),
@@ -36,9 +55,14 @@ class StreamSettingsRepository(context: Context) {
 
     fun saveSettings(settings: StreamSettings) {
         val clamped = settings.clamped()
+
+        // 1. Encrypt and persist sensitive stream key in isolated secure storage
+        secureStorage.storeStreamKey(clamped.streamKey)
+
+        // 2. Persist non-sensitive operational parameters, explicitly purging any legacy plaintext stream key
         prefs.edit()
             .putString(KEY_SERVER_URL, clamped.serverUrl)
-            .putString(KEY_STREAM_KEY, clamped.streamKey)
+            .remove(KEY_LEGACY_STREAM_KEY)
             .putString(KEY_PROFILE, clamped.profile.name)
             .putInt(KEY_WIDTH, clamped.width)
             .putInt(KEY_HEIGHT, clamped.height)
@@ -49,10 +73,16 @@ class StreamSettingsRepository(context: Context) {
             .apply()
     }
 
+    fun clearCredentials() {
+        secureStorage.clearStreamKey()
+        prefs.edit().remove(KEY_LEGACY_STREAM_KEY).apply()
+    }
+
     companion object {
+        private const val TAG = "StreamSettingsRepository"
         private const val PREFS_NAME = "fairy_live_settings"
         private const val KEY_SERVER_URL = "server_url"
-        private const val KEY_STREAM_KEY = "stream_key"
+        private const val KEY_LEGACY_STREAM_KEY = "stream_key"
         private const val KEY_PROFILE = "profile"
         private const val KEY_WIDTH = "width"
         private const val KEY_HEIGHT = "height"

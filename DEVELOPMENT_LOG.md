@@ -1,5 +1,45 @@
 # FAIRY LIVE — DEVELOPMENT LOG
 
+## 2026-09-15 — Milestone 14: Security + Hardening — APPROVED
+- **Milestone**: M14 Security + Hardening
+- **Execution Date**: 2026-09-15
+- **Gate Status**: 🟢 **M14 APPROVED by ChatGPT (Official Gate Approval)** | 🔓 **M15: Release QA & Creator Studio AUTHORIZED**
+- **Environment**: Google Pixel 8 AVD (Android 15, API 35), `emulator-5554`.
+- **Scope Implemented & Verified**:
+  1. **Phase 0: Threat Model & Security Specification**:
+     - Authored `THREAT_MODEL.md` (STRIDE matrix, asset classification, and mitigation architecture across Android 7.0–15).
+     - Authored `SECURITY.md` (vulnerability disclosure policy, credential isolation guidelines, and logging audit standards).
+  2. **Phase 1: Secret Audit & Zero Exposure**:
+     - Full static search over repository confirming zero hardcoded API keys, private tokens, stream credentials, or keystores in source or git.
+  3. **Phase 2: Android Keystore Credential Protection**:
+     - Implemented `SecureCredentialStorage.kt` utilizing Android Keystore-protected AES-256-GCM (hardware-backed key storage is used when supported by the device) with 12-byte random IVs and 128-bit authentication tags.
+     - Transparent cryptographic fallback for JVM unit test execution.
+     - Hardened `StreamSettingsRepository.kt`: automatic one-time migration of legacy plaintext `stream_key` into encrypted storage (`fairy_live_secure_credentials.xml`) with permanent disk purge from `fairy_live_settings.xml`.
+  4. **Phase 3: Logging & Credential Masking**:
+     - Hardened `StreamConfigurationValidator`: partial masking (`li••••••••••56`) for all stream keys in UI and diagnostics.
+     - Zero plaintext secrets emitted to Logcat.
+  5. **Phase 4 & 5: Component & Foreground Service Hardening**:
+     - Manifest: Added custom signature permission `<permission android:name="com.fairylive.app.permission.STREAM_CONTROL" android:protectionLevel="signature" />` and protected `StreamControlReceiver`.
+     - Disabled backup data extraction (`android:allowBackup="false"`).
+     - Foreground Service Lifecycle: Re-entrancy defense against rapid start/stop storms in `FairyStreamService.handleStartCapture`.
+     - Teardown Guarantee: Explicit `activeMediaProjection?.stop()` invoked across all stop and destruction paths.
+  6. **Phase 6: Permission Failure Degradation**:
+     - Caught `SecurityException` in `AudioCaptureEngine` when `AudioRecord` permission is revoked, cleanly degrading to video-only broadcast without crashing.
+  7. **Phase 7 & 8: Input, Network & Resource Hardening**:
+     - Whitelisted protocols: strictly `rtmp://` and `rtmps://`; rejected `file://`, `javascript://`, `content://`, `http://`.
+     - Strict boundary checks: max URL 2048 chars, max stream key 512 chars, max host 253 chars, port range 1..65535.
+     - Defense against CRLF injection (`
+`, `\n`, `\0`) and path traversal (`..`).
+     - Overlay text sanitization: clamped to 500 characters, control/escape characters stripped.
+  8. **Phase 11 & 12: Dependency Audit & Release Optimization**:
+     - Confirmed zero foreign streaming SDKs (no FFmpeg, Libstreaming, ExoPlayer, WebRTC).
+     - R8 minification via `app/proguard-rules.pro`.
+     - Release APK compiled: **2,269,903 bytes (2.16 MB)** — 85% below 15.0 MB budget.
+  9. **Phase 13: Regression & Security Verification Matrix**:
+     - JVM Unit Tests: **164/164 PASS** (added `SecureCredentialStorageTest`, `SecurityAndHardeningUnitTest`).
+     - Connected Android Tests: **26/26 PASS** (added `SecurityConnectedAndroidTest` testing on-device Android Keystore AES-256-GCM encryption, tamper detection, and settings migration on Pixel 8 AVD).
+     - Total: **190/190 PASS** (100% passing, 0 regressions).
+
 ## 2026-09-14 — Milestone 13: Stress Testing (Soak, A/V Sync, Lifecycle & Failure Resilience) — APPROVED
 - **Milestone**: M13 Stress Testing
 - **Execution Date**: 2026-09-14
