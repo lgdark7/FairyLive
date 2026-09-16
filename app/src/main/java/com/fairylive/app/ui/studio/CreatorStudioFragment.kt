@@ -613,8 +613,10 @@ class CreatorStudioFragment : Fragment(),
             if (bottomSheet != null) {
                 val behavior = BottomSheetBehavior.from(bottomSheet)
                 val displayMetrics = resources.displayMetrics
-                behavior.peekHeight = (displayMetrics.heightPixels * 0.52f).toInt()
+                behavior.peekHeight = (displayMetrics.heightPixels * 0.45f).toInt()
                 behavior.state = BottomSheetBehavior.STATE_COLLAPSED
+                behavior.isFitToContents = false
+                behavior.halfExpandedRatio = 0.50f
             }
         }
 
@@ -1011,8 +1013,10 @@ class CreatorStudioFragment : Fragment(),
             if (bottomSheet != null) {
                 val behavior = BottomSheetBehavior.from(bottomSheet)
                 val displayMetrics = resources.displayMetrics
-                behavior.peekHeight = (displayMetrics.heightPixels * 0.52f).toInt()
+                behavior.peekHeight = (displayMetrics.heightPixels * 0.45f).toInt()
                 behavior.state = BottomSheetBehavior.STATE_COLLAPSED
+                behavior.isFitToContents = false
+                behavior.halfExpandedRatio = 0.50f
             }
         }
 
