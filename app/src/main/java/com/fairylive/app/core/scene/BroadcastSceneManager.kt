@@ -24,6 +24,12 @@ class BroadcastSceneManager(
 
     val history = SceneHistoryManager()
 
+    val canUndo: Boolean
+        get() = history.canUndo
+
+    val canRedo: Boolean
+        get() = history.canRedo
+
     val activeScene: BroadcastScene
         get() = _activeScene
 
