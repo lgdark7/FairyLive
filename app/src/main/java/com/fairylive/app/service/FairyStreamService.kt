@@ -133,6 +133,19 @@ class FairyStreamService : Service() {
                 captureEngine.resume()
                 videoEncoder.resume()
             }
+            ACTION_MUTE_MIC -> {
+                audioPipeline?.mute()
+            }
+            ACTION_UNMUTE_MIC -> {
+                audioPipeline?.unmute()
+            }
+            ACTION_TOGGLE_MIC -> {
+                if (audioPipeline?.isMuted() == true) {
+                    audioPipeline?.unmute()
+                } else {
+                    audioPipeline?.mute()
+                }
+            }
             ACTION_STOP_CAPTURE -> {
                 handleStopCapture()
             }
@@ -732,6 +745,9 @@ class FairyStreamService : Service() {
         const val ACTION_START_CAPTURE = "com.fairylive.app.action.START_CAPTURE"
         const val ACTION_PAUSE_CAPTURE = "com.fairylive.app.action.PAUSE_CAPTURE"
         const val ACTION_RESUME_CAPTURE = "com.fairylive.app.action.RESUME_CAPTURE"
+        const val ACTION_MUTE_MIC = "com.fairylive.app.action.MUTE_MIC"
+        const val ACTION_UNMUTE_MIC = "com.fairylive.app.action.UNMUTE_MIC"
+        const val ACTION_TOGGLE_MIC = "com.fairylive.app.action.TOGGLE_MIC"
         const val ACTION_STOP_CAPTURE = "com.fairylive.app.action.STOP_CAPTURE"
         const val ACTION_UPDATE_RESOLUTION = "com.fairylive.app.action.UPDATE_RESOLUTION"
         const val ACTION_REQUEST_KEYFRAME = "com.fairylive.app.action.REQUEST_KEYFRAME"
@@ -894,6 +910,27 @@ class FairyStreamService : Service() {
         fun resumeCapture(context: Context) {
             val intent = Intent(context, FairyStreamService::class.java).apply {
                 action = ACTION_RESUME_CAPTURE
+            }
+            context.startService(intent)
+        }
+
+        fun muteMicrophone(context: Context) {
+            val intent = Intent(context, FairyStreamService::class.java).apply {
+                action = ACTION_MUTE_MIC
+            }
+            context.startService(intent)
+        }
+
+        fun unmuteMicrophone(context: Context) {
+            val intent = Intent(context, FairyStreamService::class.java).apply {
+                action = ACTION_UNMUTE_MIC
+            }
+            context.startService(intent)
+        }
+
+        fun toggleMicrophone(context: Context) {
+            val intent = Intent(context, FairyStreamService::class.java).apply {
+                action = ACTION_TOGGLE_MIC
             }
             context.startService(intent)
         }
