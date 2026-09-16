@@ -112,7 +112,7 @@ class OverlayCompositor(
     }
 
     @Synchronized
-    fun start(encoderSurface: Surface, width: Int, height: Int): Surface {
+    fun start(encoderSurface: Surface, width: Int, height: Int, fps: Int = 30): Surface {
         if (isRunning.get()) {
             stop()
         }
@@ -123,6 +123,9 @@ class OverlayCompositor(
         this.renderThread = thread
         val handler = Handler(thread.looper)
         this.renderHandler = handler
+
+        fpsThrottler.forceFps(fps)
+        lastCompositedTimeNs = 0L
 
         captureFramesReceived.set(0L)
         surfaceTextureUpdates.set(0L)
@@ -227,20 +230,33 @@ class OverlayCompositor(
     private fun renderFrame(fromCallback: Boolean = false) {
         if (!isRunning.get() || !available || isPaused.get()) return
 
+        // Do not render until at least one frame has arrived from capture or camera
+        if (captureFramesReceived.get() == 0L && cameraFramesReceived.get() == 0L) {
+            return
+        }
+
+        val nowNs = com.fairylive.app.core.common.MediaClock.nanoTimeSource()
+        val intervalNs = fpsThrottler.currentFrameIntervalNs
+        val elapsedSinceLastNs = nowNs - lastCompositedTimeNs
+
         if (fromCallback) {
-            val nowNs = System.nanoTime()
-            val intervalNs = fpsThrottler.currentFrameIntervalNs
-            if (nowNs - lastCompositedTimeNs < intervalNs * 0.85) {
+            if (elapsedSinceLastNs < intervalNs * 0.85) {
                 // Low-end dynamic frame throttling: drop frame to maintain steady cadence
+                duplicateRendersSkipped.incrementAndGet()
+                return
+            }
+        } else {
+            // Periodic poll check: only render if at least one frame interval has elapsed since the last render
+            if (elapsedSinceLastNs < intervalNs) {
+                duplicateRendersSkipped.incrementAndGet()
                 return
             }
         }
 
         val isCaptureNew = renderer.consumeNewFrame(force = fromCallback)
         val isCameraNew = if (facecamConfig.enabled) renderer.consumeNewCameraFrame(force = fromCallback) else false
-        if (!isCaptureNew && !isCameraNew) {
-            duplicateRendersSkipped.incrementAndGet()
-            return
+        if (isCaptureNew || isCameraNew) {
+            surfaceTextureUpdates.incrementAndGet()
         }
         if (isTransitionActive) {
             val now = SystemClock.elapsedRealtime()
@@ -267,17 +283,16 @@ class OverlayCompositor(
                 targetScene?.let { applySceneImmediate(it) }
             }
         }
-        surfaceTextureUpdates.incrementAndGet()
         val renderStartNs = System.nanoTime()
         if (enabled) {
-            renderer.drawFrame(scene, resources, facecamConfig)
+            renderer.drawFrame(scene, resources, facecamConfig, presentationTimeNs = nowNs)
         } else {
             // Disabled: forward capture to the encoder unchanged (pass-through)
-            renderer.drawFrame(OverlayScene(), resources, null)
+            renderer.drawFrame(OverlayScene(), resources, null, presentationTimeNs = nowNs)
         }
         val renderEndNs = System.nanoTime()
         fpsThrottler.recordRenderTime((renderEndNs - renderStartNs) / 1_000_000L)
-        lastCompositedTimeNs = renderEndNs
+        lastCompositedTimeNs = nowNs
 
         val count = renderIterations.incrementAndGet()
         framesComposited.set(count)
@@ -465,17 +480,17 @@ class OverlayCompositor(
             return true
         }
 
+        sceneManager.switchScene(target.id, transition)
+
         val handler = renderHandler
         if (handler == null) {
             applySceneImmediate(target)
-            sceneManager.switchScene(target.id, transition)
             return true
         }
 
         handler.post {
             if (transition.type == SceneTransitionType.CUT || transition.durationMs <= 0L) {
                 applySceneImmediate(target)
-                sceneManager.switchScene(target.id, transition)
             } else {
                 startSceneTransition(current, target, transition)
             }

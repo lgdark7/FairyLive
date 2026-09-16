@@ -1,25 +1,29 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Core Dark Cyber Palette -->
-    <color name="bg_primary">#0E0E14</color>
-    <color name="bg_surface">#181824</color>
-    <color name="bg_card">#222234</color>
-    <color name="bg_card_stroke">#33334D</color>
+    <!-- Dark-First Neutral Surfaces -->
+    <color name="bg_primary">#090A0E</color>
+    <color name="bg_surface">#13141B</color>
+    <color name="bg_card">#1A1C25</color>
+    <color name="bg_card_stroke">#282A38</color>
 
-    <!-- Accent Colors -->
-    <color name="fairy_purple">#7C4DFF</color>
-    <color name="fairy_purple_light">#B388FF</color>
-    <color name="fairy_purple_dark">#512DA8</color>
-    <color name="fairy_cyan">#00E5FF</color>
+    <!-- Unified Single Accent Color (Indigo) -->
+    <color name="accent_primary">#6366F1</color>
+    <color name="accent_primary_variant">#4F46E5</color>
+    <color name="fairy_purple">#6366F1</color>
+    <color name="fairy_purple_light">#818CF8</color>
+    <color name="fairy_purple_dark">#4F46E5</color>
+    <color name="fairy_cyan">#6366F1</color>
 
-    <!-- Status Colors -->
-    <color name="status_green">#00E676</color>
-    <color name="status_amber">#FFD600</color>
-    <color name="status_red">#FF5252</color>
+    <!-- Functional Status Colors -->
+    <color name="status_green">#10B981</color>
+    <color name="status_amber">#F59E0B</color>
+    <color name="status_red">#EF4444</color>
 
-    <!-- Typography / Neutral Colors -->
+    <!-- Typography & Neutral Utilities -->
     <color name="text_primary">#FFFFFF</color>
-    <color name="text_secondary">#B0B0C8</color>
-    <color name="text_muted">#70708A</color>
-    <color name="divider_color">#2C2C40</color>
+    <color name="text_secondary">#9CA3AF</color>
+    <color name="text_muted">#6B7280</color>
+    <color name="divider_color">#1E202B</color>
+    <color name="chip_bg">#1A1C26</color>
+    <color name="chip_bg_active">#4F46E5</color>
 </resources>

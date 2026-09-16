@@ -203,10 +203,12 @@ def run_server(port=19350, flv_path="tools/m15c_fresh_broadcast.flv", metrics_pa
                     print("[RTMP_RECORDER] Stream PUBLISH command received! Broadcast LIVE.", flush=True)
 
             elif mtype == 9: # Video
-                video_packets.append({"ts": ts, "size": len(p)})
+                is_seq = (len(p) > 1 and p[1] == 0)
+                video_packets.append({"ts": ts, "size": len(p), "is_seq": is_seq})
                 write_flv_tag(flv, 9, ts, p)
             elif mtype == 8: # Audio
-                audio_packets.append({"ts": ts, "size": len(p)})
+                is_seq = (len(p) > 1 and p[1] == 0)
+                audio_packets.append({"ts": ts, "size": len(p), "is_seq": is_seq})
                 write_flv_tag(flv, 8, ts, p)
 
             if len(video_packets) > 0 and len(video_packets) % 30 == 0:
@@ -237,11 +239,14 @@ def run_server(port=19350, flv_path="tools/m15c_fresh_broadcast.flv", metrics_pa
     last_a_ts = audio_packets[-1]["ts"] if audio_packets else 0
     a_span = last_a_ts - first_a_ts
 
-    # AAC PTS continuity check
+    # AAC PTS continuity check across raw audio access units
+    raw_audio_packets = [p for p in audio_packets if not p.get("is_seq", False)]
+    check_packets = raw_audio_packets if raw_audio_packets else audio_packets
+
     a_gaps = []
     a_gaps_over_40ms = 0
-    for i in range(1, len(audio_packets)):
-        delta = audio_packets[i]["ts"] - audio_packets[i-1]["ts"]
+    for i in range(1, len(check_packets)):
+        delta = check_packets[i]["ts"] - check_packets[i-1]["ts"]
         a_gaps.append(delta)
         if delta > 40:
             a_gaps_over_40ms += 1

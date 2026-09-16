@@ -27,6 +27,9 @@ class DiagnosticsFragment : Fragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
+        binding.btnBackFromDiagnostics.setOnClickListener {
+            parentFragmentManager.popBackStack()
+        }
         renderDiagnostics()
     }
 

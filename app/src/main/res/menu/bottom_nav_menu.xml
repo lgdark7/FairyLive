@@ -3,17 +3,13 @@
     <item
         android:id="@+id/nav_dashboard"
         android:icon="@drawable/ic_dashboard"
-        android:title="@string/nav_dashboard" />
+        android:title="Home" />
     <item
         android:id="@+id/nav_studio"
         android:icon="@drawable/ic_stream"
-        android:title="@string/nav_studio" />
+        android:title="Studio" />
     <item
         android:id="@+id/nav_settings"
         android:icon="@drawable/ic_settings"
-        android:title="@string/nav_settings" />
-    <item
-        android:id="@+id/nav_diagnostics"
-        android:icon="@drawable/ic_diagnostics"
-        android:title="@string/nav_diagnostics" />
+        android:title="Settings" />
 </menu>

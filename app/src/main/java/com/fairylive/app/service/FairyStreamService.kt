@@ -356,7 +356,7 @@ class FairyStreamService : Service() {
             val captureSurface: Surface
             if (enableCompositor) {
                 try {
-                    captureSurface = overlayCompositor.start(encoderSurface, encW, encH)
+                    captureSurface = overlayCompositor.start(encoderSurface, encW, encH, fps)
                     val singleOverlayOnly = intent.getBooleanExtra(EXTRA_SINGLE_OVERLAY, false)
                     if (singleOverlayOnly) {
                         overlayCompositor.addSampleSingleOverlayScene()

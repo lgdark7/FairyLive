@@ -54,31 +54,31 @@ class BroadcastPreviewView @JvmOverloads constructor(
 
     private val selectionPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.STROKE
-        strokeWidth = 3f * resources.displayMetrics.density
-        color = Color.parseColor("#00E5FF")
+        strokeWidth = 1.5f * resources.displayMetrics.density
+        color = Color.parseColor("#6366F1")
     }
 
     private val selectionFillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.FILL
-        color = Color.parseColor("#1A00E5FF")
+        color = Color.parseColor("#0F6366F1")
     }
 
     private val handlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.FILL
-        color = Color.parseColor("#00E5FF")
+        color = Color.WHITE
     }
 
     private val handleStrokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.STROKE
-        strokeWidth = 2f * resources.displayMetrics.density
-        color = Color.WHITE
+        strokeWidth = 1.5f * resources.displayMetrics.density
+        color = Color.parseColor("#6366F1")
     }
 
     private val guidelinePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.STROKE
-        strokeWidth = 1.5f * resources.displayMetrics.density
-        color = Color.parseColor("#FFD600") // Yellow guideline
-        pathEffect = android.graphics.DashPathEffect(floatArrayOf(12f, 8f), 0f)
+        strokeWidth = 1f * resources.displayMetrics.density
+        color = Color.parseColor("#6366F1")
+        pathEffect = android.graphics.DashPathEffect(floatArrayOf(8f, 6f), 0f)
     }
 
     private var snapGuideVerticalX: Float? = null
@@ -86,18 +86,20 @@ class BroadcastPreviewView @JvmOverloads constructor(
 
     private val labelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.WHITE
-        textSize = 12f * resources.displayMetrics.scaledDensity
+        textSize = 11f * resources.displayMetrics.scaledDensity
         typeface = Typeface.DEFAULT_BOLD
     }
 
     private val labelBgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.parseColor("#CC0E0E14")
+        color = Color.parseColor("#E613141B")
         style = Paint.Style.FILL
     }
 
-    private val HANDLE_RADIUS_DP = 10f
+    private val HANDLE_RADIUS_DP = 6f
     private val handleRadiusPx: Float
         get() = HANDLE_RADIUS_DP * resources.displayMetrics.density
+    private val handleTouchRadiusPx: Float
+        get() = 24f * resources.displayMetrics.density
 
     private enum class TouchMode {
         NONE, DRAG, RESIZE
@@ -374,22 +376,21 @@ class BroadcastPreviewView @JvmOverloads constructor(
             canvas.drawCircle(cx, cy, r, handleStrokePaint)
         }
 
-        // 3. Draw coordinate and name label
+        // 3. Draw clean element type badge (no technical coordinates)
         val label = if (selId == "facecam") {
-            "📷 FACECAM (x: ${(rect.left / w * 100).toInt()}%, y: ${(rect.top / h * 100).toInt()}%)"
+            "Camera"
         } else {
             val elem = scene.overlayElements.firstOrNull { it.id == selId }
-            val typeName = elem?.type?.name ?: "OVERLAY"
-            "$typeName (w: ${(rect.width() / w * 100).toInt()}%, h: ${(rect.height() / h * 100).toInt()}%)"
+            elem?.type?.name?.lowercase()?.replaceFirstChar { it.uppercase() } ?: "Overlay"
         }
 
         val textWidth = labelPaint.measureText(label)
-        val labelBg = RectF(rect.left, rect.top - 36f, rect.left + textWidth + 24f, rect.top - 4f)
+        val labelBg = RectF(rect.left, rect.top - 28f, rect.left + textWidth + 16f, rect.top - 4f)
         if (labelBg.top < 0f) {
-            labelBg.offset(0f, 40f + rect.height())
+            labelBg.offset(0f, 32f + rect.height())
         }
-        canvas.drawRoundRect(labelBg, 6f, 6f, labelBgPaint)
-        canvas.drawText(label, labelBg.left + 12f, labelBg.bottom - 8f, labelPaint)
+        canvas.drawRoundRect(labelBg, 4f, 4f, labelBgPaint)
+        canvas.drawText(label, labelBg.left + 8f, labelBg.bottom - 6f, labelPaint)
     }
 
     private fun getElementBounds(scene: BroadcastScene, id: String, viewW: Float, viewH: Float): RectF? {
@@ -571,7 +572,7 @@ class BroadcastPreviewView @JvmOverloads constructor(
     }
 
     private fun getHitHandle(rect: RectF, x: Float, y: Float): Int {
-        val radius = handleRadiusPx * 1.5f
+        val radius = handleTouchRadiusPx
         val corners = arrayOf(
             Pair(rect.left, rect.top),     // 0: TL
             Pair(rect.right, rect.top),    // 1: TR

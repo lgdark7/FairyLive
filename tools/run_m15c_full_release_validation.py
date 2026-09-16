@@ -133,7 +133,7 @@ def main():
     print("\n[STEP 4] Starting RTMP Ingest & FLV Recorder on 127.0.0.1:19350...")
     os.makedirs("tools/extracted_flv_frames", exist_ok=True)
     recorder_proc = subprocess.Popen(
-        [sys.executable, "tools/m15c_rtmp_flv_recorder.py", "35"],
+        [sys.executable, "tools/m15c_rtmp_flv_recorder.py", "35", "tools/m15c_fresh_broadcast.flv", "tools/m15c_broadcast_metrics.json"],
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True

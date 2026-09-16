@@ -363,7 +363,7 @@ class StreamPipeline(
 
         val packets = if (frame.isConfigFrame) {
             audioPacketizer.setAudioSpecificConfig(frame.data)
-            listOf(audioPacketizer.buildAacSequenceHeader(ptsMs))
+            emptyList()
         } else {
             audioPacketizer.processAacFrame(frame.data, ptsMs)
         }

@@ -119,7 +119,7 @@ class AudioCaptureEngine {
         this.audioRecord = record
         this.totalSamplesRead = 0L
         this.totalSilenceFramesInserted = 0L
-        val nowNs = SystemClock.elapsedRealtimeNanos()
+        val nowNs = com.fairylive.app.core.common.MediaClock.nanoTimeSource()
         this.startTimestampUs = com.fairylive.app.core.common.MediaClock.toSessionPtsUs(nowNs)
         this.lastAmplitudeUpdateTime = SystemClock.elapsedRealtime()
 
@@ -158,8 +158,12 @@ class AudioCaptureEngine {
                 val bufferDurationUs = (framesRead * 1_000_000L) / config.sampleRate
 
                 // Compute wall clock session PTS
-                val nowNs = SystemClock.elapsedRealtimeNanos()
+                val nowNs = com.fairylive.app.core.common.MediaClock.nanoTimeSource()
                 val wallClockPtsUs = (com.fairylive.app.core.common.MediaClock.toSessionPtsUs(nowNs) - bufferDurationUs).coerceAtLeast(0L)
+
+                if (totalSamplesRead == 0L) {
+                    startTimestampUs = wallClockPtsUs
+                }
 
                 // Continuous sample-count accumulation for jitter-free micro-spacing
                 val accumulatedPtsUs = startTimestampUs + (totalSamplesRead * 1_000_000L) / config.sampleRate

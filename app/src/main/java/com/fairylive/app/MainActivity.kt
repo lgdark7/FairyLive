@@ -50,16 +50,16 @@ class MainActivity : AppCompatActivity(), StreamStateNotifier.Listener {
                     switchFragment(SettingsFragment())
                     true
                 }
-                R.id.nav_diagnostics -> {
-                    switchFragment(DiagnosticsFragment())
-                    true
-                }
                 else -> false
             }
         }
     }
 
     private fun switchFragment(fragment: Fragment) {
+        // Clear any back stack (such as diagnostics) when switching root tabs
+        if (supportFragmentManager.backStackEntryCount > 0) {
+            supportFragmentManager.popBackStack(null, androidx.fragment.app.FragmentManager.POP_BACK_STACK_INCLUSIVE)
+        }
         supportFragmentManager.beginTransaction()
             .replace(R.id.fragment_container, fragment)
             .commit()
@@ -73,35 +73,49 @@ class MainActivity : AppCompatActivity(), StreamStateNotifier.Listener {
         binding.bottomNavigation.selectedItemId = R.id.nav_studio
     }
 
+    fun openDiagnostics() {
+        supportFragmentManager.beginTransaction()
+            .replace(R.id.fragment_container, DiagnosticsFragment())
+            .addToBackStack("diagnostics")
+            .commit()
+    }
+
     private fun updateHeaderStatusBadge(state: StreamState) {
         when (state) {
             StreamState.IDLE -> {
                 binding.headerStatusBadge.text = "OFFLINE"
-                binding.headerStatusBadge.setTextColor(ContextCompat.getColor(this, R.color.status_amber))
+                binding.headerStatusBadge.setTextColor(ContextCompat.getColor(this, R.color.text_muted))
+                binding.headerStatusBadge.setBackgroundResource(R.drawable.bg_scene_chip)
             }
             StreamState.STARTING -> {
                 binding.headerStatusBadge.text = "CONNECTING..."
-                binding.headerStatusBadge.setTextColor(ContextCompat.getColor(this, R.color.fairy_cyan))
+                binding.headerStatusBadge.setTextColor(ContextCompat.getColor(this, R.color.accent_primary))
+                binding.headerStatusBadge.setBackgroundResource(R.drawable.bg_scene_chip)
             }
             StreamState.READY -> {
-                binding.headerStatusBadge.text = "SERVICE ACTIVE"
-                binding.headerStatusBadge.setTextColor(ContextCompat.getColor(this, R.color.fairy_cyan))
+                binding.headerStatusBadge.text = "READY"
+                binding.headerStatusBadge.setTextColor(ContextCompat.getColor(this, R.color.accent_primary))
+                binding.headerStatusBadge.setBackgroundResource(R.drawable.bg_scene_chip)
             }
             StreamState.STREAMING -> {
                 binding.headerStatusBadge.text = "● LIVE"
                 binding.headerStatusBadge.setTextColor(ContextCompat.getColor(this, R.color.status_green))
+                binding.headerStatusBadge.setBackgroundResource(R.drawable.bg_scene_chip)
             }
             StreamState.PAUSED -> {
                 binding.headerStatusBadge.text = "PAUSED"
                 binding.headerStatusBadge.setTextColor(ContextCompat.getColor(this, R.color.status_amber))
+                binding.headerStatusBadge.setBackgroundResource(R.drawable.bg_scene_chip)
             }
             StreamState.STOPPING -> {
                 binding.headerStatusBadge.text = "STOPPING..."
                 binding.headerStatusBadge.setTextColor(ContextCompat.getColor(this, R.color.status_amber))
+                binding.headerStatusBadge.setBackgroundResource(R.drawable.bg_scene_chip)
             }
             StreamState.ERROR -> {
                 binding.headerStatusBadge.text = "STREAM ERROR"
                 binding.headerStatusBadge.setTextColor(ContextCompat.getColor(this, R.color.status_red))
+                binding.headerStatusBadge.setBackgroundResource(R.drawable.bg_scene_chip)
             }
         }
     }

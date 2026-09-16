@@ -6,37 +6,25 @@ import android.content.Context
 import android.content.Intent
 import android.content.res.ColorStateList
 import android.graphics.Color
-import android.net.Uri
 import android.media.projection.MediaProjectionConfig
 import android.media.projection.MediaProjectionManager
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.Button
-import android.widget.EditText
-import android.widget.LinearLayout
-import android.widget.TextView
-import android.widget.Toast
+import android.widget.*
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import com.fairylive.app.FairyLiveApplication
 import com.fairylive.app.R
 import com.fairylive.app.core.audio.AudioStateNotifier
-import com.fairylive.app.core.audio.model.AudioCaptureState
 import com.fairylive.app.core.audio.model.AudioMetrics
 import com.fairylive.app.core.camera.CameraStateNotifier
-import com.fairylive.app.core.camera.model.FacecamConfig
-import com.fairylive.app.core.compositor.model.GoalOverlayConfig
-import com.fairylive.app.core.compositor.model.LowerThirdOverlayConfig
-import com.fairylive.app.core.compositor.model.OverlayElement
-import com.fairylive.app.core.compositor.model.OverlayType
-import com.fairylive.app.core.compositor.model.QrOverlayConfig
-import com.fairylive.app.core.compositor.model.TextOverlayConfig
-import com.fairylive.app.core.compositor.model.WidgetOverlayConfig
+import com.fairylive.app.core.compositor.model.*
 import com.fairylive.app.core.lifecycle.StreamState
 import com.fairylive.app.core.lifecycle.StreamStateNotifier
 import com.fairylive.app.core.permission.PermissionManager
@@ -48,12 +36,8 @@ import com.fairylive.app.core.stream.StreamTelemetryNotifier
 import com.fairylive.app.core.stream.model.StreamTelemetry
 import com.fairylive.app.databinding.FragmentCreatorStudioBinding
 import com.fairylive.app.service.FairyStreamService
+import com.google.android.material.bottomsheet.BottomSheetDialog
 
-/**
- * Milestone 15-A & 15-B: Native Creator Studio Fragment.
- * Provides real-time scene editing, interactive live preview, layer management,
- * overlay customization, and broadcast composition controls.
- */
 class CreatorStudioFragment : Fragment(),
     StreamStateNotifier.Listener,
     StreamTelemetryNotifier.TelemetryListener,
@@ -119,6 +103,7 @@ class CreatorStudioFragment : Fragment(),
         val activeScene = app.sceneManager.activeScene
         updateSceneUI(activeScene)
         updateStreamStateUI(StreamStateNotifier.currentState)
+        updateUndoRedoState()
     }
 
     override fun onDestroyView() {
@@ -145,12 +130,12 @@ class CreatorStudioFragment : Fragment(),
             isMicMuted = !isMicMuted
             if (isMicMuted) {
                 FairyStreamService.muteAudio(requireContext())
-                binding.btnToggleMic.text = "🔇"
-                binding.btnToggleMic.backgroundTintList = ColorStateList.valueOf(ContextCompat.getColor(requireContext(), R.color.status_red))
+                binding.btnToggleMic.iconTint = ColorStateList.valueOf(ContextCompat.getColor(requireContext(), R.color.status_red))
+                binding.btnToggleMic.strokeColor = ColorStateList.valueOf(ContextCompat.getColor(requireContext(), R.color.status_red))
             } else {
                 FairyStreamService.unmuteAudio(requireContext())
-                binding.btnToggleMic.text = "🎙️"
-                binding.btnToggleMic.backgroundTintList = ColorStateList.valueOf(ContextCompat.getColor(requireContext(), R.color.bg_card))
+                binding.btnToggleMic.iconTint = ColorStateList.valueOf(ContextCompat.getColor(requireContext(), R.color.text_primary))
+                binding.btnToggleMic.strokeColor = ColorStateList.valueOf(ContextCompat.getColor(requireContext(), R.color.bg_card_stroke))
             }
         }
 
@@ -167,30 +152,26 @@ class CreatorStudioFragment : Fragment(),
             if (FairyStreamService.activeService != null) {
                 FairyStreamService.toggleFacecam(requireContext())
             }
+            updateCameraIcon(newScene.facecamConfig.enabled)
         }
 
         binding.btnHudToggle.setOnClickListener {
             isHudVisible = !isHudVisible
             binding.layoutHudOverlay.visibility = if (isHudVisible) View.VISIBLE else View.GONE
             binding.btnHudToggle.setTextColor(
-                ContextCompat.getColor(requireContext(), if (isHudVisible) R.color.status_green else R.color.fairy_cyan)
+                ContextCompat.getColor(requireContext(), if (isHudVisible) R.color.accent_primary else R.color.text_secondary)
+            )
+            binding.btnHudToggle.strokeColor = ColorStateList.valueOf(
+                ContextCompat.getColor(requireContext(), if (isHudVisible) R.color.accent_primary else R.color.bg_card_stroke)
             )
         }
 
         binding.btnAddOverlay.setOnClickListener {
-            showAddOverlayDialog()
+            showAddOverlayBottomSheet()
         }
 
         binding.btnLayersToggle.setOnClickListener {
-            val isVisible = binding.layoutLayerPanel.visibility == View.VISIBLE
-            binding.layoutLayerPanel.visibility = if (isVisible) View.GONE else View.VISIBLE
-            if (!isVisible) {
-                populateLayersList()
-            }
-        }
-
-        binding.btnScenesToggle.setOnClickListener {
-            showSceneManagerDialog()
+            showLayersBottomSheet()
         }
 
         binding.btnUndo.setOnClickListener {
@@ -213,7 +194,12 @@ class CreatorStudioFragment : Fragment(),
             }
         }
 
-        // Selected element controls
+        // Contextual selected element actions
+        binding.btnElementCloseSelection.setOnClickListener {
+            binding.broadcastPreviewView.setSelectedElement(null)
+            onElementSelected(null)
+        }
+
         binding.btnElementDelete.setOnClickListener {
             val selId = binding.broadcastPreviewView.getSelectedElementId() ?: return@setOnClickListener
             val app = requireActivity().application as FairyLiveApplication
@@ -225,20 +211,24 @@ class CreatorStudioFragment : Fragment(),
                 persistAndSyncScene(newScene)
             }
             binding.broadcastPreviewView.setSelectedElement(null)
-            binding.layoutSelectedProperties.visibility = View.GONE
-            populateLayersList()
+            onElementSelected(null)
             updateUndoRedoState()
         }
 
-        binding.btnElementVisibility.setOnClickListener {
+        binding.btnElementDuplicate.setOnClickListener {
             val selId = binding.broadcastPreviewView.getSelectedElementId() ?: return@setOnClickListener
             val app = requireActivity().application as FairyLiveApplication
             val elem = app.sceneManager.activeScene.overlayElements.firstOrNull { it.id == selId } ?: return@setOnClickListener
-            val updatedElem = elem.copy(visible = !elem.visible)
-            val newScene = app.sceneManager.updateOverlayInActiveScene(updatedElem)
+            val dup = elem.copy(
+                id = "${elem.type.name.lowercase()}_${System.currentTimeMillis() % 10000}",
+                normalizedX = (elem.normalizedX + 0.05f).coerceAtMost(0.85f),
+                normalizedY = (elem.normalizedY + 0.05f).coerceAtMost(0.85f),
+                zIndex = elem.zIndex + 1
+            )
+            val newScene = app.sceneManager.addOverlayToActiveScene(dup)
             persistAndSyncScene(newScene)
-            binding.btnElementVisibility.text = if (updatedElem.visible) "Hide" else "Show"
-            populateLayersList()
+            binding.broadcastPreviewView.setSelectedElement(dup.id)
+            onElementSelected(dup.id)
             updateUndoRedoState()
         }
 
@@ -250,7 +240,6 @@ class CreatorStudioFragment : Fragment(),
             if (idx >= 0 && idx < list.size - 1) {
                 val newScene = app.sceneManager.reorderLayersInActiveScene(idx, idx + 1)
                 persistAndSyncScene(newScene)
-                populateLayersList()
                 updateUndoRedoState()
             }
         }
@@ -263,7 +252,6 @@ class CreatorStudioFragment : Fragment(),
             if (idx > 0) {
                 val newScene = app.sceneManager.reorderLayersInActiveScene(idx, idx - 1)
                 persistAndSyncScene(newScene)
-                populateLayersList()
                 updateUndoRedoState()
             }
         }
@@ -272,22 +260,23 @@ class CreatorStudioFragment : Fragment(),
             val selId = binding.broadcastPreviewView.getSelectedElementId() ?: return@setOnClickListener
             val app = requireActivity().application as FairyLiveApplication
             val elem = app.sceneManager.activeScene.overlayElements.firstOrNull { it.id == selId } ?: return@setOnClickListener
-            showEditElementDialog(elem)
-        }
-
-        binding.btnElementOpacity.setOnClickListener {
-            val selId = binding.broadcastPreviewView.getSelectedElementId() ?: return@setOnClickListener
-            val app = requireActivity().application as FairyLiveApplication
-            val elem = app.sceneManager.activeScene.overlayElements.firstOrNull { it.id == selId } ?: return@setOnClickListener
-            showOpacityDialog(elem)
+            showEditElementBottomSheet(elem)
         }
     }
 
+    private fun updateCameraIcon(enabled: Boolean) {
+        if (_binding == null) return
+        val color = if (enabled) R.color.accent_primary else R.color.text_primary
+        val stroke = if (enabled) R.color.accent_primary else R.color.bg_card_stroke
+        binding.btnToggleCamera.iconTint = ColorStateList.valueOf(ContextCompat.getColor(requireContext(), color))
+        binding.btnToggleCamera.strokeColor = ColorStateList.valueOf(ContextCompat.getColor(requireContext(), stroke))
+    }
+
     private fun updateSceneUI(scene: BroadcastScene) {
-        binding.tvActiveSceneLabel.text = "Scene: ${scene.name}"
+        if (_binding == null) return
         binding.broadcastPreviewView.setScene(scene)
         populateSceneChips()
-        populateLayersList()
+        updateCameraIcon(scene.facecamConfig.enabled)
     }
 
     private fun populateSceneChips() {
@@ -298,125 +287,358 @@ class CreatorStudioFragment : Fragment(),
         val activeScene = app.sceneManager.activeScene
         for (scene in app.sceneManager.allScenes) {
             val isActive = scene.id == activeScene.id
-            val btn = Button(requireContext()).apply {
+            val chip = TextView(requireContext()).apply {
                 text = scene.name
-                isAllCaps = false
-                textSize = 11f
+                textSize = 12f
+                setPadding(dp(14), dp(7), dp(14), dp(7))
+                setBackgroundResource(if (isActive) R.drawable.bg_scene_chip_active else R.drawable.bg_scene_chip)
+                setTextColor(ContextCompat.getColor(context, if (isActive) R.color.text_primary else R.color.text_secondary))
                 layoutParams = LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.WRAP_CONTENT,
-                    resources.getDimensionPixelSize(R.dimen.chip_height)
+                    LinearLayout.LayoutParams.WRAP_CONTENT
                 ).apply {
-                    marginEnd = 8
+                    marginEnd = dp(8)
                 }
-                backgroundTintList = ColorStateList.valueOf(
-                    ContextCompat.getColor(
-                        context,
-                        if (isActive) R.color.fairy_purple else R.color.bg_card
-                    )
-                )
-                setTextColor(ContextCompat.getColor(context, R.color.text_primary))
                 setOnClickListener {
                     app.sceneManager.switchScene(scene.id)
                     app.sceneRepository.saveActiveSceneId(scene.id)
                     FairyStreamService.activeService?.overlayCompositor?.applyScene(scene)
                 }
+                setOnLongClickListener {
+                    showSceneOptionsBottomSheet(scene)
+                    true
+                }
             }
-            container.addView(btn)
+            container.addView(chip)
         }
 
-        // Add "+ New" scene chip
-        val addBtn = Button(requireContext()).apply {
-            text = "+ New"
-            isAllCaps = false
-            textSize = 11f
+        // Add "+ " scene chip
+        val addChip = TextView(requireContext()).apply {
+            text = "+ "
+            textSize = 14f
+            setPadding(dp(14), dp(6), dp(14), dp(6))
+            setBackgroundResource(R.drawable.bg_scene_chip)
+            setTextColor(ContextCompat.getColor(context, R.color.accent_primary))
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.WRAP_CONTENT,
-                resources.getDimensionPixelSize(R.dimen.chip_height)
+                LinearLayout.LayoutParams.WRAP_CONTENT
             )
-            backgroundTintList = ColorStateList.valueOf(ContextCompat.getColor(context, R.color.bg_surface))
-            setTextColor(ContextCompat.getColor(context, R.color.fairy_cyan))
             setOnClickListener {
                 showCreateSceneDialog()
             }
         }
-        container.addView(addBtn)
+        container.addView(addChip)
     }
 
-    private fun populateLayersList() {
-        val container = binding.layoutLayersList
-        container.removeAllViews()
+    private fun showAddOverlayBottomSheet() {
+        val dialog = BottomSheetDialog(requireContext())
+        val sheetView = layoutInflater.inflate(R.layout.sheet_add_overlay, null)
+        dialog.setContentView(sheetView)
+
+        sheetView.findViewById<View>(R.id.item_add_text).setOnClickListener {
+            dialog.dismiss()
+            showAddTextDialog()
+        }
+        sheetView.findViewById<View>(R.id.item_add_image).setOnClickListener {
+            dialog.dismiss()
+            addDefaultImage()
+        }
+        sheetView.findViewById<View>(R.id.item_add_camera).setOnClickListener {
+            dialog.dismiss()
+            toggleAddFacecam()
+        }
+        sheetView.findViewById<View>(R.id.item_add_qr).setOnClickListener {
+            dialog.dismiss()
+            showAddQrDialog()
+        }
+        sheetView.findViewById<View>(R.id.item_add_goal).setOnClickListener {
+            dialog.dismiss()
+            addDefaultGoal()
+        }
+        sheetView.findViewById<View>(R.id.item_add_lower_third).setOnClickListener {
+            dialog.dismiss()
+            addDefaultLowerThird()
+        }
+        sheetView.findViewById<View>(R.id.item_add_gif).setOnClickListener {
+            dialog.dismiss()
+            addDefaultGif()
+        }
+        sheetView.findViewById<View>(R.id.item_add_widget).setOnClickListener {
+            dialog.dismiss()
+            addDefaultWidget()
+        }
+        sheetView.findViewById<View>(R.id.item_add_alert).setOnClickListener {
+            dialog.dismiss()
+            addDefaultAlert()
+        }
+
+        dialog.show()
+    }
+
+    private fun showLayersBottomSheet() {
+        val dialog = BottomSheetDialog(requireContext())
+        val sheetView = layoutInflater.inflate(R.layout.sheet_layers, null)
+        dialog.setContentView(sheetView)
+
+        val listContainer = sheetView.findViewById<LinearLayout>(R.id.layout_sheet_layers_list)
+        val tvCount = sheetView.findViewById<TextView>(R.id.tv_layers_count)
+
         val app = requireActivity().application as FairyLiveApplication
         val scene = app.sceneManager.activeScene
+        val elements = scene.overlayElements.reversed()
+        val totalLayers = elements.size + (if (scene.facecamConfig.enabled) 1 else 0)
+        tvCount.text = "$totalLayers layer(s)"
 
-        // Facecam row
+        // Facecam layer
         if (scene.facecamConfig.enabled) {
-            val fcRow = createLayerRow("📷 Facecam", isVisible = true, isSelected = binding.broadcastPreviewView.getSelectedElementId() == "facecam") {
+            val row = createLayerSheetRow("Camera (Facecam)", "📷", true) {
+                dialog.dismiss()
                 binding.broadcastPreviewView.setSelectedElement("facecam")
-                showSelectedProperties("facecam", "📷 Facecam", isVisible = true)
+                onElementSelected("facecam")
             }
-            container.addView(fcRow)
+            listContainer.addView(row)
         }
 
-        // Overlays in reverse order (top first)
-        for (elem in scene.overlayElements.reversed()) {
-            val name = "${elem.type.name}: ${elem.id.take(14)}"
-            val isSelected = binding.broadcastPreviewView.getSelectedElementId() == elem.id
-            val row = createLayerRow(name, elem.visible, isSelected) {
-                binding.broadcastPreviewView.setSelectedElement(elem.id)
-                showSelectedProperties(elem.id, name, elem.visible)
+        // Overlays
+        for (elem in elements) {
+            val icon = when (elem.type) {
+                OverlayType.TEXT -> "T"
+                OverlayType.IMAGE -> "🖼️"
+                OverlayType.GOAL -> "★"
+                OverlayType.LOWER_THIRD -> "▌"
+                OverlayType.QR -> "▦"
+                OverlayType.GIF -> "GIF"
+                OverlayType.WIDGET -> "⚙"
+                OverlayType.ALERT -> "🔔"
+                else -> "🖼️"
             }
-            container.addView(row)
+            val label = when (elem.type) {
+                OverlayType.TEXT -> elem.textConfig?.text ?: "Text"
+                OverlayType.GOAL -> elem.goalConfig?.title ?: "Goal"
+                OverlayType.LOWER_THIRD -> elem.lowerThirdConfig?.title ?: "Lower Third"
+                else -> elem.type.name.lowercase().replaceFirstChar { it.uppercase() }
+            }
+
+            val row = createLayerSheetRow(label, icon, elem.visible) {
+                dialog.dismiss()
+                binding.broadcastPreviewView.setSelectedElement(elem.id)
+                onElementSelected(elem.id)
+            }
+            listContainer.addView(row)
         }
+
+        dialog.show()
     }
 
-    private fun createLayerRow(name: String, isVisible: Boolean, isSelected: Boolean, onClick: () -> Unit): View {
+    private fun createLayerSheetRow(name: String, iconStr: String, isVisible: Boolean, onClick: () -> Unit): View {
         val row = LinearLayout(requireContext()).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = android.view.Gravity.CENTER_VERTICAL
-            setPadding(8, 6, 8, 6)
-            setBackgroundColor(if (isSelected) Color.parseColor("#3300E5FF") else Color.TRANSPARENT)
+            setPadding(dp(4), dp(10), dp(4), dp(10))
+            isClickable = true
+            isFocusable = true
+            setBackgroundResource(android.R.drawable.list_selector_background)
             setOnClickListener { onClick() }
         }
 
-        val tv = TextView(requireContext()).apply {
-            text = name
-            setTextColor(if (isVisible) Color.WHITE else Color.GRAY)
-            textSize = 12f
-            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+        val handle = TextView(requireContext()).apply {
+            text = "☰"
+            setTextColor(ContextCompat.getColor(context, R.color.text_muted))
+            textSize = 14f
+            layoutParams = LinearLayout.LayoutParams(dp(28), LinearLayout.LayoutParams.WRAP_CONTENT)
         }
-        row.addView(tv)
+        row.addView(handle)
 
-        val eyeTv = TextView(requireContext()).apply {
-            text = if (isVisible) "👁️" else "🔒"
-            textSize = 12f
+        val icon = TextView(requireContext()).apply {
+            text = iconStr
+            textSize = 14f
+            setTextColor(ContextCompat.getColor(context, R.color.accent_primary))
+            layoutParams = LinearLayout.LayoutParams(dp(24), LinearLayout.LayoutParams.WRAP_CONTENT)
         }
-        row.addView(eyeTv)
+        row.addView(icon)
+
+        val title = TextView(requireContext()).apply {
+            text = name
+            setTextColor(ContextCompat.getColor(context, if (isVisible) R.color.text_primary else R.color.text_muted))
+            textSize = 14f
+            maxLines = 1
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
+                marginStart = dp(10)
+            }
+        }
+        row.addView(title)
+
+        val eye = TextView(requireContext()).apply {
+            text = if (isVisible) "👁" else "🔒"
+            textSize = 14f
+        }
+        row.addView(eye)
 
         return row
     }
 
-    private fun showSelectedProperties(id: String, title: String, isVisible: Boolean) {
-        binding.layoutSelectedProperties.visibility = View.VISIBLE
-        binding.tvSelectedElementTitle.text = title
-        binding.btnElementVisibility.text = if (isVisible) "Hide" else "Show"
+    private fun showEditElementBottomSheet(elem: OverlayElement) {
+        val dialog = BottomSheetDialog(requireContext())
+        val sheetView = layoutInflater.inflate(R.layout.sheet_edit_element, null)
+        dialog.setContentView(sheetView)
+
+        val tvTitle = sheetView.findViewById<TextView>(R.id.tv_edit_sheet_title)
+        val etContent = sheetView.findViewById<EditText>(R.id.et_edit_content)
+        val sbOpacity = sheetView.findViewById<SeekBar>(R.id.sb_edit_opacity)
+        val btnSave = sheetView.findViewById<Button>(R.id.btn_edit_save)
+        val btnDelete = sheetView.findViewById<Button>(R.id.btn_edit_delete)
+
+        tvTitle.text = "Edit ${elem.type.name.lowercase().replaceFirstChar { it.uppercase() }}"
+        sbOpacity.progress = (elem.opacity * 100).toInt()
+
+        val initialContent = when (elem.type) {
+            OverlayType.TEXT -> elem.textConfig?.text ?: ""
+            OverlayType.GOAL -> elem.goalConfig?.title ?: ""
+            OverlayType.LOWER_THIRD -> elem.lowerThirdConfig?.title ?: ""
+            OverlayType.QR -> elem.qrConfig?.payloadUrl ?: ""
+            else -> ""
+        }
+        etContent.setText(initialContent)
+
+        btnSave.setOnClickListener {
+            val app = requireActivity().application as FairyLiveApplication
+            val newText = etContent.text.toString().trim()
+            val newOpacity = sbOpacity.progress / 100f
+            var updated = elem.copy(opacity = newOpacity)
+
+            when (elem.type) {
+                OverlayType.TEXT -> if (newText.isNotEmpty()) {
+                    updated = updated.copy(textConfig = elem.textConfig?.copy(text = newText))
+                }
+                OverlayType.GOAL -> if (newText.isNotEmpty()) {
+                    updated = updated.copy(goalConfig = elem.goalConfig?.copy(title = newText))
+                }
+                OverlayType.LOWER_THIRD -> if (newText.isNotEmpty()) {
+                    updated = updated.copy(lowerThirdConfig = elem.lowerThirdConfig?.copy(title = newText))
+                }
+                OverlayType.QR -> if (newText.isNotEmpty()) {
+                    updated = updated.copy(qrConfig = elem.qrConfig?.copy(payloadUrl = newText))
+                }
+                else -> {}
+            }
+
+            val newScene = app.sceneManager.updateOverlayInActiveScene(updated)
+            persistAndSyncScene(newScene)
+            updateUndoRedoState()
+            dialog.dismiss()
+        }
+
+        btnDelete.setOnClickListener {
+            val app = requireActivity().application as FairyLiveApplication
+            val newScene = app.sceneManager.removeOverlayFromActiveScene(elem.id)
+            persistAndSyncScene(newScene)
+            binding.broadcastPreviewView.setSelectedElement(null)
+            onElementSelected(null)
+            updateUndoRedoState()
+            dialog.dismiss()
+        }
+
+        dialog.show()
+    }
+
+    private fun showSceneOptionsBottomSheet(scene: BroadcastScene) {
+        val dialog = BottomSheetDialog(requireContext())
+        val sheetView = layoutInflater.inflate(R.layout.sheet_scene_options, null)
+        dialog.setContentView(sheetView)
+
+        sheetView.findViewById<TextView>(R.id.tv_scene_options_title).text = "Scene: ${scene.name}"
+
+        sheetView.findViewById<View>(R.id.row_scene_rename).setOnClickListener {
+            dialog.dismiss()
+            showRenameSceneDialog(scene)
+        }
+
+        sheetView.findViewById<View>(R.id.row_scene_duplicate).setOnClickListener {
+            dialog.dismiss()
+            val app = requireActivity().application as FairyLiveApplication
+            val dup = app.sceneManager.duplicateScene(scene.id)
+            if (dup != null) {
+                app.sceneManager.switchScene(dup.id)
+                app.sceneRepository.saveScenes(app.sceneManager.allScenes)
+            }
+        }
+
+        sheetView.findViewById<View>(R.id.row_scene_delete).setOnClickListener {
+            dialog.dismiss()
+            val app = requireActivity().application as FairyLiveApplication
+            if (app.sceneManager.allScenes.size <= 1) {
+                Toast.makeText(requireContext(), "Cannot delete the only scene", Toast.LENGTH_SHORT).show()
+            } else {
+                app.sceneManager.removeScene(scene.id)
+                app.sceneRepository.saveScenes(app.sceneManager.allScenes)
+            }
+        }
+
+        dialog.show()
+    }
+
+    private fun showRenameSceneDialog(scene: BroadcastScene) {
+        val input = EditText(requireContext()).apply {
+            setText(scene.name)
+            setTextColor(Color.WHITE)
+        }
+        AlertDialog.Builder(requireContext(), android.R.style.Theme_DeviceDefault_Dialog_Alert)
+            .setTitle("Rename Scene")
+            .setView(input)
+            .setPositiveButton("Save") { _, _ ->
+                val newName = input.text.toString().trim()
+                if (newName.isNotEmpty()) {
+                    val app = requireActivity().application as FairyLiveApplication
+                    app.sceneManager.renameScene(scene.id, newName)
+                    app.sceneRepository.saveScenes(app.sceneManager.allScenes)
+                }
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun showCreateSceneDialog() {
+        val input = EditText(requireContext()).apply {
+            hint = "Scene Name (e.g. Gameplay)"
+            setTextColor(Color.WHITE)
+        }
+        AlertDialog.Builder(requireContext(), android.R.style.Theme_DeviceDefault_Dialog_Alert)
+            .setTitle("Create New Scene")
+            .setView(input)
+            .setPositiveButton("Create") { _, _ ->
+                val name = input.text.toString().trim().ifEmpty { "New Scene" }
+                val app = requireActivity().application as FairyLiveApplication
+                val newScene = app.sceneManager.createNewScene(name, SceneBackgroundMode.SCREEN_CAPTURE)
+                app.sceneManager.switchScene(newScene.id)
+                app.sceneRepository.saveScenes(app.sceneManager.allScenes)
+                app.sceneRepository.saveActiveSceneId(newScene.id)
+                FairyStreamService.activeService?.overlayCompositor?.applyScene(newScene)
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
     }
 
     override fun onElementSelected(elementId: String?) {
         if (elementId == null) {
             binding.layoutSelectedProperties.visibility = View.GONE
+            binding.layoutDefaultToolbar.visibility = View.VISIBLE
         } else {
             val app = requireActivity().application as FairyLiveApplication
             val scene = app.sceneManager.activeScene
-            val title = if (elementId == "facecam") "📷 Facecam" else {
+            val title = if (elementId == "facecam") "Camera (Facecam)" else {
                 val elem = scene.overlayElements.firstOrNull { it.id == elementId }
-                "${elem?.type?.name ?: "Overlay"}: $elementId"
+                val typeName = elem?.type?.name?.lowercase()?.replaceFirstChar { it.uppercase() } ?: "Overlay"
+                val contentSnippet = when (elem?.type) {
+                    OverlayType.TEXT -> ": \"${elem.textConfig?.text?.take(14)}\""
+                    OverlayType.GOAL -> ": \"${elem.goalConfig?.title?.take(14)}\""
+                    else -> ""
+                }
+                "$typeName$contentSnippet"
             }
-            val isVis = if (elementId == "facecam") true else {
-                scene.overlayElements.firstOrNull { it.id == elementId }?.visible ?: true
-            }
-            showSelectedProperties(elementId, title, isVis)
+            binding.tvSelectedElementTitle.text = title
+            binding.layoutDefaultToolbar.visibility = View.GONE
+            binding.layoutSelectedProperties.visibility = View.VISIBLE
         }
-        populateLayersList()
     }
 
     override fun onElementTransformed(elementId: String, normX: Float, normY: Float, normW: Float, normH: Float) {
@@ -451,41 +673,9 @@ class CreatorStudioFragment : Fragment(),
         FairyStreamService.activeService?.overlayCompositor?.applyScene(scene)
     }
 
-    private fun showAddOverlayDialog() {
-        val options = arrayOf(
-            "Text Overlay",
-            "Stream Goal Progress",
-            "Lower Third Banner",
-            "QR Code",
-            "Facecam (Camera PIP)",
-            "System Diagnostics Widget",
-            "Image / Logo",
-            "Animated GIF",
-            "Stream Alert"
-        )
-
-        AlertDialog.Builder(requireContext(), android.R.style.Theme_DeviceDefault_Dialog_Alert)
-            .setTitle("Add to Broadcast")
-            .setItems(options) { _, which ->
-                when (which) {
-                    0 -> showAddTextDialog()
-                    1 -> addDefaultGoal()
-                    2 -> addDefaultLowerThird()
-                    3 -> showAddQrDialog()
-                    4 -> toggleAddFacecam()
-                    5 -> addDefaultWidget()
-                    6 -> addDefaultImage()
-                    7 -> addDefaultGif()
-                    8 -> addDefaultAlert()
-                }
-            }
-            .setNegativeButton("Cancel", null)
-            .show()
-    }
-
     private fun showAddTextDialog() {
         val input = EditText(requireContext()).apply {
-            hint = "Enter overlay text"
+            hint = "Enter text overlay..."
             setTextColor(Color.WHITE)
             setHintTextColor(Color.GRAY)
         }
@@ -508,6 +698,8 @@ class CreatorStudioFragment : Fragment(),
                     val newScene = app.sceneManager.addOverlayToActiveScene(elem)
                     persistAndSyncScene(newScene)
                     binding.broadcastPreviewView.setSelectedElement(id)
+                    onElementSelected(id)
+                    updateUndoRedoState()
                 }
             }
             .setNegativeButton("Cancel", null)
@@ -528,6 +720,8 @@ class CreatorStudioFragment : Fragment(),
         val newScene = app.sceneManager.addOverlayToActiveScene(elem)
         persistAndSyncScene(newScene)
         binding.broadcastPreviewView.setSelectedElement(id)
+        onElementSelected(id)
+        updateUndoRedoState()
     }
 
     private fun addDefaultLowerThird() {
@@ -544,6 +738,8 @@ class CreatorStudioFragment : Fragment(),
         val newScene = app.sceneManager.addOverlayToActiveScene(elem)
         persistAndSyncScene(newScene)
         binding.broadcastPreviewView.setSelectedElement(id)
+        onElementSelected(id)
+        updateUndoRedoState()
     }
 
     private fun showAddQrDialog() {
@@ -570,6 +766,8 @@ class CreatorStudioFragment : Fragment(),
                 val newScene = app.sceneManager.addOverlayToActiveScene(elem)
                 persistAndSyncScene(newScene)
                 binding.broadcastPreviewView.setSelectedElement(id)
+                onElementSelected(id)
+                updateUndoRedoState()
             }
             .setNegativeButton("Cancel", null)
             .show()
@@ -588,6 +786,9 @@ class CreatorStudioFragment : Fragment(),
         val newScene = app.sceneManager.updateFacecamInActiveScene(newFc)
         persistAndSyncScene(newScene)
         binding.broadcastPreviewView.setSelectedElement("facecam")
+        onElementSelected("facecam")
+        updateCameraIcon(true)
+        updateUndoRedoState()
     }
 
     private fun addDefaultWidget() {
@@ -604,6 +805,8 @@ class CreatorStudioFragment : Fragment(),
         val newScene = app.sceneManager.addOverlayToActiveScene(elem)
         persistAndSyncScene(newScene)
         binding.broadcastPreviewView.setSelectedElement(id)
+        onElementSelected(id)
+        updateUndoRedoState()
     }
 
     private fun addDefaultImage() {
@@ -627,6 +830,7 @@ class CreatorStudioFragment : Fragment(),
                     val newScene = app.sceneManager.addOverlayToActiveScene(elem)
                     persistAndSyncScene(newScene)
                     binding.broadcastPreviewView.setSelectedElement(id)
+                    onElementSelected(id)
                     updateUndoRedoState()
                 }
             }
@@ -658,111 +862,11 @@ class CreatorStudioFragment : Fragment(),
             val newScene = app.sceneManager.addOverlayToActiveScene(elem)
             persistAndSyncScene(newScene)
             binding.broadcastPreviewView.setSelectedElement(id)
+            onElementSelected(id)
             updateUndoRedoState()
         } catch (e: Exception) {
             Log.e(TAG, "Failed to import custom image asset: ${e.message}", e)
         }
-    }
-
-    private fun showEditElementDialog(elem: OverlayElement) {
-        val app = requireActivity().application as FairyLiveApplication
-        when (elem.type) {
-            OverlayType.TEXT -> {
-                val input = EditText(requireContext()).apply {
-                    setText(elem.textConfig?.text ?: "")
-                    setTextColor(Color.WHITE)
-                    setHintTextColor(Color.GRAY)
-                }
-                AlertDialog.Builder(requireContext(), android.R.style.Theme_DeviceDefault_Dialog_Alert)
-                    .setTitle("Edit Text Overlay")
-                    .setView(input)
-                    .setPositiveButton("Save") { _, _ ->
-                        val newText = input.text.toString().trim()
-                        if (newText.isNotEmpty()) {
-                            val updated = elem.copy(textConfig = elem.textConfig?.copy(text = newText))
-                            val newScene = app.sceneManager.updateOverlayInActiveScene(updated)
-                            persistAndSyncScene(newScene)
-                            updateUndoRedoState()
-                        }
-                    }
-                    .setNegativeButton("Cancel", null)
-                    .show()
-            }
-            OverlayType.QR -> {
-                val input = EditText(requireContext()).apply {
-                    setText(elem.qrConfig?.payloadUrl ?: "")
-                    setTextColor(Color.WHITE)
-                    setHintTextColor(Color.GRAY)
-                }
-                AlertDialog.Builder(requireContext(), android.R.style.Theme_DeviceDefault_Dialog_Alert)
-                    .setTitle("Edit QR Payload URL")
-                    .setView(input)
-                    .setPositiveButton("Save") { _, _ ->
-                        val newUrl = input.text.toString().trim()
-                        if (newUrl.isNotEmpty()) {
-                            val updated = elem.copy(qrConfig = elem.qrConfig?.copy(payloadUrl = newUrl))
-                            val newScene = app.sceneManager.updateOverlayInActiveScene(updated)
-                            persistAndSyncScene(newScene)
-                            updateUndoRedoState()
-                        }
-                    }
-                    .setNegativeButton("Cancel", null)
-                    .show()
-            }
-            OverlayType.GOAL -> {
-                val input = EditText(requireContext()).apply {
-                    setText(elem.goalConfig?.title ?: "")
-                    setTextColor(Color.WHITE)
-                    setHintTextColor(Color.GRAY)
-                }
-                AlertDialog.Builder(requireContext(), android.R.style.Theme_DeviceDefault_Dialog_Alert)
-                    .setTitle("Edit Goal Title")
-                    .setView(input)
-                    .setPositiveButton("Save") { _, _ ->
-                        val newTitle = input.text.toString().trim()
-                        if (newTitle.isNotEmpty()) {
-                            val updated = elem.copy(goalConfig = elem.goalConfig?.copy(title = newTitle))
-                            val newScene = app.sceneManager.updateOverlayInActiveScene(updated)
-                            persistAndSyncScene(newScene)
-                            updateUndoRedoState()
-                        }
-                    }
-                    .setNegativeButton("Cancel", null)
-                    .show()
-            }
-            else -> {
-                AlertDialog.Builder(requireContext(), android.R.style.Theme_DeviceDefault_Dialog_Alert)
-                    .setTitle("Layer Properties")
-                    .setMessage("Type: ${elem.type.name}\nZ-Index: ${elem.zIndex}\nPosition: (${(elem.normalizedX * 100).toInt()}%, ${(elem.normalizedY * 100).toInt()}%)")
-                    .setPositiveButton("OK", null)
-                    .show()
-            }
-        }
-    }
-
-    private fun showOpacityDialog(elem: OverlayElement) {
-        val app = requireActivity().application as FairyLiveApplication
-        val options = arrayOf("100%", "80%", "60%", "40%", "20%")
-        val values = floatArrayOf(1.0f, 0.8f, 0.6f, 0.4f, 0.2f)
-        AlertDialog.Builder(requireContext(), android.R.style.Theme_DeviceDefault_Dialog_Alert)
-            .setTitle("Set Layer Opacity")
-            .setItems(options) { _, which ->
-                val newOpacity = values[which]
-                val updated = elem.copy(opacity = newOpacity)
-                val newScene = app.sceneManager.updateOverlayInActiveScene(updated)
-                persistAndSyncScene(newScene)
-                updateUndoRedoState()
-            }
-            .setNegativeButton("Cancel", null)
-            .show()
-    }
-
-    private fun updateUndoRedoState() {
-        val app = (activity?.application as? FairyLiveApplication) ?: return
-        binding.btnUndo.alpha = if (app.sceneManager.history.canUndo) 1.0f else 0.35f
-        binding.btnUndo.isEnabled = app.sceneManager.history.canUndo
-        binding.btnRedo.alpha = if (app.sceneManager.history.canRedo) 1.0f else 0.35f
-        binding.btnRedo.isEnabled = app.sceneManager.history.canRedo
     }
 
     private fun addDefaultGif() {
@@ -770,7 +874,7 @@ class CreatorStudioFragment : Fragment(),
         val id = "gif_${System.currentTimeMillis() % 10000}"
         val elem = OverlayElement.createGif(
             id = id,
-            config = com.fairylive.app.core.compositor.model.GifOverlayConfig(resourcePath = "sample_alert.gif"),
+            config = GifOverlayConfig(resourcePath = "sample_alert.gif"),
             x = 0.35f,
             y = 0.35f,
             width = 0.30f,
@@ -779,6 +883,8 @@ class CreatorStudioFragment : Fragment(),
         val newScene = app.sceneManager.addOverlayToActiveScene(elem)
         persistAndSyncScene(newScene)
         binding.broadcastPreviewView.setSelectedElement(id)
+        onElementSelected(id)
+        updateUndoRedoState()
     }
 
     private fun addDefaultAlert() {
@@ -786,7 +892,7 @@ class CreatorStudioFragment : Fragment(),
         val id = "alert_${System.currentTimeMillis() % 10000}"
         val elem = OverlayElement.createAlert(
             id = id,
-            config = com.fairylive.app.core.compositor.model.AlertOverlayConfig(
+            config = AlertOverlayConfig(
                 headline = "NEW SUBSCRIBER!",
                 subtext = "Welcome to the Fairy Live stream!",
                 durationMs = 5000L
@@ -799,74 +905,17 @@ class CreatorStudioFragment : Fragment(),
         val newScene = app.sceneManager.addOverlayToActiveScene(elem)
         persistAndSyncScene(newScene)
         binding.broadcastPreviewView.setSelectedElement(id)
+        onElementSelected(id)
+        updateUndoRedoState()
     }
 
-    private fun showCreateSceneDialog() {
-        val input = EditText(requireContext()).apply {
-            hint = "Scene Name (e.g. Gameplay)"
-            setTextColor(Color.WHITE)
-        }
-        AlertDialog.Builder(requireContext(), android.R.style.Theme_DeviceDefault_Dialog_Alert)
-            .setTitle("Create New Scene")
-            .setView(input)
-            .setPositiveButton("Create") { _, _ ->
-                val name = input.text.toString().trim().ifEmpty { "New Scene" }
-                val app = requireActivity().application as FairyLiveApplication
-                val newScene = app.sceneManager.createNewScene(name, SceneBackgroundMode.SCREEN_CAPTURE)
-                app.sceneManager.switchScene(newScene.id)
-                app.sceneRepository.saveScenes(app.sceneManager.allScenes)
-                app.sceneRepository.saveActiveSceneId(newScene.id)
-                FairyStreamService.activeService?.overlayCompositor?.applyScene(newScene)
-            }
-            .setNegativeButton("Cancel", null)
-            .show()
-    }
-
-    private fun showSceneManagerDialog() {
-        val app = requireActivity().application as FairyLiveApplication
-        val active = app.sceneManager.activeScene
-        val items = arrayOf("Rename '${active.name}'", "Duplicate '${active.name}'", "Delete '${active.name}'")
-
-        AlertDialog.Builder(requireContext(), android.R.style.Theme_DeviceDefault_Dialog_Alert)
-            .setTitle("Scene: ${active.name}")
-            .setItems(items) { _, which ->
-                when (which) {
-                    0 -> {
-                        val input = EditText(requireContext()).apply {
-                            setText(active.name)
-                            setTextColor(Color.WHITE)
-                        }
-                        AlertDialog.Builder(requireContext(), android.R.style.Theme_DeviceDefault_Dialog_Alert)
-                            .setTitle("Rename Scene")
-                            .setView(input)
-                            .setPositiveButton("Save") { _, _ ->
-                                val newName = input.text.toString().trim()
-                                if (newName.isNotEmpty()) {
-                                    app.sceneManager.renameScene(active.id, newName)
-                                    app.sceneRepository.saveScenes(app.sceneManager.allScenes)
-                                }
-                            }
-                            .show()
-                    }
-                    1 -> {
-                        val dup = app.sceneManager.duplicateScene(active.id)
-                        if (dup != null) {
-                            app.sceneManager.switchScene(dup.id)
-                            app.sceneRepository.saveScenes(app.sceneManager.allScenes)
-                        }
-                    }
-                    2 -> {
-                        if (app.sceneManager.allScenes.size <= 1) {
-                            Toast.makeText(requireContext(), "Cannot delete the only scene", Toast.LENGTH_SHORT).show()
-                        } else {
-                            app.sceneManager.removeScene(active.id)
-                            app.sceneRepository.saveScenes(app.sceneManager.allScenes)
-                        }
-                    }
-                }
-            }
-            .setNegativeButton("Close", null)
-            .show()
+    private fun updateUndoRedoState() {
+        val app = (activity?.application as? FairyLiveApplication) ?: return
+        if (_binding == null) return
+        binding.btnUndo.alpha = if (app.sceneManager.history.canUndo) 1.0f else 0.30f
+        binding.btnUndo.isEnabled = app.sceneManager.history.canUndo
+        binding.btnRedo.alpha = if (app.sceneManager.history.canRedo) 1.0f else 0.30f
+        binding.btnRedo.isEnabled = app.sceneManager.history.canRedo
     }
 
     private fun requestStartBroadcast() {
@@ -875,6 +924,7 @@ class CreatorStudioFragment : Fragment(),
             val config = MediaProjectionConfig.createConfigForDefaultDisplay()
             projMgr.createScreenCaptureIntent(config)
         } else {
+            @Suppress("DEPRECATION")
             projMgr.createScreenCaptureIntent()
         }
         projectionLauncher.launch(intent)
@@ -918,30 +968,28 @@ class CreatorStudioFragment : Fragment(),
                 binding.btnGoLive.backgroundTintList = ColorStateList.valueOf(ContextCompat.getColor(requireContext(), R.color.status_red))
                 binding.tvStudioStatusBadge.text = "● LIVE"
                 binding.tvStudioStatusBadge.setTextColor(ContextCompat.getColor(requireContext(), R.color.status_green))
+                binding.tvStreamTimer.visibility = View.VISIBLE
             }
             StreamState.STARTING -> {
                 binding.btnGoLive.text = "CONNECTING..."
-                binding.btnGoLive.backgroundTintList = ColorStateList.valueOf(ContextCompat.getColor(requireContext(), R.color.fairy_cyan))
+                binding.btnGoLive.backgroundTintList = ColorStateList.valueOf(ContextCompat.getColor(requireContext(), R.color.accent_primary))
                 binding.tvStudioStatusBadge.text = "STARTING..."
-                binding.tvStudioStatusBadge.setTextColor(ContextCompat.getColor(requireContext(), R.color.fairy_cyan))
-            }
-            StreamState.READY -> {
-                binding.btnGoLive.text = "● GO LIVE"
-                binding.btnGoLive.backgroundTintList = ColorStateList.valueOf(ContextCompat.getColor(requireContext(), R.color.fairy_cyan))
-                binding.tvStudioStatusBadge.text = "READY"
-                binding.tvStudioStatusBadge.setTextColor(ContextCompat.getColor(requireContext(), R.color.fairy_cyan))
+                binding.tvStudioStatusBadge.setTextColor(ContextCompat.getColor(requireContext(), R.color.accent_primary))
+                binding.tvStreamTimer.visibility = View.GONE
             }
             StreamState.STOPPING -> {
                 binding.btnGoLive.text = "STOPPING..."
                 binding.btnGoLive.backgroundTintList = ColorStateList.valueOf(ContextCompat.getColor(requireContext(), R.color.status_amber))
                 binding.tvStudioStatusBadge.text = "STOPPING"
                 binding.tvStudioStatusBadge.setTextColor(ContextCompat.getColor(requireContext(), R.color.status_amber))
+                binding.tvStreamTimer.visibility = View.GONE
             }
             else -> {
                 binding.btnGoLive.text = "● GO LIVE"
-                binding.btnGoLive.backgroundTintList = ColorStateList.valueOf(ContextCompat.getColor(requireContext(), R.color.fairy_cyan))
-                binding.tvStudioStatusBadge.text = "OFFLINE"
-                binding.tvStudioStatusBadge.setTextColor(ContextCompat.getColor(requireContext(), R.color.status_amber))
+                binding.btnGoLive.backgroundTintList = ColorStateList.valueOf(ContextCompat.getColor(requireContext(), R.color.accent_primary))
+                binding.tvStudioStatusBadge.text = "READY"
+                binding.tvStudioStatusBadge.setTextColor(ContextCompat.getColor(requireContext(), R.color.accent_primary))
+                binding.tvStreamTimer.visibility = View.GONE
             }
         }
     }
@@ -955,22 +1003,30 @@ class CreatorStudioFragment : Fragment(),
     override fun onTelemetryUpdated(telemetry: StreamTelemetry) {
         activity?.runOnUiThread {
             if (_binding == null) return@runOnUiThread
-            binding.tvHudBitrate.text = "Bitrate: ${telemetry.bitrateKbps} kbps"
+            binding.tvHudBitrate.text = "${telemetry.bitrateKbps / 1000.0} Mbps"
+            val seconds = (telemetry.durationMs / 1000) % 60
+            val minutes = (telemetry.durationMs / (1000 * 60)) % 60
+            val hours = (telemetry.durationMs / (1000 * 60 * 60))
+            binding.tvStreamTimer.text = String.format(java.util.Locale.US, "%02d:%02d:%02d", hours, minutes, seconds)
         }
     }
 
     override fun onEncoderMetricsUpdated(metrics: com.fairylive.app.core.video.model.EncoderMetrics) {
         activity?.runOnUiThread {
             if (_binding == null) return@runOnUiThread
-            binding.tvHudFps.text = "FPS: ${"%.1f".format(metrics.outputFps)}"
+            binding.tvHudFps.text = "${metrics.outputFps.toInt()} FPS"
         }
     }
 
     override fun onAudioMetricsUpdated(metrics: AudioMetrics) {
         activity?.runOnUiThread {
             if (_binding == null) return@runOnUiThread
-            binding.tvHudAudioRate.text = "Audio: ${metrics.samplesRead} spls (${metrics.peakAmplitudePercent}%)"
+            binding.tvHudAudioRate.text = "48 kHz"
         }
+    }
+
+    private fun dp(value: Int): Int {
+        return (value * resources.displayMetrics.density).toInt()
     }
 
     companion object {

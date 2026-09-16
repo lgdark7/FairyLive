@@ -292,26 +292,42 @@ class GlesRenderer {
     val currentCaptureTimestampNanos: Long
         get() = captureSurfaceTexture?.timestamp ?: 0L
 
+    private var lastPresentedTimestampNs = 0L
+
     /** Draws the composed frame to the encoder surface. Must run on the GL thread. */
     fun drawFrame(
         scene: OverlayScene,
         resources: OverlayResourceManager,
-        facecamConfig: FacecamConfig? = null
+        facecamConfig: FacecamConfig? = null,
+        presentationTimeNs: Long = 0L
     ) {
         if (!initialized) return
         if (eglDisplay == EGL14.EGL_NO_DISPLAY || eglSurface == EGL14.EGL_NO_SURFACE) return
 
         composite(scene, resources, facecamConfig)
-        val captureTs = captureSurfaceTexture?.timestamp ?: 0L
-        if (captureTs > 0L) {
-            EGLExt.eglPresentationTimeANDROID(eglDisplay, eglSurface, captureTs)
+
+        val targetPtsNs = if (presentationTimeNs > 0L) {
+            presentationTimeNs
+        } else {
+            val captureTs = captureSurfaceTexture?.timestamp ?: 0L
+            if (captureTs > 0L && captureTs > lastPresentedTimestampNs) captureTs else com.fairylive.app.core.common.MediaClock.nanoTimeSource()
         }
+
+        // Strict monotonicity check for MediaCodec EGL presentation timestamp
+        val ptsNs = if (targetPtsNs > lastPresentedTimestampNs) {
+            targetPtsNs
+        } else {
+            lastPresentedTimestampNs + 1_000_000L // Ensure strictly monotonic progression (>= 1ms)
+        }
+        lastPresentedTimestampNs = ptsNs
+
+        EGLExt.eglPresentationTimeANDROID(eglDisplay, eglSurface, ptsNs)
         EGL14.eglSwapBuffers(eglDisplay, eglSurface)
     }
 
     /** Overload for backwards compatibility. */
     fun drawFrame(scene: OverlayScene, resources: OverlayResourceManager) {
-        drawFrame(scene, resources, null)
+        drawFrame(scene, resources, null, 0L)
     }
 
     /**
@@ -646,6 +662,7 @@ class GlesRenderer {
         encoderSurface = null
         lastCaptureTimestampNanos = -1L
         lastCameraTimestampNanos = -1L
+        lastPresentedTimestampNs = 0L
         gifStreamPlayer?.release()
         gifStreamPlayer = null
         initialized = false

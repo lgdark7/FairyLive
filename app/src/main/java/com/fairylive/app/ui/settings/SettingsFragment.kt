@@ -7,6 +7,7 @@ import android.view.ViewGroup
 import android.widget.Toast
 import androidx.fragment.app.Fragment
 import com.fairylive.app.FairyLiveApplication
+import com.fairylive.app.MainActivity
 import com.fairylive.app.R
 import com.fairylive.app.core.capability.model.StreamProfile
 import com.fairylive.app.core.settings.StreamSettings
@@ -34,6 +35,10 @@ class SettingsFragment : Fragment() {
         val currentSettings = repo.loadSettings(app.deviceCapability.recommendedProfile)
 
         populateFields(currentSettings)
+
+        binding.rowAdvancedDiagnostics.setOnClickListener {
+            (activity as? MainActivity)?.openDiagnostics()
+        }
 
         binding.btnSave.setOnClickListener {
             saveFields()
