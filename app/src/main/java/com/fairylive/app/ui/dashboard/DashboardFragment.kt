@@ -321,62 +321,76 @@ class DashboardFragment : Fragment(),
     private fun updateServiceState(state: StreamState) {
         val ctx = context ?: return
         when (state) {
-            StreamState.STREAMING -> {
-                binding.tvStreamStatusHeadline.text = "Streaming Live"
-                binding.tvStreamStatusSubtext.text = "Your broadcast is currently live on air"
-                binding.tvDashboardStatusPill.text = "● LIVE"
-                binding.tvDashboardStatusPill.setTextColor(ContextCompat.getColor(ctx, R.color.status_green))
-                binding.tvDashboardStatusPill.setBackgroundResource(R.drawable.bg_scene_chip)
-
-                binding.btnGoLive.text = "■ STOP BROADCAST"
-                binding.btnGoLive.backgroundTintList = ColorStateList.valueOf(ContextCompat.getColor(ctx, R.color.status_red))
-                binding.btnGoLive.isEnabled = true
-
-                binding.tvDashboardTimer.visibility = View.VISIBLE
-            }
-            StreamState.STARTING -> {
-                binding.tvStreamStatusHeadline.text = "Connecting..."
-                binding.tvStreamStatusSubtext.text = "Initiating video encoding and RTMP handshake"
-                binding.tvDashboardStatusPill.text = "CONNECTING"
-                binding.tvDashboardStatusPill.setTextColor(ContextCompat.getColor(ctx, R.color.accent_primary))
-
-                binding.btnGoLive.text = "CONNECTING..."
-                binding.btnGoLive.backgroundTintList = ColorStateList.valueOf(ContextCompat.getColor(ctx, R.color.accent_primary))
-                binding.btnGoLive.isEnabled = false
-
-                binding.tvDashboardTimer.visibility = View.GONE
-            }
-            StreamState.STOPPING -> {
-                binding.tvStreamStatusHeadline.text = "Stopping..."
-                binding.tvStreamStatusSubtext.text = "Closing broadcast session and flushing buffers"
-                binding.tvDashboardStatusPill.text = "STOPPING"
-                binding.tvDashboardStatusPill.setTextColor(ContextCompat.getColor(ctx, R.color.status_amber))
-
-                binding.btnGoLive.text = "STOPPING..."
-                binding.btnGoLive.backgroundTintList = ColorStateList.valueOf(ContextCompat.getColor(ctx, R.color.status_amber))
-                binding.btnGoLive.isEnabled = false
-
-                binding.tvDashboardTimer.visibility = View.GONE
-            }
             StreamState.ERROR -> {
                 binding.tvStreamStatusHeadline.text = "Stream Stopped"
                 binding.tvStreamStatusSubtext.text = "An error occurred during broadcasting"
                 binding.tvDashboardStatusPill.text = "ERROR"
                 binding.tvDashboardStatusPill.setTextColor(ContextCompat.getColor(ctx, R.color.status_red))
 
-                binding.btnGoLive.text = "● RETRY BROADCAST"
+                binding.viewStatusDot.backgroundTintList = ColorStateList.valueOf(ContextCompat.getColor(ctx, R.color.status_red))
+                binding.tvReadinessLabel.text = "Stream interrupted"
+
+                binding.btnGoLive.text = "● Retry Broadcast"
                 binding.btnGoLive.backgroundTintList = ColorStateList.valueOf(ContextCompat.getColor(ctx, R.color.status_red))
                 binding.btnGoLive.isEnabled = true
 
                 binding.tvDashboardTimer.visibility = View.GONE
             }
-            else -> {
-                binding.tvStreamStatusHeadline.text = "Ready to stream"
-                binding.tvStreamStatusSubtext.text = "Tap GO LIVE to broadcast screen and audio"
-                binding.tvDashboardStatusPill.text = "READY"
+            StreamState.STREAMING -> {
+                binding.tvStreamStatusHeadline.text = "Live On Air 🔴"
+                binding.tvStreamStatusSubtext.text = "Broadcasting to RTMP destination"
+                binding.tvDashboardStatusPill.text = "● LIVE"
+                binding.tvDashboardStatusPill.setTextColor(ContextCompat.getColor(ctx, R.color.status_green))
+
+                binding.viewStatusDot.backgroundTintList = ColorStateList.valueOf(ContextCompat.getColor(ctx, R.color.status_green))
+                binding.tvReadinessLabel.text = "Broadcasting live"
+
+                binding.btnGoLive.text = "■ Stop Broadcast"
+                binding.btnGoLive.backgroundTintList = ColorStateList.valueOf(ContextCompat.getColor(ctx, R.color.status_red))
+                binding.btnGoLive.isEnabled = true
+
+                binding.tvDashboardTimer.visibility = View.VISIBLE
+            }
+            StreamState.STARTING -> {
+                binding.tvStreamStatusHeadline.text = "Starting Stream..."
+                binding.tvStreamStatusSubtext.text = "Initializing hardware encoder & network handshake"
+                binding.tvDashboardStatusPill.text = "CONNECTING"
                 binding.tvDashboardStatusPill.setTextColor(ContextCompat.getColor(ctx, R.color.accent_primary))
 
-                binding.btnGoLive.text = "● GO LIVE"
+                binding.viewStatusDot.backgroundTintList = ColorStateList.valueOf(ContextCompat.getColor(ctx, R.color.accent_primary))
+                binding.tvReadinessLabel.text = "Connecting to RTMP ingest..."
+
+                binding.btnGoLive.text = "Connecting..."
+                binding.btnGoLive.backgroundTintList = ColorStateList.valueOf(ContextCompat.getColor(ctx, R.color.accent_primary))
+                binding.btnGoLive.isEnabled = false
+
+                binding.tvDashboardTimer.visibility = View.GONE
+            }
+            StreamState.STOPPING -> {
+                binding.tvStreamStatusHeadline.text = "Stopping Stream..."
+                binding.tvStreamStatusSubtext.text = "Flushing muxer and tearing down encoders"
+                binding.tvDashboardStatusPill.text = "STOPPING"
+                binding.tvDashboardStatusPill.setTextColor(ContextCompat.getColor(ctx, R.color.status_amber))
+
+                binding.viewStatusDot.backgroundTintList = ColorStateList.valueOf(ContextCompat.getColor(ctx, R.color.status_amber))
+                binding.tvReadinessLabel.text = "Wrapping up broadcast..."
+
+                binding.btnGoLive.text = "Stopping..."
+                binding.btnGoLive.backgroundTintList = ColorStateList.valueOf(ContextCompat.getColor(ctx, R.color.status_amber))
+                binding.btnGoLive.isEnabled = false
+
+                binding.tvDashboardTimer.visibility = View.GONE
+            }
+            else -> {
+                binding.tvStreamStatusHeadline.text = "Good evening 👋"
+                binding.tvStreamStatusSubtext.text = "Balanced HD • 720p 30fps • Low Latency"
+                binding.tvDashboardStatusPill.text = "Ready"
+                binding.tvDashboardStatusPill.setTextColor(ContextCompat.getColor(ctx, R.color.accent_primary))
+
+                binding.viewStatusDot.backgroundTintList = ColorStateList.valueOf(ContextCompat.getColor(ctx, R.color.status_green))
+                binding.tvReadinessLabel.text = "Ready to go live"
+
+                binding.btnGoLive.text = "Start Live"
                 binding.btnGoLive.backgroundTintList = ColorStateList.valueOf(ContextCompat.getColor(ctx, R.color.accent_primary))
                 binding.btnGoLive.isEnabled = true
 

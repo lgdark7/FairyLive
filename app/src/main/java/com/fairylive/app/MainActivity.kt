@@ -61,6 +61,7 @@ class MainActivity : AppCompatActivity(), StreamStateNotifier.Listener {
             supportFragmentManager.popBackStack(null, androidx.fragment.app.FragmentManager.POP_BACK_STACK_INCLUSIVE)
         }
         supportFragmentManager.beginTransaction()
+            .setCustomAnimations(R.anim.fade_in_subtle, R.anim.fade_out_subtle)
             .replace(R.id.fragment_container, fragment)
             .commit()
     }
@@ -75,6 +76,7 @@ class MainActivity : AppCompatActivity(), StreamStateNotifier.Listener {
 
     fun openDiagnostics() {
         supportFragmentManager.beginTransaction()
+            .setCustomAnimations(R.anim.slide_in_bottom, R.anim.slide_out_bottom, R.anim.slide_in_bottom, R.anim.slide_out_bottom)
             .replace(R.id.fragment_container, DiagnosticsFragment())
             .addToBackStack("diagnostics")
             .commit()

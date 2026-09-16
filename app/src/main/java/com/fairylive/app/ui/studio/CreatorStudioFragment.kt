@@ -369,7 +369,7 @@ class CreatorStudioFragment : Fragment(),
     }
 
     private fun showAddOverlayBottomSheet() {
-        val dialog = BottomSheetDialog(requireContext())
+        val dialog = BottomSheetDialog(requireContext(), R.style.Theme_FairyLive_BottomSheetDialog)
         val sheetView = layoutInflater.inflate(R.layout.sheet_add_overlay, null)
         dialog.setContentView(sheetView)
 
@@ -414,7 +414,7 @@ class CreatorStudioFragment : Fragment(),
     }
 
     private fun showLayersBottomSheet() {
-        val dialog = BottomSheetDialog(requireContext())
+        val dialog = BottomSheetDialog(requireContext(), R.style.Theme_FairyLive_BottomSheetDialog)
         val sheetView = layoutInflater.inflate(R.layout.sheet_layers, null)
         dialog.setContentView(sheetView)
 
@@ -604,7 +604,7 @@ class CreatorStudioFragment : Fragment(),
     }
 
     private fun showInspectorBottomSheet(elem: OverlayElement) {
-        val dialog = BottomSheetDialog(requireContext())
+        val dialog = BottomSheetDialog(requireContext(), R.style.Theme_FairyLive_BottomSheetDialog)
         val sheetView = layoutInflater.inflate(R.layout.sheet_inspector, null)
         dialog.setContentView(sheetView)
 
@@ -1004,7 +1004,7 @@ class CreatorStudioFragment : Fragment(),
     }
 
     private fun showFacecamInspector() {
-        val dialog = BottomSheetDialog(requireContext())
+        val dialog = BottomSheetDialog(requireContext(), R.style.Theme_FairyLive_BottomSheetDialog)
         val sheetView = layoutInflater.inflate(R.layout.sheet_inspector, null)
         dialog.setContentView(sheetView)
 
@@ -1138,7 +1138,7 @@ class CreatorStudioFragment : Fragment(),
     }
 
     private fun showSceneOptionsBottomSheet(scene: BroadcastScene) {
-        val dialog = BottomSheetDialog(requireContext())
+        val dialog = BottomSheetDialog(requireContext(), R.style.Theme_FairyLive_BottomSheetDialog)
         val sheetView = layoutInflater.inflate(R.layout.sheet_scene_options, null)
         dialog.setContentView(sheetView)
 

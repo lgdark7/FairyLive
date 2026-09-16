@@ -4,15 +4,16 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@color/bg_primary"
-    android:fillViewport="true">
+    android:fillViewport="true"
+    android:overScrollMode="never">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
         android:paddingHorizontal="24dp"
-        android:paddingTop="20dp"
-        android:paddingBottom="36dp">
+        android:paddingTop="24dp"
+        android:paddingBottom="40dp">
 
         <!-- Error Alert Banner -->
         <androidx.cardview.widget.CardView
@@ -82,36 +83,23 @@
             </LinearLayout>
         </androidx.cardview.widget.CardView>
 
-        <!-- 1. Header & Status Pill -->
+        <!-- 1. Header Bar: Branding & Status Pill -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:gravity="center_vertical"
             android:orientation="horizontal">
 
-            <LinearLayout
+            <TextView
+                style="@style/Typography.FairyLive.Display"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:orientation="vertical">
-
-                <TextView
-                    android:id="@+id/tv_stream_status_headline"
-                    style="@style/Typography.FairyLive.Display"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="Ready to stream"
-                    android:textSize="26sp" />
-
-                <TextView
-                    android:id="@+id/tv_stream_status_subtext"
-                    style="@style/Typography.FairyLive.BodySecondary"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="4dp"
-                    android:text="Start your broadcast when your scene is ready"
-                    android:textSize="14sp" />
-            </LinearLayout>
+                android:letterSpacing="0.06"
+                android:text="FAIRY LIVE"
+                android:textColor="@color/text_primary"
+                android:textSize="20sp"
+                android:textStyle="bold" />
 
             <TextView
                 android:id="@+id/tv_dashboard_status_pill"
@@ -119,19 +107,40 @@
                 android:layout_height="wrap_content"
                 android:background="@drawable/bg_status_pill"
                 android:paddingHorizontal="14dp"
-                android:paddingVertical="7dp"
+                android:paddingVertical="6dp"
                 android:text="Ready"
                 android:textColor="@color/accent_primary"
                 android:textSize="12sp"
                 android:textStyle="bold" />
         </LinearLayout>
 
-        <!-- 2. Hero Preview Card -->
+        <!-- Greeting & Subtext -->
+        <TextView
+            android:id="@+id/tv_stream_status_headline"
+            style="@style/Typography.FairyLive.Display"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="Good evening 👋"
+            android:textColor="@color/text_primary"
+            android:textSize="26sp" />
+
+        <TextView
+            android:id="@+id/tv_stream_status_subtext"
+            style="@style/Typography.FairyLive.BodySecondary"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:text="Balanced HD • 720p 30fps • Low Latency"
+            android:textColor="@color/text_secondary"
+            android:textSize="14sp" />
+
+        <!-- 2. STREAM PREVIEW HERO CARD (Rounded Editorial Surface) -->
         <androidx.cardview.widget.CardView
             android:id="@+id/card_stream_preview"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="22dp"
+            android:layout_marginTop="20dp"
             android:clickable="true"
             android:focusable="true"
             android:foreground="?attr/selectableItemBackground"
@@ -146,9 +155,10 @@
 
                 <FrameLayout
                     android:layout_width="match_parent"
-                    android:layout_height="184dp"
+                    android:layout_height="200dp"
                     android:background="@color/bg_canvas">
 
+                    <!-- Center Preview Info -->
                     <LinearLayout
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
@@ -157,8 +167,8 @@
                         android:orientation="vertical">
 
                         <ImageView
-                            android:layout_width="36dp"
-                            android:layout_height="36dp"
+                            android:layout_width="38dp"
+                            android:layout_height="38dp"
                             android:src="@drawable/ic_stream"
                             app:tint="@color/text_on_dark_muted" />
 
@@ -177,7 +187,7 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="3dp"
-                            android:text="Tap to customize scene canvas"
+                            android:text="Tap to open Creator Studio"
                             android:textColor="@color/text_on_dark_muted"
                             android:textSize="12sp" />
                     </LinearLayout>
@@ -215,11 +225,53 @@
             </LinearLayout>
         </androidx.cardview.widget.CardView>
 
-        <!-- 3. Quick Toggles: Camera & Mic -->
+        <!-- 3. Readiness Indicator Status -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="18dp"
+            android:gravity="center"
+            android:orientation="horizontal">
+
+            <View
+                android:id="@+id/view_status_dot"
+                android:layout_width="8dp"
+                android:layout_height="8dp"
+                android:background="@drawable/bg_status_pill"
+                android:backgroundTint="@color/status_green" />
+
+            <TextView
+                android:id="@+id/tv_readiness_label"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:text="Ready to go live"
+                android:textColor="@color/text_secondary"
+                android:textSize="13sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+        <!-- 4. Hero Start Live Action Pill Button -->
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_go_live"
+            android:layout_width="match_parent"
+            android:layout_height="58dp"
+            android:layout_marginTop="14dp"
+            android:backgroundTint="@color/accent_primary"
+            android:letterSpacing="0.02"
+            android:text="Start Live"
+            android:textAllCaps="false"
+            android:textColor="@color/text_on_dark"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            app:cornerRadius="20dp"
+            app:elevation="2dp" />
+
+        <!-- Quick Camera & Mic Pill Toggles -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="14dp"
             android:gravity="center_vertical"
             android:orientation="horizontal">
 
@@ -227,17 +279,17 @@
                 android:id="@+id/btn_toggle_camera"
                 style="@style/Widget.MaterialComponents.Button.OutlinedButton"
                 android:layout_width="0dp"
-                android:layout_height="52dp"
+                android:layout_height="48dp"
                 android:layout_marginEnd="10dp"
                 android:layout_weight="1"
                 android:text="Camera"
                 android:textAllCaps="false"
                 android:textColor="@color/text_primary"
-                android:textSize="14sp"
+                android:textSize="13sp"
                 app:cornerRadius="16dp"
                 app:icon="@drawable/ic_camera"
                 app:iconGravity="textStart"
-                app:iconPadding="10dp"
+                app:iconPadding="8dp"
                 app:iconTint="@color/text_primary"
                 app:strokeColor="@color/bg_card_stroke"
                 app:strokeWidth="1dp" />
@@ -246,48 +298,31 @@
                 android:id="@+id/btn_toggle_mic"
                 style="@style/Widget.MaterialComponents.Button.OutlinedButton"
                 android:layout_width="0dp"
-                android:layout_height="52dp"
+                android:layout_height="48dp"
                 android:layout_weight="1"
                 android:text="Microphone"
                 android:textAllCaps="false"
                 android:textColor="@color/text_primary"
-                android:textSize="14sp"
+                android:textSize="13sp"
                 app:cornerRadius="16dp"
                 app:icon="@drawable/ic_mic"
                 app:iconGravity="textStart"
-                app:iconPadding="10dp"
+                app:iconPadding="8dp"
                 app:iconTint="@color/text_primary"
                 app:strokeColor="@color/bg_card_stroke"
                 app:strokeWidth="1dp" />
         </LinearLayout>
 
-        <!-- 4. Hero Action: GO LIVE -->
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btn_go_live"
-            android:layout_width="match_parent"
-            android:layout_height="56dp"
-            android:layout_marginTop="16dp"
-            android:backgroundTint="@color/accent_primary"
-            android:letterSpacing="0.01"
-            android:text="Go live"
-            android:textAllCaps="false"
-            android:textColor="@color/text_on_dark"
-            android:textSize="16sp"
-            android:textStyle="bold"
-            app:cornerRadius="18dp"
-            app:elevation="2dp" />
-
-        <!-- 5. Editorial Shortcuts Header -->
+        <!-- 5. Recent Activity / Workspace Section -->
         <TextView
             style="@style/Typography.FairyLive.SectionTitle"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="32dp"
             android:layout_marginBottom="12dp"
-            android:text="Shortcuts"
+            android:text="Recent"
             android:textSize="13sp" />
 
-        <!-- Studio & Scenes Card -->
         <androidx.cardview.widget.CardView
             android:id="@+id/row_shortcut_studio"
             android:layout_width="match_parent"
@@ -325,7 +360,7 @@
                         style="@style/Typography.FairyLive.Title"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Creator Studio"
+                        android:text="Gameplay Scene"
                         android:textSize="16sp" />
 
                     <TextView
@@ -333,15 +368,16 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="2dp"
-                        android:text="Design overlays, camera PIP, and canvas elements"
+                        android:text="Active creator workspace • Tap to edit canvas"
                         android:textSize="13sp" />
                 </LinearLayout>
 
-                <ImageView
-                    android:layout_width="16dp"
-                    android:layout_height="16dp"
-                    android:src="@drawable/ic_chevron_right"
-                    app:tint="@color/text_muted" />
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Today"
+                    android:textColor="@color/text_muted"
+                    android:textSize="12sp" />
             </LinearLayout>
         </androidx.cardview.widget.CardView>
 
@@ -383,7 +419,7 @@
                         style="@style/Typography.FairyLive.Title"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Configure destination"
+                        android:text="Broadcast Target"
                         android:textSize="16sp" />
 
                     <TextView
@@ -392,7 +428,7 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="2dp"
-                        android:text="Set RTMP server and secure stream key"
+                        android:text="RTMP Endpoint • Secure Keystore"
                         android:textSize="13sp" />
                 </LinearLayout>
 
@@ -441,7 +477,7 @@
                         style="@style/Typography.FairyLive.Title"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Stream settings"
+                        android:text="Preferences &amp; Diagnostics"
                         android:textSize="16sp" />
 
                     <TextView
@@ -449,7 +485,7 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="2dp"
-                        android:text="Bitrate, video resolution, and hardware preferences"
+                        android:text="Encoder settings, audio source, advanced telemetry"
                         android:textSize="13sp" />
                 </LinearLayout>
 
