@@ -70,3 +70,25 @@ data class WidgetOverlayConfig(
     val value: String,
     val accentColorRgba: Int = Color.rgb(0, 229, 255)
 )
+
+/** Configuration for live browser / HTML web overlays. */
+data class WebOverlayConfig(
+    val url: String,
+    val transparentBackground: Boolean = true,
+    val refreshIntervalSeconds: Int = 0, // 0 = no periodic refresh
+    val cssInjection: String? = null,
+    val isInteractive: Boolean = false,
+    val fallbackText: String = "Web overlay unavailable"
+)
+
+/** Configuration for YouTube live subscriber count widget. */
+data class YouTubeSubscriberWidgetConfig(
+    val channelId: String = "",
+    val channelTitle: String = "FAIRY LIVE",
+    val subscriberCountFormatted: String = "12.4K",
+    val rawSubscriberCount: Long = 12400L,
+    val labelText: String = "SUBSCRIBERS",
+    val accentColorRgba: Int = 0xFFFF0000.toInt(), // YouTube Red
+    val backgroundColorRgba: Int = 0xCC1A1A1A.toInt(),
+    val showIcon: Boolean = true
+)

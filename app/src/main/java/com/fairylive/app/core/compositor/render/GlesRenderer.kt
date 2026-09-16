@@ -605,6 +605,22 @@ class GlesRenderer {
                     gifStreamPlayer?.getFrame(config, streamTime)?.first
                 }
             }
+            OverlayType.WEB -> {
+                element.webConfig?.let { config ->
+                    val key = "web_${element.id}_${config.url.hashCode()}"
+                    resources.getOrPutBitmap(key) {
+                        com.fairylive.app.core.compositor.rasterizer.WebOverlayRasterizer.rasterizePlaceholder(config)
+                    }
+                }
+            }
+            OverlayType.YOUTUBE_SUBSCRIBER -> {
+                element.youtubeSubscriberConfig?.let { config ->
+                    val key = "ytsub_${element.id}_${config.subscriberCountFormatted}_${config.channelTitle}"
+                    resources.getOrPutBitmap(key) {
+                        com.fairylive.app.core.compositor.rasterizer.YouTubeSubscriberRasterizer.rasterize(config)
+                    }
+                }
+            }
         }
     }
 

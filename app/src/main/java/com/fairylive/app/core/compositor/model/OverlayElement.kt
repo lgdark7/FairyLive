@@ -28,7 +28,9 @@ data class OverlayElement(
     val alertConfig: AlertOverlayConfig? = null,
     val qrConfig: QrOverlayConfig? = null,
     val gifConfig: GifOverlayConfig? = null,
-    val widgetConfig: WidgetOverlayConfig? = null
+    val widgetConfig: WidgetOverlayConfig? = null,
+    val webConfig: WebOverlayConfig? = null,
+    val youtubeSubscriberConfig: YouTubeSubscriberWidgetConfig? = null
 ) {
     val isVisible: Boolean get() = enabled && visible && opacity > 0f
 
@@ -193,6 +195,44 @@ data class OverlayElement(
             opacity = opacity,
             zIndex = zIndex
         )
+
+        fun createWeb(
+            id: String,
+            config: WebOverlayConfig,
+            x: Float = 0.05f,
+            y: Float = 0.05f,
+            width: Float = 0.40f,
+            opacity: Float = 1f,
+            zIndex: Int = 15
+        ) = OverlayElement(
+            id = id,
+            type = OverlayType.WEB,
+            webConfig = config,
+            normalizedX = x,
+            normalizedY = y,
+            normalizedWidth = width,
+            opacity = opacity,
+            zIndex = zIndex
+        )
+
+        fun createYouTubeSubscriber(
+            id: String,
+            config: YouTubeSubscriberWidgetConfig,
+            x: Float = 0.05f,
+            y: Float = 0.05f,
+            width: Float = 0.35f,
+            opacity: Float = 1f,
+            zIndex: Int = 20
+        ) = OverlayElement(
+            id = id,
+            type = OverlayType.YOUTUBE_SUBSCRIBER,
+            youtubeSubscriberConfig = config,
+            normalizedX = x,
+            normalizedY = y,
+            normalizedWidth = width,
+            opacity = opacity,
+            zIndex = zIndex
+        )
     }
 }
 
@@ -205,5 +245,7 @@ enum class OverlayType {
     ALERT,
     QR,
     WIDGET,
+    WEB,
+    YOUTUBE_SUBSCRIBER,
     PNG // Backward compatibility alias for IMAGE
 }

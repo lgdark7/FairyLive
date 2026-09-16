@@ -12,6 +12,8 @@ import com.fairylive.app.core.compositor.model.OverlayType
 import com.fairylive.app.core.compositor.model.QrOverlayConfig
 import com.fairylive.app.core.compositor.model.TextOverlayConfig
 import com.fairylive.app.core.compositor.model.WidgetOverlayConfig
+import com.fairylive.app.core.compositor.model.WebOverlayConfig
+import com.fairylive.app.core.compositor.model.YouTubeSubscriberWidgetConfig
 import com.fairylive.app.core.scene.BroadcastSceneManager
 import com.fairylive.app.core.scene.model.BroadcastScene
 import com.fairylive.app.core.scene.model.SceneBackgroundMode
@@ -235,11 +237,13 @@ class Milestone15EHardeningUnitTest {
                 OverlayElement.createAlert("alert1", AlertOverlayConfig("Super Sub!", "Benny joined", 5000L), 0.2f, 0.1f),
                 OverlayElement.createQr("qr1", QrOverlayConfig("https://fairylive.app"), 0.7f, 0.7f),
                 OverlayElement.createWidget("w1", WidgetOverlayConfig("STATS", "FPS", "60"), 0.02f, 0.02f),
+                OverlayElement.createWeb("web1", WebOverlayConfig("https://example.com/widget"), 0.05f, 0.05f),
+                OverlayElement.createYouTubeSubscriber("yt1", YouTubeSubscriberWidgetConfig("UC123", "Benny"), 0.05f, 0.05f),
                 OverlayElement.createImage("png1", "assets://badge.png", 0.8f, 0.1f, 0.15f).copy(type = OverlayType.PNG)
             )
         )
 
-        assertEquals(9, scene.overlayElements.size)
+        assertEquals(11, scene.overlayElements.size)
         // Ensure every overlay type is uniquely represented
         val coveredTypes = scene.overlayElements.map { it.type }.toSet()
         assertEquals(OverlayType.values().toSet(), coveredTypes)
