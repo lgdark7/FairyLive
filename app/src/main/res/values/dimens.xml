@@ -1,6 +1,33 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!-- M15-H Spacing Scale -->
+    <dimen name="spacing_2xs">4dp</dimen>
+    <dimen name="spacing_xs">8dp</dimen>
+    <dimen name="spacing_sm">12dp</dimen>
+    <dimen name="spacing_md">16dp</dimen>
+    <dimen name="spacing_lg">20dp</dimen>
+    <dimen name="spacing_xl">24dp</dimen>
+    <dimen name="spacing_2xl">28dp</dimen>
+    <dimen name="spacing_3xl">32dp</dimen>
+
+    <!-- Component Sizing Tokens -->
     <dimen name="chip_height">36dp</dimen>
-    <dimen name="preview_corner_radius">12dp</dimen>
+    <dimen name="chip_radius">18dp</dimen>
+    <dimen name="button_height_primary">52dp</dimen>
+    <dimen name="button_height_secondary">44dp</dimen>
+    <dimen name="button_radius">16dp</dimen>
+    <dimen name="pill_radius">999dp</dimen>
+
+    <!-- Corner Radius Scale -->
+    <dimen name="radius_sm">10dp</dimen>
+    <dimen name="radius_md">16dp</dimen>
+    <dimen name="radius_lg">20dp</dimen>
+    <dimen name="radius_xl">24dp</dimen>
+    <dimen name="preview_corner_radius">16dp</dimen>
     <dimen name="studio_control_height">44dp</dimen>
+
+    <!-- Elevation Tokens -->
+    <dimen name="elevation_subtle">2dp</dimen>
+    <dimen name="elevation_card">4dp</dimen>
+    <dimen name="elevation_sheet">12dp</dimen>
 </resources>

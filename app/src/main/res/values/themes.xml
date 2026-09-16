@@ -1,16 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <style name="Theme.FairyLive" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+    <!-- M15-H Theme Definition -->
+    <style name="Theme.FairyLive" parent="Theme.MaterialComponents.Light.NoActionBar">
         <item name="colorPrimary">@color/accent_primary</item>
         <item name="colorPrimaryVariant">@color/accent_primary_variant</item>
-        <item name="colorOnPrimary">@color/text_primary</item>
+        <item name="colorOnPrimary">@color/text_on_dark</item>
 
-        <item name="colorSecondary">@color/accent_primary</item>
-        <item name="colorSecondaryVariant">@color/accent_primary_variant</item>
+        <item name="colorSecondary">@color/text_primary</item>
+        <item name="colorSecondaryVariant">@color/text_secondary</item>
         <item name="colorOnSecondary">@color/bg_primary</item>
 
         <item name="android:statusBarColor">@color/bg_primary</item>
+        <item name="android:windowLightStatusBar" tools:targetApi="m">true</item>
         <item name="android:navigationBarColor">@color/bg_surface</item>
+        <item name="android:windowLightNavigationBar" tools:targetApi="o_mr1">true</item>
         <item name="android:windowBackground">@color/bg_primary</item>
 
         <item name="bottomSheetDialogTheme">@style/Theme.FairyLive.BottomSheetDialog</item>
@@ -22,5 +25,48 @@
 
     <style name="FairyBottomSheetStyle" parent="Widget.MaterialComponents.BottomSheet.Modal">
         <item name="android:background">@drawable/bg_bottom_sheet</item>
+        <item name="behavior_peekHeight">280dp</item>
+    </style>
+
+    <!-- Editorial Typography Styles -->
+    <style name="Typography.FairyLive.Display" parent="TextAppearance.MaterialComponents.Headline4">
+        <item name="android:textColor">@color/text_primary</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:letterSpacing">-0.02</item>
+    </style>
+
+    <style name="Typography.FairyLive.Title" parent="TextAppearance.MaterialComponents.Headline6">
+        <item name="android:textColor">@color/text_primary</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:letterSpacing">-0.01</item>
+    </style>
+
+    <style name="Typography.FairyLive.SectionTitle" parent="TextAppearance.MaterialComponents.Subtitle2">
+        <item name="android:textColor">@color/text_secondary</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:textAllCaps">false</item>
+        <item name="android:letterSpacing">0.02</item>
+    </style>
+
+    <style name="Typography.FairyLive.Body" parent="TextAppearance.MaterialComponents.Body1">
+        <item name="android:textColor">@color/text_primary</item>
+        <item name="android:letterSpacing">0.0</item>
+    </style>
+
+    <style name="Typography.FairyLive.BodySecondary" parent="TextAppearance.MaterialComponents.Body2">
+        <item name="android:textColor">@color/text_secondary</item>
+        <item name="android:letterSpacing">0.0</item>
+    </style>
+
+    <style name="Typography.FairyLive.Caption" parent="TextAppearance.MaterialComponents.Caption">
+        <item name="android:textColor">@color/text_muted</item>
+        <item name="android:letterSpacing">0.01</item>
+    </style>
+
+    <style name="Typography.FairyLive.Button" parent="TextAppearance.MaterialComponents.Button">
+        <item name="android:textColor">@color/text_on_dark</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:textAllCaps">false</item>
+        <item name="android:letterSpacing">0.01</item>
     </style>
 </resources>

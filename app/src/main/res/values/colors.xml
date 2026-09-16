@@ -1,33 +1,56 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Dark-First Neutral Surfaces -->
-    <color name="bg_primary">#090A0E</color>
-    <color name="bg_surface">#13141B</color>
-    <color name="bg_card">#1A1C25</color>
-    <color name="bg_card_stroke">#282A38</color>
+    <!-- M15-H Premium Visual Palette: Warm Ivory + Soft Cream + Espresso + Soft Plum -->
 
-    <!-- Unified Single Accent Color (Indigo) -->
-    <color name="accent_primary">#6366F1</color>
-    <color name="accent_primary_variant">#4F46E5</color>
-    <color name="fairy_purple">#6366F1</color>
-    <color name="fairy_purple_light">#818CF8</color>
-    <color name="fairy_purple_dark">#4F46E5</color>
-    <color name="fairy_cyan">#6366F1</color>
+    <!-- Backgrounds & Major Surfaces -->
+    <color name="bg_primary">#FBF9F5</color>
+    <color name="bg_surface">#F5EFEB</color>
+    <color name="bg_surface_elevated">#ECE4DE</color>
+    <color name="bg_card">#FFFFFF</color>
+    <color name="bg_card_secondary">#F7F3EE</color>
+    <color name="bg_card_stroke">#E6DED7</color>
+    <color name="bg_card_stroke_subtle">#EFE8E1</color>
+    <color name="bg_canvas">#181513</color>
+    <color name="bg_canvas_border">#3D352F</color>
 
-    <!-- Functional Status Colors -->
-    <color name="status_green">#10B981</color>
-    <color name="status_amber">#F59E0B</color>
-    <color name="status_warning">#F59E0B</color>
-    <color name="status_red">#EF4444</color>
-    <color name="status_error">#EF4444</color>
-    <color name="status_live">#10B981</color>
-    <color name="accent_dark">#4F46E5</color>
+    <!-- Restrained Accent Colors (Soft Plum / Lavender + Warm Caramel) -->
+    <color name="accent_primary">#7B61FF</color>
+    <color name="accent_primary_variant">#6347EB</color>
+    <color name="accent_soft_plum">#8A6FE8</color>
+    <color name="accent_soft_lavender">#EBE5FC</color>
+    <color name="accent_warm_caramel">#D49B6A</color>
+    <color name="accent_caramel_soft">#F7EFE7</color>
+    <color name="accent_dark">#4B32A6</color>
 
-    <!-- Typography & Neutral Utilities -->
-    <color name="text_primary">#FFFFFF</color>
-    <color name="text_secondary">#9CA3AF</color>
-    <color name="text_muted">#6B7280</color>
-    <color name="divider_color">#1E202B</color>
-    <color name="chip_bg">#1A1C26</color>
-    <color name="chip_bg_active">#4F46E5</color>
+    <!-- Backwards Compatibility Aliases for Existing Components -->
+    <color name="fairy_purple">#7B61FF</color>
+    <color name="fairy_purple_light">#9F8CFC</color>
+    <color name="fairy_purple_dark">#583AC9</color>
+    <color name="fairy_cyan">#7B61FF</color>
+
+    <!-- Refined Semantic & Status Colors -->
+    <color name="status_green">#15803D</color>
+    <color name="status_green_soft">#DCFCE7</color>
+    <color name="status_amber">#B45309</color>
+    <color name="status_amber_soft">#FEF3C7</color>
+    <color name="status_warning">#B45309</color>
+    <color name="status_red">#B91C1C</color>
+    <color name="status_red_soft">#FEE2E2</color>
+    <color name="status_error">#B91C1C</color>
+    <color name="status_live">#B91C1C</color>
+
+    <!-- Editorial Typography Hierarchy (Espresso & Warm Neutrals) -->
+    <color name="text_primary">#231B15</color>
+    <color name="text_secondary">#6E6259</color>
+    <color name="text_muted">#9A8E85</color>
+    <color name="text_on_dark">#FFFFFF</color>
+    <color name="text_on_dark_muted">#C2B8B0</color>
+    <color name="text_accent">#6347EB</color>
+
+    <!-- Component & Interactive Tokens -->
+    <color name="divider_color">#EAE2DA</color>
+    <color name="chip_bg">#EDE5DE</color>
+    <color name="chip_bg_active">#231B15</color>
+    <color name="chip_text_active">#FBF9F5</color>
+    <color name="handle_color">#D0C5BC</color>
 </resources>
