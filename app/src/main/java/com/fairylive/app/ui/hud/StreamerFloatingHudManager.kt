@@ -104,6 +104,36 @@ class StreamerFloatingHudManager(private val activity: Activity) {
         val dialog = BottomSheetDialog(activity)
         val sheetView = LayoutInflater.from(activity).inflate(R.layout.sheet_creator_chat, null)
         dialog.setContentView(sheetView)
+
+        val container = sheetView.findViewById<ViewGroup>(R.id.chatMessagesContainer)
+        val editMsg = sheetView.findViewById<android.widget.EditText>(R.id.editChatMessage)
+        val btnSend = sheetView.findViewById<android.widget.Button>(R.id.btnSendChat)
+
+        fun renderMessages() {
+            container?.removeAllViews()
+            for (msg in com.fairylive.app.core.youtube.YouTubeLiveIntegrationService.chatMessages.value) {
+                val tv = TextView(activity).apply {
+                    val prefix = if (msg.isStreamer) "[Streamer] " else ""
+                    text = "$prefix${msg.authorName}: ${msg.messageText}"
+                    setTextColor(if (msg.isStreamer) 0xFF0284C7.toInt() else 0xFF231B15.toInt())
+                    textSize = 13f
+                    setPadding(0, 4, 0, 4)
+                }
+                container?.addView(tv)
+            }
+        }
+
+        renderMessages()
+
+        btnSend?.setOnClickListener {
+            val text = editMsg?.text?.toString()?.trim() ?: ""
+            if (text.isNotEmpty()) {
+                com.fairylive.app.core.youtube.YouTubeLiveIntegrationService.postChatMessage("Streamer", text, isStreamer = true)
+                editMsg?.text?.clear()
+                renderMessages()
+            }
+        }
+
         dialog.show()
     }
 
