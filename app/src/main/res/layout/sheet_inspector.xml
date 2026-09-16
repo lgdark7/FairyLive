@@ -1,0 +1,1043 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="@drawable/bg_bottom_sheet"
+    android:orientation="vertical"
+    android:paddingHorizontal="20dp"
+    android:paddingTop="14dp"
+    android:paddingBottom="20dp">
+
+    <!-- Drag Handle -->
+    <View
+        android:layout_width="36dp"
+        android:layout_height="4dp"
+        android:layout_gravity="center_horizontal"
+        android:layout_marginBottom="12dp"
+        android:background="@drawable/bg_status_pill"
+        android:backgroundTint="@color/bg_card_stroke" />
+
+    <!-- Header: Title + Type Badge -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="12dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <TextView
+            android:id="@+id/tv_inspector_title"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Element Properties"
+            android:textColor="@color/text_primary"
+            android:textSize="17sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/tv_inspector_type"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="@drawable/bg_status_badge"
+            android:paddingHorizontal="8dp"
+            android:paddingVertical="3dp"
+            android:text="TEXT"
+            android:textColor="@color/accent_primary"
+            android:textSize="11sp"
+            android:textStyle="bold" />
+    </LinearLayout>
+
+    <!-- Scrollable Content -->
+    <androidx.core.widget.NestedScrollView
+        android:id="@+id/scroll_inspector"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:fillViewport="true"
+        android:overScrollMode="never">
+
+        <LinearLayout
+            android:id="@+id/layout_inspector_content"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingBottom="12dp">
+
+            <!-- ================= 1. TEXT CONTROLS ================= -->
+            <LinearLayout
+                android:id="@+id/section_text_controls"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:visibility="gone">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Text Content"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="12sp" />
+
+                <EditText
+                    android:id="@+id/et_text_content"
+                    android:layout_width="match_parent"
+                    android:layout_height="44dp"
+                    android:layout_marginTop="6dp"
+                    android:background="@drawable/bg_card_rounded"
+                    android:hint="Enter overlay text"
+                    android:paddingHorizontal="14dp"
+                    android:textColor="@color/text_primary"
+                    android:textColorHint="@color/text_muted"
+                    android:textSize="14sp" />
+
+                <!-- Font Size -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="Font Size"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="12sp" />
+
+                    <TextView
+                        android:id="@+id/tv_text_font_size_val"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="24 sp"
+                        android:textColor="@color/accent_primary"
+                        android:textSize="12sp"
+                        android:textStyle="bold" />
+                </LinearLayout>
+
+                <SeekBar
+                    android:id="@+id/sb_text_font_size"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:max="60"
+                    android:progress="12"
+                    android:progressTint="@color/accent_primary"
+                    android:thumbTint="@color/accent_primary" />
+
+                <!-- Color Picker Preset Row -->
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:text="Text Color"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="12sp" />
+
+                <HorizontalScrollView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:overScrollMode="never"
+                    android:scrollbars="none">
+
+                    <LinearLayout
+                        android:id="@+id/layout_color_presets"
+                        android:layout_width="wrap_content"
+                        android:layout_height="40dp"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal">
+
+                        <!-- Preset color buttons populated or defined -->
+                        <View
+                            android:id="@+id/color_chip_white"
+                            android:layout_width="28dp"
+                            android:layout_height="28dp"
+                            android:layout_marginEnd="10dp"
+                            android:background="@drawable/bg_status_pill"
+                            android:backgroundTint="#FFFFFF"
+                            android:clickable="true"
+                            android:focusable="true" />
+
+                        <View
+                            android:id="@+id/color_chip_cyan"
+                            android:layout_width="28dp"
+                            android:layout_height="28dp"
+                            android:layout_marginEnd="10dp"
+                            android:background="@drawable/bg_status_pill"
+                            android:backgroundTint="#00E5FF"
+                            android:clickable="true"
+                            android:focusable="true" />
+
+                        <View
+                            android:id="@+id/color_chip_amber"
+                            android:layout_width="28dp"
+                            android:layout_height="28dp"
+                            android:layout_marginEnd="10dp"
+                            android:background="@drawable/bg_status_pill"
+                            android:backgroundTint="#F59E0B"
+                            android:clickable="true"
+                            android:focusable="true" />
+
+                        <View
+                            android:id="@+id/color_chip_red"
+                            android:layout_width="28dp"
+                            android:layout_height="28dp"
+                            android:layout_marginEnd="10dp"
+                            android:background="@drawable/bg_status_pill"
+                            android:backgroundTint="#EF4444"
+                            android:clickable="true"
+                            android:focusable="true" />
+
+                        <View
+                            android:id="@+id/color_chip_green"
+                            android:layout_width="28dp"
+                            android:layout_height="28dp"
+                            android:layout_marginEnd="10dp"
+                            android:background="@drawable/bg_status_pill"
+                            android:backgroundTint="#10B981"
+                            android:clickable="true"
+                            android:focusable="true" />
+
+                        <View
+                            android:id="@+id/color_chip_purple"
+                            android:layout_width="28dp"
+                            android:layout_height="28dp"
+                            android:layout_marginEnd="10dp"
+                            android:background="@drawable/bg_status_pill"
+                            android:backgroundTint="#A855F7"
+                            android:clickable="true"
+                            android:focusable="true" />
+
+                        <View
+                            android:id="@+id/color_chip_yellow"
+                            android:layout_width="28dp"
+                            android:layout_height="28dp"
+                            android:layout_marginEnd="10dp"
+                            android:background="@drawable/bg_status_pill"
+                            android:backgroundTint="#FACC15"
+                            android:clickable="true"
+                            android:focusable="true" />
+
+                        <View
+                            android:id="@+id/color_chip_pink"
+                            android:layout_width="28dp"
+                            android:layout_height="28dp"
+                            android:layout_marginEnd="10dp"
+                            android:background="@drawable/bg_status_pill"
+                            android:backgroundTint="#EC4899"
+                            android:clickable="true"
+                            android:focusable="true" />
+                    </LinearLayout>
+                </HorizontalScrollView>
+
+                <!-- Alignment Row -->
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:text="Alignment"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="12sp" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="36dp"
+                    android:layout_marginTop="6dp"
+                    android:orientation="horizontal">
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btn_align_left"
+                        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                        android:layout_width="0dp"
+                        android:layout_height="match_parent"
+                        android:layout_weight="1"
+                        android:layout_marginEnd="4dp"
+                        android:insetTop="0dp"
+                        android:insetBottom="0dp"
+                        android:padding="0dp"
+                        android:text="Left"
+                        android:textAllCaps="false"
+                        android:textColor="@color/text_primary"
+                        android:textSize="12sp"
+                        app:cornerRadius="8dp"
+                        app:strokeColor="@color/accent_primary" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btn_align_center"
+                        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                        android:layout_width="0dp"
+                        android:layout_height="match_parent"
+                        android:layout_weight="1"
+                        android:layout_marginEnd="4dp"
+                        android:insetTop="0dp"
+                        android:insetBottom="0dp"
+                        android:padding="0dp"
+                        android:text="Center"
+                        android:textAllCaps="false"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="12sp"
+                        app:cornerRadius="8dp"
+                        app:strokeColor="@color/bg_card_stroke" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btn_align_right"
+                        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                        android:layout_width="0dp"
+                        android:layout_height="match_parent"
+                        android:layout_weight="1"
+                        android:insetTop="0dp"
+                        android:insetBottom="0dp"
+                        android:padding="0dp"
+                        android:text="Right"
+                        android:textAllCaps="false"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="12sp"
+                        app:cornerRadius="8dp"
+                        app:strokeColor="@color/bg_card_stroke" />
+                </LinearLayout>
+
+                <!-- Background Toggle -->
+                <com.google.android.material.switchmaterial.SwitchMaterial
+                    android:id="@+id/switch_text_background"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:checked="true"
+                    android:text="Card Background"
+                    android:textColor="@color/text_primary"
+                    android:textSize="13sp"
+                    app:useMaterialThemeColors="true" />
+            </LinearLayout>
+
+            <!-- ================= 2. IMAGE CONTROLS ================= -->
+            <LinearLayout
+                android:id="@+id/section_image_controls"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:visibility="gone">
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btn_image_replace"
+                    android:layout_width="match_parent"
+                    android:layout_height="44dp"
+                    android:backgroundTint="@color/accent_primary"
+                    android:text="📁 Replace Image / Logo"
+                    android:textAllCaps="false"
+                    android:textColor="@color/text_primary"
+                    android:textSize="13sp"
+                    android:textStyle="bold"
+                    app:cornerRadius="10dp"
+                    app:elevation="0dp" />
+
+                <!-- Corner Radius -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="Corner Radius"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="12sp" />
+
+                    <TextView
+                        android:id="@+id/tv_image_corner_radius_val"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="0 px"
+                        android:textColor="@color/accent_primary"
+                        android:textSize="12sp"
+                        android:textStyle="bold" />
+                </LinearLayout>
+
+                <SeekBar
+                    android:id="@+id/sb_image_corner_radius"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:max="50"
+                    android:progress="0"
+                    android:progressTint="@color/accent_primary"
+                    android:thumbTint="@color/accent_primary" />
+            </LinearLayout>
+
+            <!-- ================= 3. GIF CONTROLS ================= -->
+            <LinearLayout
+                android:id="@+id/section_gif_controls"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:visibility="gone">
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btn_gif_replace"
+                    android:layout_width="match_parent"
+                    android:layout_height="44dp"
+                    android:backgroundTint="@color/accent_primary"
+                    android:text="📁 Replace Animated GIF"
+                    android:textAllCaps="false"
+                    android:textColor="@color/text_primary"
+                    android:textSize="13sp"
+                    android:textStyle="bold"
+                    app:cornerRadius="10dp"
+                    app:elevation="0dp" />
+
+                <!-- Playback Speed -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="Playback Speed"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="12sp" />
+
+                    <TextView
+                        android:id="@+id/tv_gif_speed_val"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="1.0x"
+                        android:textColor="@color/accent_primary"
+                        android:textSize="12sp"
+                        android:textStyle="bold" />
+                </LinearLayout>
+
+                <SeekBar
+                    android:id="@+id/sb_gif_speed"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:max="15"
+                    android:progress="5"
+                    android:progressTint="@color/accent_primary"
+                    android:thumbTint="@color/accent_primary" />
+
+                <!-- Loop Toggle -->
+                <com.google.android.material.switchmaterial.SwitchMaterial
+                    android:id="@+id/switch_gif_loop"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:checked="true"
+                    android:text="Loop Animation"
+                    android:textColor="@color/text_primary"
+                    android:textSize="13sp"
+                    app:useMaterialThemeColors="true" />
+            </LinearLayout>
+
+            <!-- ================= 4. GOAL CONTROLS ================= -->
+            <LinearLayout
+                android:id="@+id/section_goal_controls"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:visibility="gone">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Goal Title"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="12sp" />
+
+                <EditText
+                    android:id="@+id/et_goal_title"
+                    android:layout_width="match_parent"
+                    android:layout_height="44dp"
+                    android:layout_marginTop="6dp"
+                    android:background="@drawable/bg_card_rounded"
+                    android:hint="e.g. Follower Goal"
+                    android:paddingHorizontal="14dp"
+                    android:textColor="@color/text_primary"
+                    android:textColorHint="@color/text_muted"
+                    android:textSize="14sp" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:orientation="horizontal">
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:layout_marginEnd="6dp"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Current Value"
+                            android:textColor="@color/text_secondary"
+                            android:textSize="12sp" />
+
+                        <EditText
+                            android:id="@+id/et_goal_current"
+                            android:layout_width="match_parent"
+                            android:layout_height="44dp"
+                            android:layout_marginTop="6dp"
+                            android:background="@drawable/bg_card_rounded"
+                            android:inputType="number"
+                            android:paddingHorizontal="14dp"
+                            android:textColor="@color/text_primary"
+                            android:textSize="14sp" />
+                    </LinearLayout>
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:layout_marginStart="6dp"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Target Value"
+                            android:textColor="@color/text_secondary"
+                            android:textSize="12sp" />
+
+                        <EditText
+                            android:id="@+id/et_goal_target"
+                            android:layout_width="match_parent"
+                            android:layout_height="44dp"
+                            android:layout_marginTop="6dp"
+                            android:background="@drawable/bg_card_rounded"
+                            android:inputType="number"
+                            android:paddingHorizontal="14dp"
+                            android:textColor="@color/text_primary"
+                            android:textSize="14sp" />
+                    </LinearLayout>
+                </LinearLayout>
+            </LinearLayout>
+
+            <!-- ================= 5. QR CONTROLS ================= -->
+            <LinearLayout
+                android:id="@+id/section_qr_controls"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:visibility="gone">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Payload URL / Link"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="12sp" />
+
+                <EditText
+                    android:id="@+id/et_qr_url"
+                    android:layout_width="match_parent"
+                    android:layout_height="44dp"
+                    android:layout_marginTop="6dp"
+                    android:background="@drawable/bg_card_rounded"
+                    android:hint="https://fairylive.stream"
+                    android:paddingHorizontal="14dp"
+                    android:textColor="@color/text_primary"
+                    android:textColorHint="@color/text_muted"
+                    android:textSize="14sp" />
+            </LinearLayout>
+
+            <!-- ================= 6. LOWER THIRD CONTROLS ================= -->
+            <LinearLayout
+                android:id="@+id/section_lower_third_controls"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:visibility="gone">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Presenter Title / Headline"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="12sp" />
+
+                <EditText
+                    android:id="@+id/et_lower_third_title"
+                    android:layout_width="match_parent"
+                    android:layout_height="44dp"
+                    android:layout_marginTop="6dp"
+                    android:background="@drawable/bg_card_rounded"
+                    android:hint="Speaker Name"
+                    android:paddingHorizontal="14dp"
+                    android:textColor="@color/text_primary"
+                    android:textColorHint="@color/text_muted"
+                    android:textSize="14sp" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:text="Role / Subtitle"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="12sp" />
+
+                <EditText
+                    android:id="@+id/et_lower_third_subtitle"
+                    android:layout_width="match_parent"
+                    android:layout_height="44dp"
+                    android:layout_marginTop="6dp"
+                    android:background="@drawable/bg_card_rounded"
+                    android:hint="Host / Creator"
+                    android:paddingHorizontal="14dp"
+                    android:textColor="@color/text_primary"
+                    android:textColorHint="@color/text_muted"
+                    android:textSize="14sp" />
+            </LinearLayout>
+
+            <!-- ================= 7. ALERT CONTROLS ================= -->
+            <LinearLayout
+                android:id="@+id/section_alert_controls"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:visibility="gone">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Headline"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="12sp" />
+
+                <EditText
+                    android:id="@+id/et_alert_headline"
+                    android:layout_width="match_parent"
+                    android:layout_height="44dp"
+                    android:layout_marginTop="6dp"
+                    android:background="@drawable/bg_card_rounded"
+                    android:hint="NEW SUBSCRIBER!"
+                    android:paddingHorizontal="14dp"
+                    android:textColor="@color/text_primary"
+                    android:textColorHint="@color/text_muted"
+                    android:textSize="14sp" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:text="Subtext / Details"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="12sp" />
+
+                <EditText
+                    android:id="@+id/et_alert_subtext"
+                    android:layout_width="match_parent"
+                    android:layout_height="44dp"
+                    android:layout_marginTop="6dp"
+                    android:background="@drawable/bg_card_rounded"
+                    android:hint="Thanks for supporting!"
+                    android:paddingHorizontal="14dp"
+                    android:textColor="@color/text_primary"
+                    android:textColorHint="@color/text_muted"
+                    android:textSize="14sp" />
+
+                <!-- Duration -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="Duration (1-10s)"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="12sp" />
+
+                    <TextView
+                        android:id="@+id/tv_alert_duration_val"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="4s"
+                        android:textColor="@color/accent_primary"
+                        android:textSize="12sp"
+                        android:textStyle="bold" />
+                </LinearLayout>
+
+                <SeekBar
+                    android:id="@+id/sb_alert_duration"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:max="9"
+                    android:progress="3"
+                    android:progressTint="@color/accent_primary"
+                    android:thumbTint="@color/accent_primary" />
+            </LinearLayout>
+
+            <!-- ================= 8. WIDGET CONTROLS ================= -->
+            <LinearLayout
+                android:id="@+id/section_widget_controls"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:visibility="gone">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Widget Label"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="12sp" />
+
+                <EditText
+                    android:id="@+id/et_widget_label"
+                    android:layout_width="match_parent"
+                    android:layout_height="44dp"
+                    android:layout_marginTop="6dp"
+                    android:background="@drawable/bg_card_rounded"
+                    android:hint="FPS/BPS"
+                    android:paddingHorizontal="14dp"
+                    android:textColor="@color/text_primary"
+                    android:textColorHint="@color/text_muted"
+                    android:textSize="14sp" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:text="Widget Value / Stream Telemetry"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="12sp" />
+
+                <EditText
+                    android:id="@+id/et_widget_value"
+                    android:layout_width="match_parent"
+                    android:layout_height="44dp"
+                    android:layout_marginTop="6dp"
+                    android:background="@drawable/bg_card_rounded"
+                    android:hint="60 FPS • 1.5M"
+                    android:paddingHorizontal="14dp"
+                    android:textColor="@color/text_primary"
+                    android:textColorHint="@color/text_muted"
+                    android:textSize="14sp" />
+            </LinearLayout>
+
+            <!-- ================= 9. FACECAM CONTROLS ================= -->
+            <LinearLayout
+                android:id="@+id/section_facecam_controls"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:visibility="gone">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Camera Lens"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="12sp" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="36dp"
+                    android:layout_marginTop="6dp"
+                    android:orientation="horizontal">
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btn_facecam_front"
+                        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                        android:layout_width="0dp"
+                        android:layout_height="match_parent"
+                        android:layout_weight="1"
+                        android:layout_marginEnd="4dp"
+                        android:insetTop="0dp"
+                        android:insetBottom="0dp"
+                        android:padding="0dp"
+                        android:text="Front Lens"
+                        android:textAllCaps="false"
+                        android:textColor="@color/accent_primary"
+                        android:textSize="12sp"
+                        app:cornerRadius="8dp"
+                        app:strokeColor="@color/accent_primary" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btn_facecam_back"
+                        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                        android:layout_width="0dp"
+                        android:layout_height="match_parent"
+                        android:layout_weight="1"
+                        android:insetTop="0dp"
+                        android:insetBottom="0dp"
+                        android:padding="0dp"
+                        android:text="Rear Lens"
+                        android:textAllCaps="false"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="12sp"
+                        app:cornerRadius="8dp"
+                        app:strokeColor="@color/bg_card_stroke" />
+                </LinearLayout>
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:text="Camera PIP Shape"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="12sp" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="36dp"
+                    android:layout_marginTop="6dp"
+                    android:orientation="horizontal">
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btn_facecam_rect"
+                        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                        android:layout_width="0dp"
+                        android:layout_height="match_parent"
+                        android:layout_weight="1"
+                        android:layout_marginEnd="4dp"
+                        android:insetTop="0dp"
+                        android:insetBottom="0dp"
+                        android:padding="0dp"
+                        android:text="Rectangle"
+                        android:textAllCaps="false"
+                        android:textColor="@color/accent_primary"
+                        android:textSize="12sp"
+                        app:cornerRadius="8dp"
+                        app:strokeColor="@color/accent_primary" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btn_facecam_circle"
+                        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                        android:layout_width="0dp"
+                        android:layout_height="match_parent"
+                        android:layout_weight="1"
+                        android:insetTop="0dp"
+                        android:insetBottom="0dp"
+                        android:padding="0dp"
+                        android:text="Circle"
+                        android:textAllCaps="false"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="12sp"
+                        app:cornerRadius="8dp"
+                        app:strokeColor="@color/bg_card_stroke" />
+                </LinearLayout>
+
+                <com.google.android.material.switchmaterial.SwitchMaterial
+                    android:id="@+id/switch_facecam_border"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:checked="false"
+                    android:text="Accent Border Ring"
+                    android:textColor="@color/text_primary"
+                    android:textSize="13sp"
+                    app:useMaterialThemeColors="true" />
+            </LinearLayout>
+
+            <!-- ================= COMMON: OPACITY ================= -->
+            <LinearLayout
+                android:id="@+id/section_opacity_control"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:orientation="vertical">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="Opacity"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="12sp" />
+
+                    <TextView
+                        android:id="@+id/tv_opacity_val"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="100%"
+                        android:textColor="@color/accent_primary"
+                        android:textSize="12sp"
+                        android:textStyle="bold" />
+                </LinearLayout>
+
+                <SeekBar
+                    android:id="@+id/sb_inspector_opacity"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:max="100"
+                    android:progress="100"
+                    android:progressTint="@color/accent_primary"
+                    android:thumbTint="@color/accent_primary" />
+            </LinearLayout>
+
+            <!-- ================= COMMON: POSITION & SCALE ================= -->
+            <LinearLayout
+                android:id="@+id/section_transform_controls"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:orientation="vertical"
+                android:visibility="gone">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Position &amp; Scale"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="12sp" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:orientation="horizontal">
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:layout_marginEnd="4dp"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="X (%)"
+                            android:textColor="@color/text_muted"
+                            android:textSize="11sp" />
+
+                        <EditText
+                            android:id="@+id/et_pos_x"
+                            android:layout_width="match_parent"
+                            android:layout_height="38dp"
+                            android:layout_marginTop="4dp"
+                            android:background="@drawable/bg_card_rounded"
+                            android:gravity="center"
+                            android:hint="0"
+                            android:inputType="number"
+                            android:textColor="@color/text_primary"
+                            android:textSize="13sp" />
+                    </LinearLayout>
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:layout_marginHorizontal="4dp"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Y (%)"
+                            android:textColor="@color/text_muted"
+                            android:textSize="11sp" />
+
+                        <EditText
+                            android:id="@+id/et_pos_y"
+                            android:layout_width="match_parent"
+                            android:layout_height="38dp"
+                            android:layout_marginTop="4dp"
+                            android:background="@drawable/bg_card_rounded"
+                            android:gravity="center"
+                            android:hint="0"
+                            android:inputType="number"
+                            android:textColor="@color/text_primary"
+                            android:textSize="13sp" />
+                    </LinearLayout>
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:layout_marginStart="4dp"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Scale"
+                            android:textColor="@color/text_muted"
+                            android:textSize="11sp" />
+
+                        <EditText
+                            android:id="@+id/et_scale"
+                            android:layout_width="match_parent"
+                            android:layout_height="38dp"
+                            android:layout_marginTop="4dp"
+                            android:background="@drawable/bg_card_rounded"
+                            android:gravity="center"
+                            android:hint="1.0"
+                            android:inputType="numberDecimal"
+                            android:textColor="@color/text_primary"
+                            android:textSize="13sp" />
+                    </LinearLayout>
+
+                </LinearLayout>
+            </LinearLayout>
+
+        </LinearLayout>
+    </androidx.core.widget.NestedScrollView>
+
+    <!-- Footer: Delete and Save Buttons -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_inspector_delete"
+            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+            android:layout_width="0dp"
+            android:layout_height="46dp"
+            android:layout_weight="1"
+            android:layout_marginEnd="8dp"
+            android:text="Delete"
+            android:textAllCaps="false"
+            android:textColor="@color/status_red"
+            android:textSize="13sp"
+            app:cornerRadius="10dp"
+            app:strokeColor="@color/status_red" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_inspector_save"
+            android:layout_width="0dp"
+            android:layout_height="46dp"
+            android:layout_weight="1.2"
+            android:backgroundTint="@color/accent_primary"
+            android:text="Save"
+            android:textAllCaps="false"
+            android:textColor="@color/text_primary"
+            android:textSize="13sp"
+            android:textStyle="bold"
+            app:cornerRadius="10dp"
+            app:elevation="0dp" />
+    </LinearLayout>
+
+</LinearLayout>

@@ -80,6 +80,7 @@ class SceneRepository(context: Context) {
             elObj.put("normalizedWidth", el.normalizedWidth.toDouble())
             elObj.put("opacity", el.opacity.toDouble())
             elObj.put("visible", el.visible)
+            elObj.put("locked", el.locked)
             elObj.put("zIndex", el.zIndex)
             if (el.textConfig != null) {
                 elObj.put("text", el.textConfig.text)
@@ -131,6 +132,7 @@ class SceneRepository(context: Context) {
                     val width = elObj.optDouble("normalizedWidth", 0.3).toFloat()
                     val opacity = elObj.optDouble("opacity", 1.0).toFloat()
                     val visible = elObj.optBoolean("visible", true)
+                    val locked = elObj.optBoolean("locked", false)
                     val zIndex = elObj.optInt("zIndex", 0)
                     val text = if (elObj.has("text")) elObj.optString("text") else null
                     val resPath = if (elObj.has("resourcePath")) elObj.optString("resourcePath") else null
@@ -146,6 +148,7 @@ class SceneRepository(context: Context) {
                             normalizedWidth = width,
                             opacity = opacity,
                             visible = visible,
+                            locked = locked,
                             zIndex = zIndex,
                             textConfig = textCfg,
                             resourcePath = resPath

@@ -36,4 +36,10 @@
     <string name="notification_title">Fairy Live Engine</string>
     <string name="notification_text_active">Streaming service foundation is active</string>
     <string name="notification_action_stop">Stop Service</string>
+    <!-- Widget Types -->
+    <string-array name="widget_types">
+        <item>STATS</item>
+        <item>VIEWERS</item>
+        <item>CLOCK</item>
+    </string-array>
 </resources>

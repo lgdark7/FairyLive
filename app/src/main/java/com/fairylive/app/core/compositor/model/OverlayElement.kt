@@ -19,6 +19,8 @@ data class OverlayElement(
     val opacity: Float = 1f,          // 0..1
     val zIndex: Int = 0,              // higher = on top
     val visible: Boolean = true,
+    val locked: Boolean = false,
+    val cornerRadiusPx: Float = 0f,
     val resourcePath: String? = null,  // image/asset resource reference
     val textConfig: TextOverlayConfig? = null,
     val goalConfig: GoalOverlayConfig? = null,

@@ -36,7 +36,14 @@ import com.fairylive.app.core.stream.StreamTelemetryNotifier
 import com.fairylive.app.core.stream.model.StreamTelemetry
 import com.fairylive.app.databinding.FragmentCreatorStudioBinding
 import com.fairylive.app.service.FairyStreamService
+import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.bottomsheet.BottomSheetDialog
+import com.google.android.material.button.MaterialButton
+import com.google.android.material.switchmaterial.SwitchMaterial
+import androidx.core.widget.doAfterTextChanged
+import com.fairylive.app.core.camera.model.CameraFacing
+import com.fairylive.app.core.camera.model.FacecamConfig
+import kotlin.math.roundToInt
 
 class CreatorStudioFragment : Fragment(),
     StreamStateNotifier.Listener,
@@ -69,11 +76,38 @@ class CreatorStudioFragment : Fragment(),
         }
     }
 
+    private var pendingImageTargetElementId: String? = null
+    private var pendingGifTargetElementId: String? = null
+
     private val imagePickerLauncher = registerForActivityResult(
         ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
         if (uri != null) {
-            importImageFromUri(uri)
+            val targetId = pendingImageTargetElementId
+            if (targetId != null) {
+                replaceImageFromUri(targetId, uri)
+                pendingImageTargetElementId = null
+            } else {
+                importImageFromUri(uri)
+            }
+        } else {
+            pendingImageTargetElementId = null
+        }
+    }
+
+    private val gifPickerLauncher = registerForActivityResult(
+        ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            val targetId = pendingGifTargetElementId
+            if (targetId != null) {
+                replaceGifFromUri(targetId, uri)
+                pendingGifTargetElementId = null
+            } else {
+                importGifFromUri(uri)
+            }
+        } else {
+            pendingGifTargetElementId = null
         }
     }
 
@@ -258,9 +292,13 @@ class CreatorStudioFragment : Fragment(),
 
         binding.btnElementEdit.setOnClickListener {
             val selId = binding.broadcastPreviewView.getSelectedElementId() ?: return@setOnClickListener
+            if (selId == "facecam") {
+                showFacecamInspector()
+                return@setOnClickListener
+            }
             val app = requireActivity().application as FairyLiveApplication
             val elem = app.sceneManager.activeScene.overlayElements.firstOrNull { it.id == selId } ?: return@setOnClickListener
-            showEditElementBottomSheet(elem)
+            showInspectorBottomSheet(elem)
         }
     }
 
@@ -343,7 +381,7 @@ class CreatorStudioFragment : Fragment(),
             dialog.dismiss()
             addDefaultImage()
         }
-        sheetView.findViewById<View>(R.id.item_add_camera).setOnClickListener {
+        sheetView.findViewById<View>(R.id.item_add_facecam)?.setOnClickListener {
             dialog.dismiss()
             toggleAddFacecam()
         }
@@ -391,11 +429,25 @@ class CreatorStudioFragment : Fragment(),
 
         // Facecam layer
         if (scene.facecamConfig.enabled) {
-            val row = createLayerSheetRow("Camera (Facecam)", "📷", true) {
-                dialog.dismiss()
-                binding.broadcastPreviewView.setSelectedElement("facecam")
-                onElementSelected("facecam")
-            }
+            val row = createLayerSheetRow(
+                name = "Camera (Facecam)",
+                iconStr = "📷",
+                isVisible = scene.facecamConfig.enabled,
+                isLocked = false,
+                onLockToggle = null,
+                onVisibilityToggle = { _, _ ->
+                    val newFc = scene.facecamConfig.copy(enabled = !scene.facecamConfig.enabled)
+                    val newScene = app.sceneManager.updateFacecamInActiveScene(newFc)
+                    persistAndSyncScene(newScene)
+                    updateCameraIcon(newFc.enabled)
+                    dialog.dismiss()
+                },
+                onClick = {
+                    dialog.dismiss()
+                    binding.broadcastPreviewView.setSelectedElement("facecam")
+                    onElementSelected("facecam")
+                }
+            )
             listContainer.addView(row)
         }
 
@@ -419,22 +471,60 @@ class CreatorStudioFragment : Fragment(),
                 else -> elem.type.name.lowercase().replaceFirstChar { it.uppercase() }
             }
 
-            val row = createLayerSheetRow(label, icon, elem.visible) {
-                dialog.dismiss()
-                binding.broadcastPreviewView.setSelectedElement(elem.id)
-                onElementSelected(elem.id)
-            }
+            val row = createLayerSheetRow(
+                name = label,
+                iconStr = icon,
+                isVisible = elem.visible,
+                isLocked = elem.locked,
+                onLockToggle = { lockView ->
+                    val currentLatest = app.sceneManager.activeScene.overlayElements.firstOrNull { it.id == elem.id } ?: elem
+                    val updated = currentLatest.copy(locked = !currentLatest.locked)
+                    val newScene = app.sceneManager.updateOverlayInActiveScene(updated)
+                    persistAndSyncScene(newScene)
+                    binding.broadcastPreviewView.invalidate()
+                    lockView.text = if (updated.locked) "🔒" else "🔓"
+                    lockView.setTextColor(
+                        ContextCompat.getColor(requireContext(), if (updated.locked) R.color.status_amber else R.color.text_muted)
+                    )
+                },
+                onVisibilityToggle = { eyeView, titleView ->
+                    val currentLatest = app.sceneManager.activeScene.overlayElements.firstOrNull { it.id == elem.id } ?: elem
+                    val updated = currentLatest.copy(visible = !currentLatest.visible)
+                    val newScene = app.sceneManager.updateOverlayInActiveScene(updated)
+                    persistAndSyncScene(newScene)
+                    eyeView.text = if (updated.visible) "👁" else "⊘"
+                    eyeView.setTextColor(
+                        ContextCompat.getColor(requireContext(), if (updated.visible) R.color.text_primary else R.color.text_muted)
+                    )
+                    titleView.setTextColor(
+                        ContextCompat.getColor(requireContext(), if (updated.visible) R.color.text_primary else R.color.text_muted)
+                    )
+                },
+                onClick = {
+                    dialog.dismiss()
+                    binding.broadcastPreviewView.setSelectedElement(elem.id)
+                    onElementSelected(elem.id)
+                }
+            )
             listContainer.addView(row)
         }
 
         dialog.show()
     }
 
-    private fun createLayerSheetRow(name: String, iconStr: String, isVisible: Boolean, onClick: () -> Unit): View {
+    private fun createLayerSheetRow(
+        name: String,
+        iconStr: String,
+        isVisible: Boolean,
+        isLocked: Boolean,
+        onLockToggle: ((TextView) -> Unit)?,
+        onVisibilityToggle: ((TextView, TextView) -> Unit)?,
+        onClick: () -> Unit
+    ): View {
         val row = LinearLayout(requireContext()).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = android.view.Gravity.CENTER_VERTICAL
-            setPadding(dp(4), dp(10), dp(4), dp(10))
+            setPadding(dp(4), dp(8), dp(4), dp(8))
             isClickable = true
             isFocusable = true
             setBackgroundResource(android.R.drawable.list_selector_background)
@@ -445,6 +535,7 @@ class CreatorStudioFragment : Fragment(),
             text = "☰"
             setTextColor(ContextCompat.getColor(context, R.color.text_muted))
             textSize = 14f
+            gravity = android.view.Gravity.CENTER
             layoutParams = LinearLayout.LayoutParams(dp(28), LinearLayout.LayoutParams.WRAP_CONTENT)
         }
         row.addView(handle)
@@ -452,6 +543,7 @@ class CreatorStudioFragment : Fragment(),
         val icon = TextView(requireContext()).apply {
             text = iconStr
             textSize = 14f
+            gravity = android.view.Gravity.CENTER
             setTextColor(ContextCompat.getColor(context, R.color.accent_primary))
             layoutParams = LinearLayout.LayoutParams(dp(24), LinearLayout.LayoutParams.WRAP_CONTENT)
         }
@@ -462,76 +554,576 @@ class CreatorStudioFragment : Fragment(),
             setTextColor(ContextCompat.getColor(context, if (isVisible) R.color.text_primary else R.color.text_muted))
             textSize = 14f
             maxLines = 1
+            ellipsize = android.text.TextUtils.TruncateAt.END
             layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
                 marginStart = dp(10)
+                marginEnd = dp(6)
             }
         }
         row.addView(title)
 
-        val eye = TextView(requireContext()).apply {
-            text = if (isVisible) "👁" else "🔒"
-            textSize = 14f
+        // Lock Toggle Button (🔓 / 🔒)
+        val lockBtn = TextView(requireContext()).apply {
+            text = if (isLocked) "🔒" else "🔓"
+            textSize = 15f
+            gravity = android.view.Gravity.CENTER
+            setTextColor(ContextCompat.getColor(context, if (isLocked) R.color.status_amber else R.color.text_muted))
+            layoutParams = LinearLayout.LayoutParams(dp(36), dp(36))
+            isClickable = true
+            isFocusable = true
+            setBackgroundResource(R.drawable.bg_control_icon_button)
+            if (onLockToggle != null) {
+                setOnClickListener {
+                    onLockToggle.invoke(this)
+                }
+            } else {
+                visibility = View.INVISIBLE
+            }
         }
-        row.addView(eye)
+        row.addView(lockBtn)
+
+        // Eye / Visibility Toggle Button (👁 / ⊘)
+        val eyeBtn = TextView(requireContext()).apply {
+            text = if (isVisible) "👁" else "⊘"
+            textSize = 15f
+            gravity = android.view.Gravity.CENTER
+            setTextColor(ContextCompat.getColor(context, if (isVisible) R.color.text_primary else R.color.text_muted))
+            layoutParams = LinearLayout.LayoutParams(dp(36), dp(36)).apply {
+                marginStart = dp(6)
+            }
+            isClickable = true
+            isFocusable = true
+            setBackgroundResource(R.drawable.bg_control_icon_button)
+            setOnClickListener {
+                onVisibilityToggle?.invoke(this, title)
+            }
+        }
+        row.addView(eyeBtn)
 
         return row
     }
 
-    private fun showEditElementBottomSheet(elem: OverlayElement) {
+    private fun showInspectorBottomSheet(elem: OverlayElement) {
         val dialog = BottomSheetDialog(requireContext())
-        val sheetView = layoutInflater.inflate(R.layout.sheet_edit_element, null)
+        val sheetView = layoutInflater.inflate(R.layout.sheet_inspector, null)
         dialog.setContentView(sheetView)
 
-        val tvTitle = sheetView.findViewById<TextView>(R.id.tv_edit_sheet_title)
-        val etContent = sheetView.findViewById<EditText>(R.id.et_edit_content)
-        val sbOpacity = sheetView.findViewById<SeekBar>(R.id.sb_edit_opacity)
-        val btnSave = sheetView.findViewById<Button>(R.id.btn_edit_save)
-        val btnDelete = sheetView.findViewById<Button>(R.id.btn_edit_delete)
-
-        tvTitle.text = "Edit ${elem.type.name.lowercase().replaceFirstChar { it.uppercase() }}"
-        sbOpacity.progress = (elem.opacity * 100).toInt()
-
-        val initialContent = when (elem.type) {
-            OverlayType.TEXT -> elem.textConfig?.text ?: ""
-            OverlayType.GOAL -> elem.goalConfig?.title ?: ""
-            OverlayType.LOWER_THIRD -> elem.lowerThirdConfig?.title ?: ""
-            OverlayType.QR -> elem.qrConfig?.payloadUrl ?: ""
-            else -> ""
+        dialog.setOnShowListener {
+            val bottomSheet = dialog.findViewById<View>(com.google.android.material.R.id.design_bottom_sheet) as? FrameLayout
+            if (bottomSheet != null) {
+                val behavior = BottomSheetBehavior.from(bottomSheet)
+                val displayMetrics = resources.displayMetrics
+                behavior.peekHeight = (displayMetrics.heightPixels * 0.52f).toInt()
+                behavior.state = BottomSheetBehavior.STATE_COLLAPSED
+            }
         }
-        etContent.setText(initialContent)
 
-        btnSave.setOnClickListener {
-            val app = requireActivity().application as FairyLiveApplication
-            val newText = etContent.text.toString().trim()
-            val newOpacity = sbOpacity.progress / 100f
-            var updated = elem.copy(opacity = newOpacity)
+        val app = requireActivity().application as FairyLiveApplication
+        var currentElem = elem
 
-            when (elem.type) {
-                OverlayType.TEXT -> if (newText.isNotEmpty()) {
-                    updated = updated.copy(textConfig = elem.textConfig?.copy(text = newText))
+        fun applyLiveUpdate(updated: OverlayElement, commitHistory: Boolean = false) {
+            currentElem = updated
+            val newScene = app.sceneManager.updateOverlayInActiveScene(updated, recordHistory = commitHistory)
+            persistAndSyncScene(newScene)
+            binding.broadcastPreviewView.invalidate()
+        }
+
+        // Header
+        val tvTitle = sheetView.findViewById<TextView>(R.id.tv_inspector_title)
+        val tvType = sheetView.findViewById<TextView>(R.id.tv_inspector_type)
+        tvTitle.text = "${elem.type.name.lowercase().replaceFirstChar { it.uppercase() }} Inspector"
+        tvType.text = elem.type.name
+
+        // Opacity
+        val tvOpacityVal = sheetView.findViewById<TextView>(R.id.tv_opacity_val)
+        val sbOpacity = sheetView.findViewById<SeekBar>(R.id.sb_inspector_opacity)
+        sbOpacity.progress = (currentElem.opacity * 100).toInt()
+        tvOpacityVal.text = "${(currentElem.opacity * 100).toInt()}%"
+        sbOpacity.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(sb: SeekBar?, progress: Int, fromUser: Boolean) {
+                if (fromUser) {
+                    tvOpacityVal.text = "$progress%"
+                    applyLiveUpdate(currentElem.copy(opacity = progress / 100f))
                 }
-                OverlayType.GOAL -> if (newText.isNotEmpty()) {
-                    updated = updated.copy(goalConfig = elem.goalConfig?.copy(title = newText))
+            }
+            override fun onStartTrackingTouch(sb: SeekBar?) {}
+            override fun onStopTrackingTouch(sb: SeekBar?) {
+                applyLiveUpdate(currentElem, commitHistory = true)
+            }
+        })
+
+        // Position & Scale
+        val sectionTransform = sheetView.findViewById<View>(R.id.section_transform_controls)
+        val etPosX = sheetView.findViewById<EditText>(R.id.et_pos_x)
+        val etPosY = sheetView.findViewById<EditText>(R.id.et_pos_y)
+        val etScale = sheetView.findViewById<EditText>(R.id.et_scale)
+
+        val showTransform = when (elem.type) {
+            OverlayType.TEXT, OverlayType.IMAGE, OverlayType.GIF, OverlayType.QR -> true
+            else -> false
+        }
+        if (showTransform) {
+            sectionTransform.visibility = View.VISIBLE
+            etPosX.setText("${(currentElem.normalizedX * 100).roundToInt()}")
+            etPosY.setText("${(currentElem.normalizedY * 100).roundToInt()}")
+            etScale.setText(String.format(java.util.Locale.US, "%.1f", currentElem.scale))
+
+            etPosX.doAfterTextChanged { text ->
+                val v = text?.toString()?.toIntOrNull()
+                if (v != null) {
+                    val normX = (v / 100f).coerceIn(0f, 1f - currentElem.normalizedWidth)
+                    applyLiveUpdate(currentElem.copy(normalizedX = normX))
                 }
-                OverlayType.LOWER_THIRD -> if (newText.isNotEmpty()) {
-                    updated = updated.copy(lowerThirdConfig = elem.lowerThirdConfig?.copy(title = newText))
+            }
+            etPosY.doAfterTextChanged { text ->
+                val v = text?.toString()?.toIntOrNull()
+                if (v != null) {
+                    val normY = (v / 100f).coerceIn(0f, 0.95f)
+                    applyLiveUpdate(currentElem.copy(normalizedY = normY))
                 }
-                OverlayType.QR -> if (newText.isNotEmpty()) {
-                    updated = updated.copy(qrConfig = elem.qrConfig?.copy(payloadUrl = newText))
+            }
+            etScale.doAfterTextChanged { text ->
+                val v = text?.toString()?.toFloatOrNull()
+                if (v != null && v > 0f) {
+                    applyLiveUpdate(currentElem.copy(scale = v.coerceIn(0.1f, 5.0f)))
                 }
-                else -> {}
+            }
+        }
+
+        // Type-specific setups
+        when (elem.type) {
+            OverlayType.TEXT -> {
+                val sec = sheetView.findViewById<View>(R.id.section_text_controls)
+                sec.visibility = View.VISIBLE
+                val etContent = sheetView.findViewById<EditText>(R.id.et_text_content)
+                val sbFontSize = sheetView.findViewById<SeekBar>(R.id.sb_text_font_size)
+                val tvFontSizeVal = sheetView.findViewById<TextView>(R.id.tv_text_font_size_val)
+                val switchBg = sheetView.findViewById<SwitchMaterial>(R.id.switch_text_background)
+
+                val cfg = elem.textConfig ?: TextOverlayConfig(text = "Text")
+                etContent.setText(cfg.text)
+                val initSizeSp = cfg.fontSizeSp.toInt().coerceIn(12, 72)
+                sbFontSize.progress = initSizeSp - 12
+                tvFontSizeVal.text = "$initSizeSp sp"
+
+                etContent.doAfterTextChanged { text ->
+                    val newText = text?.toString() ?: ""
+                    val curCfg = currentElem.textConfig ?: TextOverlayConfig(text = newText)
+                    applyLiveUpdate(currentElem.copy(textConfig = curCfg.copy(text = newText)))
+                }
+
+                sbFontSize.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(sb: SeekBar?, progress: Int, fromUser: Boolean) {
+                        if (fromUser) {
+                            val sp = 12 + progress
+                            tvFontSizeVal.text = "$sp sp"
+                            val curCfg = currentElem.textConfig ?: TextOverlayConfig(text = "")
+                            applyLiveUpdate(currentElem.copy(textConfig = curCfg.copy(fontSizeSp = sp.toFloat())))
+                        }
+                    }
+                    override fun onStartTrackingTouch(sb: SeekBar?) {}
+                    override fun onStopTrackingTouch(sb: SeekBar?) {
+                        applyLiveUpdate(currentElem, commitHistory = true)
+                    }
+                })
+
+                // Preset Colors
+                val colorChips = listOf(
+                    Pair(R.id.color_chip_white, Color.WHITE),
+                    Pair(R.id.color_chip_cyan, Color.parseColor("#00E5FF")),
+                    Pair(R.id.color_chip_amber, Color.parseColor("#F59E0B")),
+                    Pair(R.id.color_chip_red, Color.parseColor("#EF4444")),
+                    Pair(R.id.color_chip_green, Color.parseColor("#10B981")),
+                    Pair(R.id.color_chip_purple, Color.parseColor("#A855F7")),
+                    Pair(R.id.color_chip_yellow, Color.parseColor("#FACC15")),
+                    Pair(R.id.color_chip_pink, Color.parseColor("#EC4899"))
+                )
+                for ((viewId, colorInt) in colorChips) {
+                    sheetView.findViewById<View>(viewId)?.setOnClickListener {
+                        val curCfg = currentElem.textConfig ?: TextOverlayConfig(text = "")
+                        applyLiveUpdate(currentElem.copy(textConfig = curCfg.copy(textColorRgba = colorInt)), commitHistory = true)
+                    }
+                }
+
+                // Alignment buttons
+                val btnLeft = sheetView.findViewById<MaterialButton>(R.id.btn_align_left)
+                val btnCenter = sheetView.findViewById<MaterialButton>(R.id.btn_align_center)
+                val btnRight = sheetView.findViewById<MaterialButton>(R.id.btn_align_right)
+
+                fun updateAlignButtons(align: String) {
+                    val accentCol = ContextCompat.getColor(requireContext(), R.color.accent_primary)
+                    val strokeCol = ContextCompat.getColor(requireContext(), R.color.bg_card_stroke)
+                    val textPrim = ContextCompat.getColor(requireContext(), R.color.text_primary)
+                    val textSec = ContextCompat.getColor(requireContext(), R.color.text_secondary)
+
+                    btnLeft.strokeColor = ColorStateList.valueOf(if (align == "LEFT") accentCol else strokeCol)
+                    btnLeft.setTextColor(if (align == "LEFT") textPrim else textSec)
+
+                    btnCenter.strokeColor = ColorStateList.valueOf(if (align == "CENTER") accentCol else strokeCol)
+                    btnCenter.setTextColor(if (align == "CENTER") textPrim else textSec)
+
+                    btnRight.strokeColor = ColorStateList.valueOf(if (align == "RIGHT") accentCol else strokeCol)
+                    btnRight.setTextColor(if (align == "RIGHT") textPrim else textSec)
+                }
+                updateAlignButtons(cfg.alignment)
+
+                btnLeft.setOnClickListener {
+                    updateAlignButtons("LEFT")
+                    val curCfg = currentElem.textConfig ?: TextOverlayConfig(text = "")
+                    applyLiveUpdate(currentElem.copy(textConfig = curCfg.copy(alignment = "LEFT")), commitHistory = true)
+                }
+                btnCenter.setOnClickListener {
+                    updateAlignButtons("CENTER")
+                    val curCfg = currentElem.textConfig ?: TextOverlayConfig(text = "")
+                    applyLiveUpdate(currentElem.copy(textConfig = curCfg.copy(alignment = "CENTER")), commitHistory = true)
+                }
+                btnRight.setOnClickListener {
+                    updateAlignButtons("RIGHT")
+                    val curCfg = currentElem.textConfig ?: TextOverlayConfig(text = "")
+                    applyLiveUpdate(currentElem.copy(textConfig = curCfg.copy(alignment = "RIGHT")), commitHistory = true)
+                }
+
+                // Background toggle
+                switchBg.isChecked = cfg.backgroundColorRgba != Color.TRANSPARENT
+                switchBg.setOnCheckedChangeListener { _, isChecked ->
+                    val curCfg = currentElem.textConfig ?: TextOverlayConfig(text = "")
+                    val newBg = if (isChecked) Color.argb(180, 16, 20, 32) else Color.TRANSPARENT
+                    applyLiveUpdate(currentElem.copy(textConfig = curCfg.copy(backgroundColorRgba = newBg)), commitHistory = true)
+                }
             }
 
-            val newScene = app.sceneManager.updateOverlayInActiveScene(updated)
-            persistAndSyncScene(newScene)
+            OverlayType.IMAGE -> {
+                val sec = sheetView.findViewById<View>(R.id.section_image_controls)
+                sec.visibility = View.VISIBLE
+                val btnReplace = sheetView.findViewById<MaterialButton>(R.id.btn_image_replace)
+                val sbRadius = sheetView.findViewById<SeekBar>(R.id.sb_image_corner_radius)
+                val tvRadiusVal = sheetView.findViewById<TextView>(R.id.tv_image_corner_radius_val)
+
+                btnReplace.setOnClickListener {
+                    pendingImageTargetElementId = currentElem.id
+                    imagePickerLauncher.launch("image/*")
+                    dialog.dismiss()
+                }
+
+                sbRadius.progress = currentElem.cornerRadiusPx.toInt().coerceIn(0, 50)
+                tvRadiusVal.text = "${currentElem.cornerRadiusPx.toInt()} px"
+                sbRadius.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(sb: SeekBar?, progress: Int, fromUser: Boolean) {
+                        if (fromUser) {
+                            tvRadiusVal.text = "$progress px"
+                            applyLiveUpdate(currentElem.copy(cornerRadiusPx = progress.toFloat()))
+                        }
+                    }
+                    override fun onStartTrackingTouch(sb: SeekBar?) {}
+                    override fun onStopTrackingTouch(sb: SeekBar?) {
+                        applyLiveUpdate(currentElem, commitHistory = true)
+                    }
+                })
+            }
+
+            OverlayType.GIF -> {
+                val sec = sheetView.findViewById<View>(R.id.section_gif_controls)
+                sec.visibility = View.VISIBLE
+                val btnReplace = sheetView.findViewById<MaterialButton>(R.id.btn_gif_replace)
+                val sbSpeed = sheetView.findViewById<SeekBar>(R.id.sb_gif_speed)
+                val tvSpeedVal = sheetView.findViewById<TextView>(R.id.tv_gif_speed_val)
+                val switchLoop = sheetView.findViewById<SwitchMaterial>(R.id.switch_gif_loop)
+
+                btnReplace.setOnClickListener {
+                    pendingGifTargetElementId = currentElem.id
+                    gifPickerLauncher.launch("image/gif")
+                    dialog.dismiss()
+                }
+
+                val curSpeed = currentElem.gifConfig?.playbackSpeed ?: 1.0f
+                sbSpeed.progress = ((curSpeed - 0.5f) / 0.1f).roundToInt().coerceIn(0, 15)
+                tvSpeedVal.text = String.format(java.util.Locale.US, "%.1fx", curSpeed)
+
+                sbSpeed.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(sb: SeekBar?, progress: Int, fromUser: Boolean) {
+                        if (fromUser) {
+                            val spd = 0.5f + progress * 0.1f
+                            tvSpeedVal.text = String.format(java.util.Locale.US, "%.1fx", spd)
+                            val curCfg = currentElem.gifConfig ?: GifOverlayConfig(resourcePath = currentElem.resourcePath ?: "")
+                            applyLiveUpdate(currentElem.copy(gifConfig = curCfg.copy(playbackSpeed = spd)))
+                        }
+                    }
+                    override fun onStartTrackingTouch(sb: SeekBar?) {}
+                    override fun onStopTrackingTouch(sb: SeekBar?) {
+                        applyLiveUpdate(currentElem, commitHistory = true)
+                    }
+                })
+
+                switchLoop.isChecked = currentElem.gifConfig?.isLooping ?: true
+                switchLoop.setOnCheckedChangeListener { _, isChecked ->
+                    val curCfg = currentElem.gifConfig ?: GifOverlayConfig(resourcePath = currentElem.resourcePath ?: "")
+                    applyLiveUpdate(currentElem.copy(gifConfig = curCfg.copy(isLooping = isChecked)), commitHistory = true)
+                }
+            }
+
+            OverlayType.GOAL -> {
+                val sec = sheetView.findViewById<View>(R.id.section_goal_controls)
+                sec.visibility = View.VISIBLE
+                val etTitle = sheetView.findViewById<EditText>(R.id.et_goal_title)
+                val etCurrent = sheetView.findViewById<EditText>(R.id.et_goal_current)
+                val etTarget = sheetView.findViewById<EditText>(R.id.et_goal_target)
+
+                val cfg = elem.goalConfig ?: GoalOverlayConfig(title = "Goal", currentVal = 0, targetVal = 100)
+                etTitle.setText(cfg.title)
+                etCurrent.setText("${cfg.currentVal}")
+                etTarget.setText("${cfg.targetVal}")
+
+                etTitle.doAfterTextChanged { text ->
+                    val curCfg = currentElem.goalConfig ?: cfg
+                    applyLiveUpdate(currentElem.copy(goalConfig = curCfg.copy(title = text?.toString() ?: "")))
+                }
+                etCurrent.doAfterTextChanged { text ->
+                    val cur = text?.toString()?.toIntOrNull() ?: 0
+                    val curCfg = currentElem.goalConfig ?: cfg
+                    applyLiveUpdate(currentElem.copy(goalConfig = curCfg.copy(currentVal = cur)))
+                }
+                etTarget.doAfterTextChanged { text ->
+                    val tgt = text?.toString()?.toIntOrNull() ?: 100
+                    val curCfg = currentElem.goalConfig ?: cfg
+                    applyLiveUpdate(currentElem.copy(goalConfig = curCfg.copy(targetVal = tgt)))
+                }
+            }
+
+            OverlayType.QR -> {
+                val sec = sheetView.findViewById<View>(R.id.section_qr_controls)
+                sec.visibility = View.VISIBLE
+                val etUrl = sheetView.findViewById<EditText>(R.id.et_qr_url)
+                val cfg = elem.qrConfig ?: QrOverlayConfig(payloadUrl = "https://fairylive.stream")
+                etUrl.setText(cfg.payloadUrl)
+                etUrl.doAfterTextChanged { text ->
+                    val curCfg = currentElem.qrConfig ?: cfg
+                    applyLiveUpdate(currentElem.copy(qrConfig = curCfg.copy(payloadUrl = text?.toString() ?: "")))
+                }
+            }
+
+            OverlayType.LOWER_THIRD -> {
+                val sec = sheetView.findViewById<View>(R.id.section_lower_third_controls)
+                sec.visibility = View.VISIBLE
+                val etTitle = sheetView.findViewById<EditText>(R.id.et_lower_third_title)
+                val etSubtitle = sheetView.findViewById<EditText>(R.id.et_lower_third_subtitle)
+                val cfg = elem.lowerThirdConfig ?: LowerThirdOverlayConfig(title = "Headline", subtitle = "Subtitle")
+                etTitle.setText(cfg.title)
+                etSubtitle.setText(cfg.subtitle)
+
+                etTitle.doAfterTextChanged { text ->
+                    val curCfg = currentElem.lowerThirdConfig ?: cfg
+                    applyLiveUpdate(currentElem.copy(lowerThirdConfig = curCfg.copy(title = text?.toString() ?: "")))
+                }
+                etSubtitle.doAfterTextChanged { text ->
+                    val curCfg = currentElem.lowerThirdConfig ?: cfg
+                    applyLiveUpdate(currentElem.copy(lowerThirdConfig = curCfg.copy(subtitle = text?.toString() ?: "")))
+                }
+            }
+
+            OverlayType.ALERT -> {
+                val sec = sheetView.findViewById<View>(R.id.section_alert_controls)
+                sec.visibility = View.VISIBLE
+                val etHeadline = sheetView.findViewById<EditText>(R.id.et_alert_headline)
+                val etSubtext = sheetView.findViewById<EditText>(R.id.et_alert_subtext)
+                val sbDur = sheetView.findViewById<SeekBar>(R.id.sb_alert_duration)
+                val tvDurVal = sheetView.findViewById<TextView>(R.id.tv_alert_duration_val)
+
+                val cfg = elem.alertConfig ?: AlertOverlayConfig(headline = "Alert", subtext = "")
+                etHeadline.setText(cfg.headline)
+                etSubtext.setText(cfg.subtext)
+                val initDurSec = (cfg.durationMs / 1000L).toInt().coerceIn(1, 10)
+                sbDur.progress = initDurSec - 1
+                tvDurVal.text = "${initDurSec}s"
+
+                etHeadline.doAfterTextChanged { text ->
+                    val curCfg = currentElem.alertConfig ?: cfg
+                    applyLiveUpdate(currentElem.copy(alertConfig = curCfg.copy(headline = text?.toString() ?: "")))
+                }
+                etSubtext.doAfterTextChanged { text ->
+                    val curCfg = currentElem.alertConfig ?: cfg
+                    applyLiveUpdate(currentElem.copy(alertConfig = curCfg.copy(subtext = text?.toString() ?: "")))
+                }
+                sbDur.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(sb: SeekBar?, progress: Int, fromUser: Boolean) {
+                        if (fromUser) {
+                            val durSec = progress + 1
+                            tvDurVal.text = "${durSec}s"
+                            val curCfg = currentElem.alertConfig ?: cfg
+                            applyLiveUpdate(currentElem.copy(alertConfig = curCfg.copy(durationMs = durSec * 1000L)))
+                        }
+                    }
+                    override fun onStartTrackingTouch(sb: SeekBar?) {}
+                    override fun onStopTrackingTouch(sb: SeekBar?) {
+                        applyLiveUpdate(currentElem, commitHistory = true)
+                    }
+                })
+            }
+
+            OverlayType.WIDGET -> {
+                val sec = sheetView.findViewById<View>(R.id.section_widget_controls)
+                sec.visibility = View.VISIBLE
+                val etLabel = sheetView.findViewById<EditText>(R.id.et_widget_label)
+                val etValue = sheetView.findViewById<EditText>(R.id.et_widget_value)
+
+                val cfg = elem.widgetConfig ?: WidgetOverlayConfig(widgetType = "STATS", label = "FPS", value = "60")
+                etLabel.setText(cfg.label)
+                etValue.setText(cfg.value)
+
+                etLabel.doAfterTextChanged { text ->
+                    val curCfg = currentElem.widgetConfig ?: cfg
+                    applyLiveUpdate(currentElem.copy(widgetConfig = curCfg.copy(label = text?.toString() ?: "")))
+                }
+                etValue.doAfterTextChanged { text ->
+                    val curCfg = currentElem.widgetConfig ?: cfg
+                    applyLiveUpdate(currentElem.copy(widgetConfig = curCfg.copy(value = text?.toString() ?: "")))
+                }
+            }
+
+            else -> {}
+        }
+
+        // Save and Delete
+        sheetView.findViewById<MaterialButton>(R.id.btn_inspector_save).setOnClickListener {
+            applyLiveUpdate(currentElem, commitHistory = true)
             updateUndoRedoState()
             dialog.dismiss()
         }
 
-        btnDelete.setOnClickListener {
-            val app = requireActivity().application as FairyLiveApplication
+        sheetView.findViewById<MaterialButton>(R.id.btn_inspector_delete).setOnClickListener {
             val newScene = app.sceneManager.removeOverlayFromActiveScene(elem.id)
             persistAndSyncScene(newScene)
+            binding.broadcastPreviewView.setSelectedElement(null)
+            onElementSelected(null)
+            updateUndoRedoState()
+            dialog.dismiss()
+        }
+
+        dialog.show()
+    }
+
+    private fun showFacecamInspector() {
+        val dialog = BottomSheetDialog(requireContext())
+        val sheetView = layoutInflater.inflate(R.layout.sheet_inspector, null)
+        dialog.setContentView(sheetView)
+
+        dialog.setOnShowListener {
+            val bottomSheet = dialog.findViewById<View>(com.google.android.material.R.id.design_bottom_sheet) as? FrameLayout
+            if (bottomSheet != null) {
+                val behavior = BottomSheetBehavior.from(bottomSheet)
+                val displayMetrics = resources.displayMetrics
+                behavior.peekHeight = (displayMetrics.heightPixels * 0.52f).toInt()
+                behavior.state = BottomSheetBehavior.STATE_COLLAPSED
+            }
+        }
+
+        val app = requireActivity().application as FairyLiveApplication
+        val scene = app.sceneManager.activeScene
+        var currentFc = scene.facecamConfig
+
+        fun applyFacecamUpdate(updated: FacecamConfig, commitHistory: Boolean = false) {
+            currentFc = updated
+            val newScene = app.sceneManager.updateFacecamInActiveScene(updated, recordHistory = commitHistory)
+            persistAndSyncScene(newScene)
+            updateCameraIcon(updated.enabled)
+            binding.broadcastPreviewView.invalidate()
+        }
+
+        val tvTitle = sheetView.findViewById<TextView>(R.id.tv_inspector_title)
+        val tvType = sheetView.findViewById<TextView>(R.id.tv_inspector_type)
+        tvTitle.text = "Facecam Inspector"
+        tvType.text = "CAMERA"
+
+        val sec = sheetView.findViewById<View>(R.id.section_facecam_controls)
+        sec.visibility = View.VISIBLE
+
+        // Facing
+        val btnFront = sheetView.findViewById<MaterialButton>(R.id.btn_facecam_front)
+        val btnBack = sheetView.findViewById<MaterialButton>(R.id.btn_facecam_back)
+        fun updateFacingUI(facing: CameraFacing) {
+            val accentCol = ContextCompat.getColor(requireContext(), R.color.accent_primary)
+            val strokeCol = ContextCompat.getColor(requireContext(), R.color.bg_card_stroke)
+            val textPrim = ContextCompat.getColor(requireContext(), R.color.text_primary)
+            val textSec = ContextCompat.getColor(requireContext(), R.color.text_secondary)
+
+            val isFront = facing == CameraFacing.FRONT
+            btnFront.strokeColor = ColorStateList.valueOf(if (isFront) accentCol else strokeCol)
+            btnFront.setTextColor(if (isFront) textPrim else textSec)
+            btnBack.strokeColor = ColorStateList.valueOf(if (!isFront) accentCol else strokeCol)
+            btnBack.setTextColor(if (!isFront) textPrim else textSec)
+        }
+        updateFacingUI(currentFc.facing)
+
+        btnFront.setOnClickListener {
+            updateFacingUI(CameraFacing.FRONT)
+            applyFacecamUpdate(currentFc.copy(facing = CameraFacing.FRONT, mirrorHorizontal = true), commitHistory = true)
+        }
+        btnBack.setOnClickListener {
+            updateFacingUI(CameraFacing.BACK)
+            applyFacecamUpdate(currentFc.copy(facing = CameraFacing.BACK, mirrorHorizontal = false), commitHistory = true)
+        }
+
+        // Shape
+        val btnRect = sheetView.findViewById<MaterialButton>(R.id.btn_facecam_rect)
+        val btnCircle = sheetView.findViewById<MaterialButton>(R.id.btn_facecam_circle)
+        fun updateShapeUI(isCircle: Boolean) {
+            val accentCol = ContextCompat.getColor(requireContext(), R.color.accent_primary)
+            val strokeCol = ContextCompat.getColor(requireContext(), R.color.bg_card_stroke)
+            val textPrim = ContextCompat.getColor(requireContext(), R.color.text_primary)
+            val textSec = ContextCompat.getColor(requireContext(), R.color.text_secondary)
+
+            btnCircle.strokeColor = ColorStateList.valueOf(if (isCircle) accentCol else strokeCol)
+            btnCircle.setTextColor(if (isCircle) textPrim else textSec)
+            btnRect.strokeColor = ColorStateList.valueOf(if (!isCircle) accentCol else strokeCol)
+            btnRect.setTextColor(if (!isCircle) textPrim else textSec)
+        }
+        updateShapeUI(currentFc.isCircle)
+
+        btnCircle.setOnClickListener {
+            updateShapeUI(true)
+            applyFacecamUpdate(currentFc.copy(isCircle = true), commitHistory = true)
+        }
+        btnRect.setOnClickListener {
+            updateShapeUI(false)
+            applyFacecamUpdate(currentFc.copy(isCircle = false), commitHistory = true)
+        }
+
+        // Border toggle
+        val switchBorder = sheetView.findViewById<SwitchMaterial>(R.id.switch_facecam_border)
+        switchBorder.isChecked = currentFc.showBorder
+        switchBorder.setOnCheckedChangeListener { _, isChecked ->
+            applyFacecamUpdate(currentFc.copy(showBorder = isChecked), commitHistory = true)
+        }
+
+        // Opacity
+        val tvOpacityVal = sheetView.findViewById<TextView>(R.id.tv_opacity_val)
+        val sbOpacity = sheetView.findViewById<SeekBar>(R.id.sb_inspector_opacity)
+        sbOpacity.progress = (currentFc.opacity * 100).toInt()
+        tvOpacityVal.text = "${(currentFc.opacity * 100).toInt()}%"
+        sbOpacity.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(sb: SeekBar?, progress: Int, fromUser: Boolean) {
+                if (fromUser) {
+                    tvOpacityVal.text = "$progress%"
+                    applyFacecamUpdate(currentFc.copy(opacity = progress / 100f))
+                }
+            }
+            override fun onStartTrackingTouch(sb: SeekBar?) {}
+            override fun onStopTrackingTouch(sb: SeekBar?) {
+                applyFacecamUpdate(currentFc, commitHistory = true)
+            }
+        })
+
+        // Save & Delete
+        sheetView.findViewById<MaterialButton>(R.id.btn_inspector_save).setOnClickListener {
+            applyFacecamUpdate(currentFc, commitHistory = true)
+            updateUndoRedoState()
+            dialog.dismiss()
+        }
+
+        sheetView.findViewById<MaterialButton>(R.id.btn_inspector_delete).setOnClickListener {
+            val disabled = currentFc.copy(enabled = false)
+            val newScene = app.sceneManager.updateFacecamInActiveScene(disabled, recordHistory = true)
+            persistAndSyncScene(newScene)
+            updateCameraIcon(false)
             binding.broadcastPreviewView.setSelectedElement(null)
             onElementSelected(null)
             updateUndoRedoState()
@@ -815,6 +1407,7 @@ class CreatorStudioFragment : Fragment(),
             .setTitle("Add Image Overlay")
             .setItems(options) { _, which ->
                 if (which == 0) {
+                    pendingImageTargetElementId = null
                     imagePickerLauncher.launch("image/*")
                 } else {
                     val app = requireActivity().application as FairyLiveApplication
@@ -869,7 +1462,47 @@ class CreatorStudioFragment : Fragment(),
         }
     }
 
+    private fun replaceImageFromUri(targetElementId: String, uri: Uri) {
+        try {
+            val context = requireContext()
+            val assetsDir = java.io.File(context.cacheDir, "studio_assets").apply { mkdirs() }
+            val assetFile = java.io.File(assetsDir, "custom_asset_${System.currentTimeMillis()}.png")
+            context.contentResolver.openInputStream(uri)?.use { input ->
+                java.io.FileOutputStream(assetFile).use { output ->
+                    input.copyTo(output)
+                }
+            }
+
+            val app = requireActivity().application as FairyLiveApplication
+            val elem = app.sceneManager.activeScene.overlayElements.firstOrNull { it.id == targetElementId } ?: return
+            val updated = elem.copy(resourcePath = assetFile.absolutePath)
+            val newScene = app.sceneManager.updateOverlayInActiveScene(updated, recordHistory = true)
+            persistAndSyncScene(newScene)
+            binding.broadcastPreviewView.setSelectedElement(updated.id)
+            onElementSelected(updated.id)
+            updateUndoRedoState()
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to replace image asset: ${e.message}", e)
+        }
+    }
+
     private fun addDefaultGif() {
+        val options = arrayOf("📁 Pick GIF from Device Storage", "🎨 Use Sample GIF")
+        AlertDialog.Builder(requireContext(), android.R.style.Theme_DeviceDefault_Dialog_Alert)
+            .setTitle("Add GIF Overlay")
+            .setItems(options) { _, which ->
+                if (which == 0) {
+                    pendingGifTargetElementId = null
+                    gifPickerLauncher.launch("image/gif")
+                } else {
+                    addSampleGif()
+                }
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun addSampleGif() {
         val app = requireActivity().application as FairyLiveApplication
         val id = "gif_${System.currentTimeMillis() % 10000}"
         val elem = OverlayElement.createGif(
@@ -885,6 +1518,65 @@ class CreatorStudioFragment : Fragment(),
         binding.broadcastPreviewView.setSelectedElement(id)
         onElementSelected(id)
         updateUndoRedoState()
+    }
+
+    private fun importGifFromUri(uri: Uri) {
+        try {
+            val context = requireContext()
+            val assetsDir = java.io.File(context.cacheDir, "studio_assets").apply { mkdirs() }
+            val assetFile = java.io.File(assetsDir, "custom_gif_${System.currentTimeMillis()}.gif")
+            context.contentResolver.openInputStream(uri)?.use { input ->
+                java.io.FileOutputStream(assetFile).use { output ->
+                    input.copyTo(output)
+                }
+            }
+
+            val app = requireActivity().application as FairyLiveApplication
+            val id = "gif_custom_${System.currentTimeMillis() % 10000}"
+            val elem = OverlayElement.createGif(
+                id = id,
+                config = GifOverlayConfig(resourcePath = assetFile.absolutePath),
+                x = 0.25f,
+                y = 0.25f,
+                width = 0.35f,
+                zIndex = 25
+            )
+            val newScene = app.sceneManager.addOverlayToActiveScene(elem)
+            persistAndSyncScene(newScene)
+            binding.broadcastPreviewView.setSelectedElement(id)
+            onElementSelected(id)
+            updateUndoRedoState()
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to import custom GIF asset: ${e.message}", e)
+        }
+    }
+
+    private fun replaceGifFromUri(targetElementId: String, uri: Uri) {
+        try {
+            val context = requireContext()
+            val assetsDir = java.io.File(context.cacheDir, "studio_assets").apply { mkdirs() }
+            val assetFile = java.io.File(assetsDir, "custom_gif_${System.currentTimeMillis()}.gif")
+            context.contentResolver.openInputStream(uri)?.use { input ->
+                java.io.FileOutputStream(assetFile).use { output ->
+                    input.copyTo(output)
+                }
+            }
+
+            val app = requireActivity().application as FairyLiveApplication
+            val elem = app.sceneManager.activeScene.overlayElements.firstOrNull { it.id == targetElementId } ?: return
+            val curCfg = elem.gifConfig ?: GifOverlayConfig(resourcePath = assetFile.absolutePath)
+            val updated = elem.copy(
+                resourcePath = assetFile.absolutePath,
+                gifConfig = curCfg.copy(resourcePath = assetFile.absolutePath)
+            )
+            val newScene = app.sceneManager.updateOverlayInActiveScene(updated, recordHistory = true)
+            persistAndSyncScene(newScene)
+            binding.broadcastPreviewView.setSelectedElement(updated.id)
+            onElementSelected(updated.id)
+            updateUndoRedoState()
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to replace GIF asset: ${e.message}", e)
+        }
     }
 
     private fun addDefaultAlert() {

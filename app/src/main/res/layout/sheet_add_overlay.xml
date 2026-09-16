@@ -9,7 +9,7 @@
     android:paddingTop="16dp"
     android:paddingBottom="28dp">
 
-    <!-- Bottom Sheet Drag Handle -->
+    <!-- Drag Handle -->
     <View
         android:layout_width="36dp"
         android:layout_height="4dp"
@@ -18,6 +18,7 @@
         android:background="@drawable/bg_status_pill"
         android:backgroundTint="@color/bg_card_stroke" />
 
+    <!-- Title -->
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
@@ -27,257 +28,501 @@
         android:textSize="17sp"
         android:textStyle="bold" />
 
-    <!-- Items Grid / List -->
+    <!-- ================= BASICS ================= -->
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:layout_marginBottom="4dp"
+        android:letterSpacing="0.08"
+        android:text="BASICS"
+        android:textAllCaps="true"
+        android:textColor="@color/text_muted"
+        android:textSize="11sp" />
+
+    <!-- Text -->
     <LinearLayout
         android:id="@+id/item_add_text"
         android:layout_width="match_parent"
-        android:layout_height="48dp"
+        android:layout_height="56dp"
         android:background="?attr/selectableItemBackground"
         android:clickable="true"
         android:focusable="true"
         android:gravity="center_vertical"
         android:orientation="horizontal">
 
-        <TextView
-            android:layout_width="28dp"
-            android:layout_height="wrap_content"
-            android:gravity="center"
-            android:text="T"
-            android:textColor="@color/accent_primary"
-            android:textSize="18sp"
-            android:textStyle="bold" />
+        <FrameLayout
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:background="@drawable/bg_control_icon_button">
 
-        <TextView
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:text="T"
+                android:textColor="@color/accent_primary"
+                android:textSize="18sp"
+                android:textStyle="bold" />
+        </FrameLayout>
+
+        <LinearLayout
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_marginStart="14dp"
             android:layout_weight="1"
-            android:text="Text"
-            android:textColor="@color/text_primary"
-            android:textSize="15sp" />
+            android:orientation="vertical">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Text"
+                android:textColor="@color/text_primary"
+                android:textSize="15sp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:singleLine="true"
+                android:text="Add text overlay"
+                android:textColor="@color/text_muted"
+                android:textSize="12sp" />
+        </LinearLayout>
     </LinearLayout>
 
+    <!-- Image / Logo -->
     <LinearLayout
         android:id="@+id/item_add_image"
         android:layout_width="match_parent"
-        android:layout_height="48dp"
+        android:layout_height="56dp"
         android:background="?attr/selectableItemBackground"
         android:clickable="true"
         android:focusable="true"
         android:gravity="center_vertical"
         android:orientation="horizontal">
 
-        <TextView
-            android:layout_width="28dp"
-            android:layout_height="wrap_content"
-            android:gravity="center"
-            android:text="🖼️"
-            android:textSize="16sp" />
+        <FrameLayout
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:background="@drawable/bg_control_icon_button">
 
-        <TextView
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:text="🖼"
+                android:textSize="18sp" />
+        </FrameLayout>
+
+        <LinearLayout
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_marginStart="14dp"
             android:layout_weight="1"
-            android:text="Image"
-            android:textColor="@color/text_primary"
-            android:textSize="15sp" />
+            android:orientation="vertical">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Image / Logo"
+                android:textColor="@color/text_primary"
+                android:textSize="15sp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:singleLine="true"
+                android:text="Import from device"
+                android:textColor="@color/text_muted"
+                android:textSize="12sp" />
+        </LinearLayout>
     </LinearLayout>
 
-    <LinearLayout
-        android:id="@+id/item_add_camera"
-        android:layout_width="match_parent"
-        android:layout_height="48dp"
-        android:background="?attr/selectableItemBackground"
-        android:clickable="true"
-        android:focusable="true"
-        android:gravity="center_vertical"
-        android:orientation="horizontal">
-
-        <TextView
-            android:layout_width="28dp"
-            android:layout_height="wrap_content"
-            android:gravity="center"
-            android:text="📷"
-            android:textSize="16sp" />
-
-        <TextView
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="14dp"
-            android:layout_weight="1"
-            android:text="Camera"
-            android:textColor="@color/text_primary"
-            android:textSize="15sp" />
-    </LinearLayout>
-
-    <LinearLayout
-        android:id="@+id/item_add_qr"
-        android:layout_width="match_parent"
-        android:layout_height="48dp"
-        android:background="?attr/selectableItemBackground"
-        android:clickable="true"
-        android:focusable="true"
-        android:gravity="center_vertical"
-        android:orientation="horizontal">
-
-        <TextView
-            android:layout_width="28dp"
-            android:layout_height="wrap_content"
-            android:gravity="center"
-            android:text="▦"
-            android:textColor="@color/accent_primary"
-            android:textSize="18sp"
-            android:textStyle="bold" />
-
-        <TextView
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="14dp"
-            android:layout_weight="1"
-            android:text="QR Code"
-            android:textColor="@color/text_primary"
-            android:textSize="15sp" />
-    </LinearLayout>
-
-    <LinearLayout
-        android:id="@+id/item_add_goal"
-        android:layout_width="match_parent"
-        android:layout_height="48dp"
-        android:background="?attr/selectableItemBackground"
-        android:clickable="true"
-        android:focusable="true"
-        android:gravity="center_vertical"
-        android:orientation="horizontal">
-
-        <TextView
-            android:layout_width="28dp"
-            android:layout_height="wrap_content"
-            android:gravity="center"
-            android:text="★"
-            android:textColor="@color/status_amber"
-            android:textSize="18sp" />
-
-        <TextView
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="14dp"
-            android:layout_weight="1"
-            android:text="Goal"
-            android:textColor="@color/text_primary"
-            android:textSize="15sp" />
-    </LinearLayout>
-
-    <LinearLayout
-        android:id="@+id/item_add_lower_third"
-        android:layout_width="match_parent"
-        android:layout_height="48dp"
-        android:background="?attr/selectableItemBackground"
-        android:clickable="true"
-        android:focusable="true"
-        android:gravity="center_vertical"
-        android:orientation="horizontal">
-
-        <TextView
-            android:layout_width="28dp"
-            android:layout_height="wrap_content"
-            android:gravity="center"
-            android:text="▌"
-            android:textColor="@color/accent_primary"
-            android:textSize="18sp" />
-
-        <TextView
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="14dp"
-            android:layout_weight="1"
-            android:text="Lower Third"
-            android:textColor="@color/text_primary"
-            android:textSize="15sp" />
-    </LinearLayout>
-
+    <!-- Animated GIF -->
     <LinearLayout
         android:id="@+id/item_add_gif"
         android:layout_width="match_parent"
-        android:layout_height="48dp"
+        android:layout_height="56dp"
         android:background="?attr/selectableItemBackground"
         android:clickable="true"
         android:focusable="true"
         android:gravity="center_vertical"
         android:orientation="horizontal">
 
-        <TextView
-            android:layout_width="28dp"
-            android:layout_height="wrap_content"
-            android:gravity="center"
-            android:text="GIF"
-            android:textColor="@color/status_green"
-            android:textSize="14sp"
-            android:textStyle="bold" />
+        <FrameLayout
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:background="@drawable/bg_control_icon_button">
 
-        <TextView
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:text="GIF"
+                android:textColor="@color/accent_primary"
+                android:textSize="12sp"
+                android:textStyle="bold" />
+        </FrameLayout>
+
+        <LinearLayout
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_marginStart="14dp"
             android:layout_weight="1"
-            android:text="GIF"
-            android:textColor="@color/text_primary"
-            android:textSize="15sp" />
+            android:orientation="vertical">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Animated GIF"
+                android:textColor="@color/text_primary"
+                android:textSize="15sp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:singleLine="true"
+                android:text="Import GIF from device"
+                android:textColor="@color/text_muted"
+                android:textSize="12sp" />
+        </LinearLayout>
     </LinearLayout>
 
+    <!-- ================= STREAM ================= -->
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:layout_marginBottom="4dp"
+        android:letterSpacing="0.08"
+        android:text="STREAM"
+        android:textAllCaps="true"
+        android:textColor="@color/text_muted"
+        android:textSize="11sp" />
+
+    <!-- Stream Goal -->
     <LinearLayout
-        android:id="@+id/item_add_widget"
+        android:id="@+id/item_add_goal"
         android:layout_width="match_parent"
-        android:layout_height="48dp"
+        android:layout_height="56dp"
         android:background="?attr/selectableItemBackground"
         android:clickable="true"
         android:focusable="true"
         android:gravity="center_vertical"
         android:orientation="horizontal">
 
-        <TextView
-            android:layout_width="28dp"
-            android:layout_height="wrap_content"
-            android:gravity="center"
-            android:text="⚙"
-            android:textColor="@color/text_secondary"
-            android:textSize="18sp" />
+        <FrameLayout
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:background="@drawable/bg_control_icon_button">
 
-        <TextView
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:text="★"
+                android:textColor="@color/status_warning"
+                android:textSize="18sp" />
+        </FrameLayout>
+
+        <LinearLayout
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_marginStart="14dp"
             android:layout_weight="1"
-            android:text="Widget"
-            android:textColor="@color/text_primary"
-            android:textSize="15sp" />
+            android:orientation="vertical">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Stream Goal"
+                android:textColor="@color/text_primary"
+                android:textSize="15sp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:singleLine="true"
+                android:text="Follower/sub/donation tracker"
+                android:textColor="@color/text_muted"
+                android:textSize="12sp" />
+        </LinearLayout>
     </LinearLayout>
 
+    <!-- Lower Third -->
+    <LinearLayout
+        android:id="@+id/item_add_lower_third"
+        android:layout_width="match_parent"
+        android:layout_height="56dp"
+        android:background="?attr/selectableItemBackground"
+        android:clickable="true"
+        android:focusable="true"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <FrameLayout
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:background="@drawable/bg_control_icon_button">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:text="▌"
+                android:textColor="@color/accent_primary"
+                android:textSize="18sp" />
+        </FrameLayout>
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="14dp"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Lower Third"
+                android:textColor="@color/text_primary"
+                android:textSize="15sp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:singleLine="true"
+                android:text="Name banner with subtitle"
+                android:textColor="@color/text_muted"
+                android:textSize="12sp" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <!-- QR Code -->
+    <LinearLayout
+        android:id="@+id/item_add_qr"
+        android:layout_width="match_parent"
+        android:layout_height="56dp"
+        android:background="?attr/selectableItemBackground"
+        android:clickable="true"
+        android:focusable="true"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <FrameLayout
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:background="@drawable/bg_control_icon_button">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:text="▦"
+                android:textColor="@color/text_secondary"
+                android:textSize="18sp" />
+        </FrameLayout>
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="14dp"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="QR Code"
+                android:textColor="@color/text_primary"
+                android:textSize="15sp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:singleLine="true"
+                android:text="Display scannable link"
+                android:textColor="@color/text_muted"
+                android:textSize="12sp" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <!-- Stream Alert -->
     <LinearLayout
         android:id="@+id/item_add_alert"
         android:layout_width="match_parent"
-        android:layout_height="48dp"
+        android:layout_height="56dp"
         android:background="?attr/selectableItemBackground"
         android:clickable="true"
         android:focusable="true"
         android:gravity="center_vertical"
         android:orientation="horizontal">
 
-        <TextView
-            android:layout_width="28dp"
-            android:layout_height="wrap_content"
-            android:gravity="center"
-            android:text="🔔"
-            android:textSize="16sp" />
+        <FrameLayout
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:background="@drawable/bg_control_icon_button">
 
-        <TextView
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:text="🔔"
+                android:textSize="18sp" />
+        </FrameLayout>
+
+        <LinearLayout
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_marginStart="14dp"
             android:layout_weight="1"
-            android:text="Alert"
-            android:textColor="@color/text_primary"
-            android:textSize="15sp" />
+            android:orientation="vertical">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Stream Alert"
+                android:textColor="@color/text_primary"
+                android:textSize="15sp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:singleLine="true"
+                android:text="Animated notification"
+                android:textColor="@color/text_muted"
+                android:textSize="12sp" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <!-- ================= CAMERA ================= -->
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:layout_marginBottom="4dp"
+        android:letterSpacing="0.08"
+        android:text="CAMERA"
+        android:textAllCaps="true"
+        android:textColor="@color/text_muted"
+        android:textSize="11sp" />
+
+    <!-- Facecam -->
+    <LinearLayout
+        android:id="@+id/item_add_facecam"
+        android:layout_width="match_parent"
+        android:layout_height="56dp"
+        android:background="?attr/selectableItemBackground"
+        android:clickable="true"
+        android:focusable="true"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <FrameLayout
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:background="@drawable/bg_control_icon_button">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:text="📷"
+                android:textSize="18sp" />
+        </FrameLayout>
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="14dp"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Facecam"
+                android:textColor="@color/text_primary"
+                android:textSize="15sp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:singleLine="true"
+                android:text="Picture-in-picture camera"
+                android:textColor="@color/text_muted"
+                android:textSize="12sp" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <!-- ================= TOOLS ================= -->
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:layout_marginBottom="4dp"
+        android:letterSpacing="0.08"
+        android:text="TOOLS"
+        android:textAllCaps="true"
+        android:textColor="@color/text_muted"
+        android:textSize="11sp" />
+
+    <!-- Stats Widget -->
+    <LinearLayout
+        android:id="@+id/item_add_widget"
+        android:layout_width="match_parent"
+        android:layout_height="56dp"
+        android:background="?attr/selectableItemBackground"
+        android:clickable="true"
+        android:focusable="true"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <FrameLayout
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:background="@drawable/bg_control_icon_button">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:text="⚙"
+                android:textColor="@color/text_secondary"
+                android:textSize="18sp" />
+        </FrameLayout>
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="14dp"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Stats Widget"
+                android:textColor="@color/text_primary"
+                android:textSize="15sp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:singleLine="true"
+                android:text="Live performance stats"
+                android:textColor="@color/text_muted"
+                android:textSize="12sp" />
+        </LinearLayout>
     </LinearLayout>
 
 </LinearLayout>

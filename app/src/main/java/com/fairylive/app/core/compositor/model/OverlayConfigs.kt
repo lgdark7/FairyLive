@@ -11,7 +11,8 @@ data class TextOverlayConfig(
     val backgroundColorRgba: Int = Color.argb(180, 16, 20, 32),
     val fontStyle: Int = Typeface.BOLD,
     val paddingPx: Int = 16,
-    val cornerRadiusPx: Float = 8f
+    val cornerRadiusPx: Float = 8f,
+    val alignment: String = "LEFT"
 )
 
 /** Configuration for goal progress overlays (followers, subs, donations). */

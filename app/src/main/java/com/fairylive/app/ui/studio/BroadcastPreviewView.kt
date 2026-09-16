@@ -191,6 +191,14 @@ class BroadcastPreviewView @JvmOverloads constructor(
                 textSize = 10f
                 gravity = android.view.Gravity.CENTER
                 setBackgroundColor(Color.parseColor("#8033334D"))
+                if (fc.isCircle) {
+                    outlineProvider = object : android.view.ViewOutlineProvider() {
+                        override fun getOutline(view: View, outline: android.graphics.Outline) {
+                            outline.setOval(0, 0, view.width, view.height)
+                        }
+                    }
+                    clipToOutline = true
+                }
                 layoutParams = LayoutParams(max(10, fcW), max(10, fcH)).apply {
                     leftMargin = fcX
                     topMargin = fcY
@@ -218,8 +226,14 @@ class BroadcastPreviewView @JvmOverloads constructor(
                     val cfg = elem.textConfig
                     tv.text = cfg?.text ?: "Text Overlay"
                     tv.setTextColor(cfg?.textColorRgba ?: Color.WHITE)
-                    tv.textSize = 12f
+                    tv.textSize = (cfg?.fontSizeSp ?: 16f) * 0.65f
                     tv.setBackgroundColor(cfg?.backgroundColorRgba ?: Color.parseColor("#B4101420"))
+                    val alignGravity = when (cfg?.alignment) {
+                        "CENTER" -> android.view.Gravity.CENTER
+                        "RIGHT" -> android.view.Gravity.END or android.view.Gravity.CENTER_VERTICAL
+                        else -> android.view.Gravity.START or android.view.Gravity.CENTER_VERTICAL
+                    }
+                    tv.gravity = alignGravity
                     tv.setPadding(8, 4, 8, 4)
                     tv
                 }
@@ -285,11 +299,20 @@ class BroadcastPreviewView @JvmOverloads constructor(
                         iv.setImageResource(R.drawable.ic_stream)
                         iv.setBackgroundColor(Color.parseColor("#4000E5FF"))
                     }
+                    if (elem.cornerRadiusPx > 0f) {
+                        iv.outlineProvider = object : android.view.ViewOutlineProvider() {
+                            override fun getOutline(view: View, outline: android.graphics.Outline) {
+                                outline.setRoundRect(0, 0, view.width, view.height, elem.cornerRadiusPx)
+                            }
+                        }
+                        iv.clipToOutline = true
+                    }
                     iv
                 }
                 OverlayType.GIF -> {
                     val tv = TextView(context)
-                    tv.text = "🎞️ GIF"
+                    val speed = elem.gifConfig?.playbackSpeed ?: 1.0f
+                    tv.text = "🎞️ GIF (${speed}x)"
                     tv.setTextColor(Color.parseColor("#00E5FF"))
                     tv.textSize = 11f
                     tv.gravity = android.view.Gravity.CENTER
@@ -325,6 +348,8 @@ class BroadcastPreviewView @JvmOverloads constructor(
             }
 
             overlayView.alpha = elem.opacity
+            overlayView.scaleX = elem.scale
+            overlayView.scaleY = elem.scale
             overlayView.layoutParams = LayoutParams(elemW, elemH).apply {
                 leftMargin = elemX
                 topMargin = elemY
@@ -358,30 +383,34 @@ class BroadcastPreviewView @JvmOverloads constructor(
         if (w <= 0f || h <= 0f) return
 
         val rect = getElementBounds(scene, selId, w, h) ?: return
+        val elem = if (selId != "facecam") scene.overlayElements.firstOrNull { it.id == selId } else null
+        val isLocked = elem?.locked == true
 
         // 1. Draw bounding rectangle
         canvas.drawRect(rect, selectionFillPaint)
         canvas.drawRect(rect, selectionPaint)
 
-        // 2. Draw 4 corner resize handles
-        val r = handleRadiusPx
-        val corners = arrayOf(
-            Pair(rect.left, rect.top),
-            Pair(rect.right, rect.top),
-            Pair(rect.right, rect.bottom),
-            Pair(rect.left, rect.bottom)
-        )
-        for ((cx, cy) in corners) {
-            canvas.drawCircle(cx, cy, r, handlePaint)
-            canvas.drawCircle(cx, cy, r, handleStrokePaint)
+        // 2. Draw 4 corner resize handles (only if unlocked)
+        if (!isLocked) {
+            val r = handleRadiusPx
+            val corners = arrayOf(
+                Pair(rect.left, rect.top),
+                Pair(rect.right, rect.top),
+                Pair(rect.right, rect.bottom),
+                Pair(rect.left, rect.bottom)
+            )
+            for ((cx, cy) in corners) {
+                canvas.drawCircle(cx, cy, r, handlePaint)
+                canvas.drawCircle(cx, cy, r, handleStrokePaint)
+            }
         }
 
         // 3. Draw clean element type badge (no technical coordinates)
         val label = if (selId == "facecam") {
             "Camera"
         } else {
-            val elem = scene.overlayElements.firstOrNull { it.id == selId }
-            elem?.type?.name?.lowercase()?.replaceFirstChar { it.uppercase() } ?: "Overlay"
+            val baseName = elem?.type?.name?.lowercase()?.replaceFirstChar { it.uppercase() } ?: "Overlay"
+            if (isLocked) "🔒 $baseName" else baseName
         }
 
         val textWidth = labelPaint.measureText(label)
@@ -433,14 +462,18 @@ class BroadcastPreviewView @JvmOverloads constructor(
                 // Check if touching a resize handle of current selection
                 val selId = selectedId
                 if (selId != null) {
-                    val rect = getElementBounds(scene, selId, w, h)
-                    if (rect != null) {
-                        val hitHandle = getHitHandle(rect, touchX, touchY)
-                        if (hitHandle >= 0) {
-                            activeCorner = hitHandle
-                            touchMode = TouchMode.RESIZE
-                            parent?.requestDisallowInterceptTouchEvent(true)
-                            return true
+                    val elem = if (selId != "facecam") scene.overlayElements.firstOrNull { it.id == selId } else null
+                    val isLocked = elem?.locked == true
+                    if (!isLocked) {
+                        val rect = getElementBounds(scene, selId, w, h)
+                        if (rect != null) {
+                            val hitHandle = getHitHandle(rect, touchX, touchY)
+                            if (hitHandle >= 0) {
+                                activeCorner = hitHandle
+                                touchMode = TouchMode.RESIZE
+                                parent?.requestDisallowInterceptTouchEvent(true)
+                                return true
+                            }
                         }
                     }
                 }
@@ -449,7 +482,9 @@ class BroadcastPreviewView @JvmOverloads constructor(
                 val hitElement = hitTestElements(scene, touchX, touchY, w, h)
                 if (hitElement != null) {
                     selectedId = hitElement
-                    touchMode = TouchMode.DRAG
+                    val hitElem = if (hitElement != "facecam") scene.overlayElements.firstOrNull { it.id == hitElement } else null
+                    val isLocked = hitElem?.locked == true
+                    touchMode = if (isLocked) TouchMode.NONE else TouchMode.DRAG
                     interactionListener?.onElementSelected(hitElement)
                     parent?.requestDisallowInterceptTouchEvent(true)
                     invalidate()
@@ -466,6 +501,8 @@ class BroadcastPreviewView @JvmOverloads constructor(
 
             MotionEvent.ACTION_MOVE -> {
                 val selId = selectedId ?: return false
+                val elem = if (selId != "facecam") scene.overlayElements.firstOrNull { it.id == selId } else null
+                if (elem?.locked == true) return false
                 val dx = touchX - lastTouchX
                 val dy = touchY - lastTouchY
                 val deltaNormX = dx / w
@@ -488,11 +525,11 @@ class BroadcastPreviewView @JvmOverloads constructor(
                             origX = fc.normalizedX
                             origY = fc.normalizedY
                         } else {
-                            val elem = scene.overlayElements.firstOrNull { it.id == selId } ?: return false
-                            elemW = elem.normalizedWidth
-                            elemH = if (elem.normalizedHeight > 0f) elem.normalizedHeight else elem.normalizedWidth * 0.4f
-                            origX = elem.normalizedX
-                            origY = elem.normalizedY
+                            val overlay = elem ?: return false
+                            elemW = overlay.normalizedWidth
+                            elemH = if (overlay.normalizedHeight > 0f) overlay.normalizedHeight else overlay.normalizedWidth * 0.4f
+                            origX = overlay.normalizedX
+                            origY = overlay.normalizedY
                         }
 
                         var newX = (origX + deltaNormX).coerceIn(0f, 1f - elemW)
@@ -542,11 +579,11 @@ class BroadcastPreviewView @JvmOverloads constructor(
                             val newH = (fc.normalizedHeight + deltaNormY).coerceIn(0.08f, 0.8f)
                             interactionListener?.onFacecamTransformed(fc.normalizedX, fc.normalizedY, newW, newH)
                         } else {
-                            val elem = scene.overlayElements.firstOrNull { it.id == selId } ?: return false
-                            val currentH = if (elem.normalizedHeight > 0f) elem.normalizedHeight else elem.normalizedWidth * 0.4f
-                            val newW = (elem.normalizedWidth + deltaNormX).coerceIn(0.05f, 0.95f)
+                            val overlay = elem ?: return false
+                            val currentH = if (overlay.normalizedHeight > 0f) overlay.normalizedHeight else overlay.normalizedWidth * 0.4f
+                            val newW = (overlay.normalizedWidth + deltaNormX).coerceIn(0.05f, 0.95f)
                             val newH = (currentH + deltaNormY).coerceIn(0.03f, 0.95f)
-                            interactionListener?.onElementTransformed(selId, elem.normalizedX, elem.normalizedY, newW, newH)
+                            interactionListener?.onElementTransformed(selId, overlay.normalizedX, overlay.normalizedY, newW, newH)
                         }
                         lastTouchX = touchX
                         lastTouchY = touchY

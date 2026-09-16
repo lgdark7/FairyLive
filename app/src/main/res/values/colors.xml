@@ -17,7 +17,11 @@
     <!-- Functional Status Colors -->
     <color name="status_green">#10B981</color>
     <color name="status_amber">#F59E0B</color>
+    <color name="status_warning">#F59E0B</color>
     <color name="status_red">#EF4444</color>
+    <color name="status_error">#EF4444</color>
+    <color name="status_live">#10B981</color>
+    <color name="accent_dark">#4F46E5</color>
 
     <!-- Typography & Neutral Utilities -->
     <color name="text_primary">#FFFFFF</color>

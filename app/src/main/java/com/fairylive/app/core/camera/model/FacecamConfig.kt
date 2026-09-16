@@ -19,7 +19,9 @@ data class FacecamConfig(
     val mirrorHorizontal: Boolean = true,
     val cropToAspect: Boolean = true,
     val aspectRatio: Float = 1.0f, // 1.0 = 1:1 square, 4f/3f = 4:3, 16f/9f = 16:9
-    val zIndex: Int = 5
+    val zIndex: Int = 5,
+    val isCircle: Boolean = false,
+    val showBorder: Boolean = false
 ) {
     /** Clamped and normalized copy preventing out-of-bounds rendering. */
     fun sanitized(): FacecamConfig = copy(
@@ -29,7 +31,9 @@ data class FacecamConfig(
         normalizedHeight = normalizedHeight.coerceIn(0.05f, 1f),
         opacity = opacity.coerceIn(0f, 1f),
         scale = scale.coerceIn(0.1f, 5.0f),
-        aspectRatio = if (aspectRatio > 0f) aspectRatio else 1.0f
+        aspectRatio = if (aspectRatio > 0f) aspectRatio else 1.0f,
+        isCircle = isCircle,
+        showBorder = showBorder
     )
 
     /** Computes physical pixel width for a given stream resolution. */
