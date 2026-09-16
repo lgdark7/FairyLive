@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/hudRoot"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:background="@drawable/bg_streamer_hud_pill"
+    android:elevation="12dp"
+    android:gravity="center_vertical"
+    android:orientation="horizontal">
+
+    <!-- Live indicator dot & status -->
+    <TextView
+        android:id="@+id/hudLiveStatus"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:paddingEnd="10dp"
+        android:text="● LIVE"
+        android:textColor="#E53935"
+        android:textSize="12sp"
+        android:textStyle="bold" />
+
+    <!-- Chat Quick Toggle Button -->
+    <ImageButton
+        android:id="@+id/hudBtnChat"
+        android:layout_width="38dp"
+        android:layout_height="38dp"
+        android:layout_marginEnd="6dp"
+        android:background="@drawable/bg_hud_circle_button"
+        android:contentDescription="YouTube Live Chat"
+        android:src="@android:drawable/stat_notify_chat" />
+
+    <!-- Microphone Mute/Unmute Toggle Button -->
+    <ImageButton
+        android:id="@+id/hudBtnMic"
+        android:layout_width="38dp"
+        android:layout_height="38dp"
+        android:layout_marginEnd="6dp"
+        android:background="@drawable/bg_hud_circle_button"
+        android:contentDescription="Mute or Unmute Microphone"
+        android:src="@android:drawable/ic_btn_speak_now" />
+
+    <!-- Stream Pause/Freeze Toggle Button -->
+    <ImageButton
+        android:id="@+id/hudBtnPause"
+        android:layout_width="38dp"
+        android:layout_height="38dp"
+        android:layout_marginEnd="6dp"
+        android:background="@drawable/bg_hud_circle_button"
+        android:contentDescription="Pause or Resume Stream"
+        android:src="@android:drawable/ic_media_pause" />
+
+    <!-- Quick More Menu / Action Sheet -->
+    <ImageButton
+        android:id="@+id/hudBtnMore"
+        android:layout_width="38dp"
+        android:layout_height="38dp"
+        android:background="@drawable/bg_hud_circle_button"
+        android:contentDescription="Creator Options"
+        android:src="@android:drawable/ic_menu_more" />
+
+</LinearLayout>
