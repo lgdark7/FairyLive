@@ -8,11 +8,14 @@ import com.fairylive.app.core.compositor.model.AlertOverlayConfig
 import com.fairylive.app.core.compositor.model.GifOverlayConfig
 import com.fairylive.app.core.compositor.model.GoalOverlayConfig
 import com.fairylive.app.core.compositor.model.LowerThirdOverlayConfig
+import com.fairylive.app.core.compositor.model.MaskShape
 import com.fairylive.app.core.compositor.model.OverlayElement
 import com.fairylive.app.core.compositor.model.OverlayType
 import com.fairylive.app.core.compositor.model.QrOverlayConfig
 import com.fairylive.app.core.compositor.model.TextOverlayConfig
+import com.fairylive.app.core.compositor.model.WebOverlayConfig
 import com.fairylive.app.core.compositor.model.WidgetOverlayConfig
+import com.fairylive.app.core.compositor.model.YouTubeSubscriberWidgetConfig
 import com.fairylive.app.core.scene.model.BroadcastScene
 import com.fairylive.app.core.scene.model.SceneBackgroundMode
 import org.json.JSONArray
@@ -168,12 +171,38 @@ class SceneRepository(context: Context) {
             }
 
             el.widgetConfig?.let { wc ->
-                val wo = JSONObject()
-                wo.put("widgetType", wc.widgetType)
-                wo.put("label", wc.label)
-                wo.put("value", wc.value)
-                wo.put("accentColorRgba", wc.accentColorRgba)
-                elObj.put("widgetConfig", wo)
+                val wcObj = JSONObject()
+                wcObj.put("widgetType", wc.widgetType)
+                wcObj.put("label", wc.label)
+                wcObj.put("value", wc.value)
+                wcObj.put("accentColorRgba", wc.accentColorRgba)
+                elObj.put("widgetConfig", wcObj)
+            }
+            el.webConfig?.let { web ->
+                val webObj = JSONObject()
+                webObj.put("url", web.url)
+                webObj.put("transparentBackground", web.transparentBackground)
+                webObj.put("refreshIntervalSeconds", web.refreshIntervalSeconds)
+                webObj.put("customWidth", web.customWidth)
+                webObj.put("customHeight", web.customHeight)
+                webObj.put("scrollX", web.scrollX)
+                webObj.put("scrollY", web.scrollY)
+                webObj.put("cropLeft", web.cropLeft.toDouble())
+                webObj.put("cropTop", web.cropTop.toDouble())
+                webObj.put("cropRight", web.cropRight.toDouble())
+                webObj.put("cropBottom", web.cropBottom.toDouble())
+                webObj.put("maskShape", web.maskShape.name)
+                webObj.put("cornerRadiusPx", web.cornerRadiusPx.toDouble())
+                elObj.put("webConfig", webObj)
+            }
+            el.youtubeSubscriberConfig?.let { yt ->
+                val ytObj = JSONObject()
+                ytObj.put("channelId", yt.channelId)
+                ytObj.put("channelTitle", yt.channelTitle)
+                ytObj.put("subscriberCountFormatted", yt.subscriberCountFormatted)
+                ytObj.put("rawSubscriberCount", yt.rawSubscriberCount)
+                ytObj.put("accentColorRgba", yt.accentColorRgba)
+                elObj.put("youtubeSubscriberConfig", ytObj)
             }
 
             overlays.put(elObj)
@@ -324,6 +353,42 @@ class SceneRepository(context: Context) {
                         )
                     }
 
+                    var webCfg: WebOverlayConfig? = null
+                    if (elObj.has("webConfig")) {
+                        val web = elObj.getJSONObject("webConfig")
+                        webCfg = WebOverlayConfig(
+                            url = web.optString("url", "https://example.com"),
+                            transparentBackground = web.optBoolean("transparentBackground", true),
+                            refreshIntervalSeconds = web.optInt("refreshIntervalSeconds", 0),
+                            customWidth = web.optInt("customWidth", 800),
+                            customHeight = web.optInt("customHeight", 450),
+                            scrollX = web.optInt("scrollX", 0),
+                            scrollY = web.optInt("scrollY", 0),
+                            cropLeft = web.optDouble("cropLeft", 0.0).toFloat(),
+                            cropTop = web.optDouble("cropTop", 0.0).toFloat(),
+                            cropRight = web.optDouble("cropRight", 1.0).toFloat(),
+                            cropBottom = web.optDouble("cropBottom", 1.0).toFloat(),
+                            maskShape = try {
+                                MaskShape.valueOf(web.optString("maskShape", MaskShape.RECTANGLE.name))
+                            } catch (_: Exception) {
+                                MaskShape.RECTANGLE
+                            },
+                            cornerRadiusPx = web.optDouble("cornerRadiusPx", 0.0).toFloat()
+                        )
+                    }
+
+                    var ytSubCfg: YouTubeSubscriberWidgetConfig? = null
+                    if (elObj.has("youtubeSubscriberConfig")) {
+                        val yt = elObj.getJSONObject("youtubeSubscriberConfig")
+                        ytSubCfg = YouTubeSubscriberWidgetConfig(
+                            channelId = yt.optString("channelId", ""),
+                            channelTitle = yt.optString("channelTitle", "FAIRY LIVE"),
+                            subscriberCountFormatted = yt.optString("subscriberCountFormatted", "12.4K"),
+                            rawSubscriberCount = yt.optLong("rawSubscriberCount", 12400L),
+                            accentColorRgba = yt.optInt("accentColorRgba", 0xFFFF0000.toInt())
+                        )
+                    }
+
                     overlayList.add(
                         OverlayElement(
                             id = elId,
@@ -346,6 +411,8 @@ class SceneRepository(context: Context) {
                             qrConfig = qrCfg,
                             gifConfig = gifCfg,
                             widgetConfig = widgetCfg,
+                            webConfig = webCfg,
+                            youtubeSubscriberConfig = ytSubCfg,
                             resourcePath = resPath
                         )
                     )

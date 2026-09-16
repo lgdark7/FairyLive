@@ -1,0 +1,115 @@
+🧚 FAIRY LIVE — M10 REVALIDATION REPORT
+CAMERA / FACE CAM INTEGRATION & EMPIRICAL AUDIT
+
+CHECKPOINT COMMIT: 95dd044
+
+==================================================
+1. CONNECTED TEST COUNT & EXACT TEST NAMES
+==================================================
+The total connected test count is 11 tests across 4 test classes (all passing on Pixel 8 AVD, Android 15 / API 35):
+
+A. CameraInstrumentedTest (6 tests):
+1. testCameraDiscoveryAndHardwareProfiles
+   - Enumerates front (ID "1") and rear (ID "10") camera devices.
+   - Validates optimal preview size selection (640x480 CameraSize).
+2. testFrontAndBackCameraQueries
+   - Verifies independent query resolution for CameraFacing.FRONT and CameraFacing.BACK.
+3. testCameraGlesCompositorIntegration
+   - Allocates dedicated GL_TEXTURE_EXTERNAL_OES on FairyCompositorThread.
+   - Validates surface attachment and zero-error GLES 2.0 rendering pass into encoder input Surface.
+4. testCameraCaptureEngineLifecycleAndStreaming
+   - Validates full camera start/stop lifecycle (STREAMING state).
+   - Validates runtime front-to-back lens switching without pipeline deadlock.
+   - Verifies clean session teardown.
+5. testCameraErrorAndFallbackResilience
+   - Tests graceful degradation on hardware error or null target surface without crashing or aborting background capture.
+6. testCameraNoFalseLiveState
+   - Confirms independent camera toggles never trigger false "● LIVE" RTMP broadcast state.
+
+B. Additional Connected Tests (5 tests):
+7. CodecInspectionTest.testAuditAvailableVideoEncoders
+8. CodecInspectionTest.testSoftwareCodecClassification
+9. CompositorInstrumentedTest.testGlesRendererInitializationWithMediaCodecSurface
+10. CompositorInstrumentedTest.testMultiOverlaySceneRendering
+11. StreamPipelineInstrumentedTest.testEndToEndPipelineFrameFlow
+
+Total Connected Tests: 11 / 11 PASS (verified via Gradle runner: "Starting 11 tests on Pixel_8(AVD) - 15").
+
+==================================================
+2. CODEC LIFECYCLE EVIDENCE
+==================================================
+Investigation of HardwareVideoEncoder.kt and AacMediaCodecEncoder.kt confirms:
+- Codecs are NOT continuously retained across stream sessions.
+- In HardwareVideoEncoder.stop():
+    mediaCodec?.stop()
+    mediaCodec?.release()
+    mediaCodec = null
+    inputSurface?.release()
+    inputSurface = null
+- In AacMediaCodecEncoder.stop():
+    mediaCodec?.stop()
+    mediaCodec?.release()
+    mediaCodec = null
+- Lifecycle Reality: MediaCodec instances are cleanly stopped, released, and set to null upon session teardown, and newly initialized upon capture start.
+- Verified Invariant: "Active codec count remained bounded at 2 (1 AVC video, 1 AAC audio) at every measurement point during active streaming." Zero zombie or accumulated codec instances exist across start/stop cycles.
+
+==================================================
+3. RESOURCE STABILITY & PSS INTERPRETATION
+==================================================
+A. 10-Cycle Lifecycle Stability Ledger (tools/audit_m10_10cycle_resources.json):
+- PSS Endpoint Trajectory: Cycle 1 = 74,934 KB -> Cycle 10 = 75,444 KB (Net delta: +510 KB across 10 complete start/toggle/switch/stop cycles).
+- Trajectory Characterization: Behavior is non-monotonic and bounded. PSS fluctuated between 74.9 MB and 77.4 MB (peaking at Cycle 8), settling back to 75.4 MB after runtime GC at Cycles 9 and 10. This demonstrates bounded memory consumption rather than an escalating allocation leak, but is not characterized as zero leaks.
+- Native Heap: Stabilized at 16,162 KB (+523 KB total over 10 cycles, flat across cycles 9 and 10).
+- Dalvik Heap: Decreased by -211 KB (8,249 KB -> 8,038 KB).
+- Active Codecs: Bounded at 2 at every measurement point.
+
+B. Camera ON A/B Memory Delta Attribution:
+- "Camera ON produced approximately +7.4 MB PSS under this test condition (68.2 MB -> 75.8 MB). The exact allocation sources were not independently attributed." (Attribution to camera HAL triple-buffering was removed in favor of direct empirical observation).
+
+==================================================
+4. COMPLETE REGRESSION RESULT
+==================================================
+Command: ./gradlew clean testDebugUnitTest connectedDebugAndroidTest
+- Exit Code: 0 (BUILD SUCCESSFUL)
+- Actionable Tasks: 71 executed, 0 failed
+- Build Duration: 31.8s
+- Unit Tests: 115 / 115 PASS (0 failures, 0 regressions)
+- Connected Tests: 11 / 11 PASS on Pixel 8 (AVD) - 15 (0 failures)
+- Debug APK Size: 6.00 MB (< 15.0 MB ceiling)
+
+==================================================
+5. DOCUMENTATION SYNCHRONIZATION STATUS
+==================================================
+All 6 project documents are fully synchronized with the above findings:
+- PROJECT_MEMORY.md (Updated connected test breakdown, bounded codec wording, observed PSS overhead)
+- DEVELOPMENT_LOG.md (Recorded M10 revalidation details, 6 test methods, lifecycle audit)
+- ARCHITECTURE.md (Camera2 subsystem, GLES zero-copy PIP shader pipeline, codec release lifecycle)
+- REQUIREMENTS.md (Milestone 10 standards, test counts, verified constraints)
+- TESTING.md (Full 11 connected test breakdown with exact method names and pass status)
+- PERFORMANCE.md (A/B benchmark table, 10-cycle ledger, corrected non-monotonic interpretation)
+
+==================================================
+6. GIT COMMIT CHECKPOINT
+==================================================
+- Final Revalidation Commit: 95dd044
+- Message: "docs(camera): M10 revalidation - clarify test breakdown, codec lifecycle, and empirical resource interpretation"
+- Working Tree: Clean.
+
+==================================================
+7. AVD LIMITATIONS
+==================================================
+- Virtualized camera sensor emits synthetic test patterns (checkerboards).
+- SwiftShader/host GL driver synchronization introduces minor timing jitter not present on bare-metal ISPs.
+- Thermal and battery impacts cannot be evaluated on an emulator host.
+
+==================================================
+8. PHYSICAL-DEVICE VALIDATION STATUS
+==================================================
+- Validation has been executed strictly on the Google Pixel 8 AVD (Android 15 / API 35).
+- Physical-device testing on low-end MediaTek / Unisoc hardware is scheduled for final hardware validation before production release.
+- Zero claims of universal hardware acceleration or zero-copy across all vendor HALs are made.
+
+==================================================
+STOP CONDITION
+==================================================
+🛑 M10 REVALIDATED — WAITING FOR CHATGPT REVIEW AND AUTHORIZATION FOR M11

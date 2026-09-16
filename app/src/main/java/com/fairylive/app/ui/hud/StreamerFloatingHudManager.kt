@@ -63,6 +63,7 @@ class StreamerFloatingHudManager(private val activity: Activity) {
     private fun setupHudControls(view: View) {
         val btnChat = view.findViewById<ImageButton>(R.id.hudBtnChat)
         val btnMic = view.findViewById<ImageButton>(R.id.hudBtnMic)
+        val btnCamera = view.findViewById<ImageButton>(R.id.hudBtnCamera)
         val btnPause = view.findViewById<ImageButton>(R.id.hudBtnPause)
         val btnMore = view.findViewById<ImageButton>(R.id.hudBtnMore)
         val liveStatus = view.findViewById<TextView>(R.id.hudLiveStatus)
@@ -78,6 +79,17 @@ class StreamerFloatingHudManager(private val activity: Activity) {
                 if (isMicMuted) android.R.drawable.ic_lock_silent_mode
                 else android.R.drawable.ic_btn_speak_now
             )
+        }
+
+        btnCamera?.setOnClickListener {
+            val app = activity.application as? com.fairylive.app.FairyLiveApplication
+            val scene = app?.sceneManager?.activeScene
+            if (app != null && scene != null) {
+                val newEnabled = !scene.facecamConfig.enabled
+                val updatedFc = scene.facecamConfig.copy(enabled = newEnabled)
+                app.sceneManager.updateFacecamInActiveScene(updatedFc)
+                btnCamera.alpha = if (newEnabled) 1.0f else 0.4f
+            }
         }
 
         btnPause?.setOnClickListener {

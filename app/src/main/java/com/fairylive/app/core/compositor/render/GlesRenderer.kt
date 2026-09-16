@@ -67,6 +67,7 @@ class GlesRenderer {
     private var streamWidth: Int = 0
     private var streamHeight: Int = 0
     private var assetManager: android.content.res.AssetManager? = null
+    var context: android.content.Context? = null
 
     private var captureProgram: Int = 0
     private var overlayProgram: Int = 0
@@ -607,10 +608,9 @@ class GlesRenderer {
             }
             OverlayType.WEB -> {
                 element.webConfig?.let { config ->
-                    val key = "web_${element.id}_${config.url.hashCode()}"
-                    resources.getOrPutBitmap(key) {
-                        com.fairylive.app.core.compositor.rasterizer.WebOverlayRasterizer.rasterizePlaceholder(config)
-                    }
+                    context?.let { ctx ->
+                        OffscreenWebRenderer.getInstance(ctx).getOrRenderBitmap(element.id, config)
+                    } ?: com.fairylive.app.core.compositor.rasterizer.WebOverlayRasterizer.rasterizePlaceholder(config)
                 }
             }
             OverlayType.YOUTUBE_SUBSCRIBER -> {

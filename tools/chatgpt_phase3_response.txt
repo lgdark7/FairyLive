@@ -1,0 +1,25 @@
+TOTAL_TEXTS: 3709
+=== [3650] ===
+Clearly isolate webpage JavaScript from application credentials.
+=== [3653] ===
+==================================================
+=== [3655] ===
+14. CREATOR-ONLY FLOATING CONTROL DOCK
+=== [3657] ===
+==================================================
+=== [3660] ===
+Build a polished floating creator control dock.
+=== [3663] ===
+It MUST exist only in:
+=== [3669] ===
+It MUST NOT enter:
+=== [3672] ===
+BROADCAST_COMPOSITE
+=== [3699] ===
+The dock should be draggable.
+=== [3702] ===
+It should remember its position.
+=== [3705] ===
+Use compact circular/p
+=== [3706] ===
+ChatGPT can make mistakes. Check important info.

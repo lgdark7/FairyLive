@@ -1,0 +1,415 @@
+I reviewed Hermes' 
+revalidation findings carefully
+. There is real progress, and Blockers 4–6 are substantially resolved. However, I 
+cannot honestly issue 
+M13 APPROVED
+ yet
+ because the A/V evidence still contains a hard numerical inconsistency.
+🔴 M13 GATE DECISION: REVALIDATION REQUIRED
+M13: 🟡 OPEN
+
+
+M14: 🔒 LOCKED
+The original dossier established the 30-minute soak and regression successfully. 
+ Hermes' new investigation is useful, but it does 
+not yet close Blockers 1–3
+.
+🚨 The critical problem
+Hermes says:
+44,100 Hz / 1,024 = 43.0664 AAC AUs/sec
+and the final stream contains:
+76,478 audio AUs
+Therefore, if each AAC-LC AU represents 1024 samples, those AUs represent approximately:
+1,775.8 seconds of audio
+But the dossier claims:
+1,834.818 seconds of audio timeline.
+That's a difference of roughly 
+59 seconds
+.
+That cannot be explained merely by a 
+3.699-second A/V phase difference
+.
+So the statement that the clock issue has been completely explained by the transient scheduler disturbance is 
+not yet demonstrated
+.
+The original dossier reports exactly the conflicting values: 76,478 audio frames, 1,834.818s audio duration, and 3,699ms final difference. 
+What Hermes successfully resolved
+✅ Blocker 4 — CPU measurement
+This is a legitimate fix.
+The harness was multiplying process CPU fraction by four cores and then clamping at 100%, meaning the displayed 
+100%
+ could represent approximately full single-core-equivalent usage rather than 100% of the entire four-core emulator.
+That makes the T+15m result much more understandable.
+However:
+ the final documentation should explicitly state the CPU metric's normalization so nobody interprets it as 100% of all four cores.
+✅ Blocker 6 — M9 ABR cooldown
+Good.
+Hermes verified the production controller remains:
+3,000 ms
+and corrected the M13 test override from 8,000ms back to 3,000ms.
+That's exactly the kind of regression we wanted caught.
+🟡 Blocker 5 — memory
+Much better analysis.
+The distinction between:
+Dalvik GC sawtooth
+allocator/working-set growth
+persistent resource accumulation
+is appropriate.
+The 20-cycle lifecycle ledger is especially reassuring because it reaches a plateau at 64,222 KB from cycles 8–20. 
+But I would 
+not
+ use the phrase "zero memory leak" for the 30-minute stream yet. The native heap still moves from 15.857 MB to 18.705 MB. The correct conclusion should be something like:
+"No monotonic resource leak was demonstrated by the tested lifecycle ledger; the long-stream working-set increase requires characterization."
+That's scientifically safer.
+🚨 What Hermes must do now
+We need a 
+targeted A/V accounting audit
+, not another blind 30-minute soak.
+Tell Hermes to investigate the actual raw media.
+🧚 FAIRY LIVE — M13 TARGETED A/V REVALIDATION
+CHATGPT GATE STATUS: NOT YET APPROVED
+
+M14 REMAINS STRICTLY LOCKED.
+
+The previous six-blocker investigation successfully resolved important
+issues, particularly the CPU measurement bug and the M9 ABR cooldown
+test override.
+
+However, Blockers 1–3 are NOT yet closed.
+
+==================================================
+CRITICAL ISSUE — AUDIO TIMELINE MATHEMATICS
+==================================================
+
+The final M13 dossier reports:
+
+Audio AUs = 76,478
+
+AAC configuration:
+
+44,100 Hz
+1024 samples/AU
+
+Theoretical duration represented by 76,478 AAC AUs is approximately:
+
+76,478 × 1024 / 44,100 ≈ 1,775.8 seconds
+
+BUT the dossier reports:
+
+Audio timeline duration = 1,834.818 seconds
+
+This discrepancy is approximately 59 seconds.
+
+The report also claims:
+
+Video duration = 1,831.119 seconds
+Audio duration = 1,834.818 seconds
+A/V difference = 3.699 seconds
+
+The 59-second count-vs-duration discrepancy must be explained
+BEFORE M13 can be approved.
+
+==================================================
+DO NOT ASSUME THE ROOT CAUSE
+==================================================
+
+Do NOT simply attribute this to:
+
+- SwiftShader
+- host scheduling
+- emulator load
+- AudioRecord buffering
+
+unless raw evidence proves the claim.
+
+==================================================
+REQUIRED RAW AUDIT
+==================================================
+
+Use the actual:
+
+tools/audit_m13_30min_stream_ledger.json
+
+and, where available, raw RTMP/FLV parser output.
+
+Calculate independently:
+
+1. Total AAC AU count.
+
+2. Total video frame count.
+
+3. AAC PTS first value.
+
+4. AAC PTS last value.
+
+5. Video PTS first value.
+
+6. Video PTS last value.
+
+7. Audio PTS span.
+
+8. Video PTS span.
+
+9. AAC AU duration derived from sample count.
+
+10. Audio duration derived from:
+
+    AU_count × 1024 / 44100
+
+11. Audio duration derived from PTS.
+
+12. Video duration derived from PTS.
+
+13. Any timestamp gaps.
+
+14. Any timestamp jumps.
+
+15. Any duplicate timestamps.
+
+16. Any timestamp resets.
+
+17. Any discontinuities around minutes 14–19.
+
+==================================================
+IMPORTANT
+==================================================
+
+Determine whether:
+
+A. The RTMP/FLV parser is calculating duration incorrectly.
+
+B. Audio PTS values are incorrect.
+
+C. Audio PTS anchor is being shifted.
+
+D. AAC frames are duplicated.
+
+E. AAC frames are missing.
+
+F. The stream contains startup/pre-roll audio.
+
+G. The measurement window includes timestamps outside the
+actual 30-minute wall-clock window.
+
+H. The video timestamps have a separate issue.
+
+I. The reported AU count and timestamp span are genuinely
+inconsistent.
+
+J. Another root cause exists.
+
+==================================================
+AUDIO CLOCK AUDIT
+==================================================
+
+Inspect AudioCaptureEngine.kt.
+
+Specifically audit:
+
+driftUs
+startTimestampUs
+accumulatedPtsUs
+wallClockPtsUs
+
+and the 40,000us compensation threshold.
+
+Determine exactly:
+
+- how often compensation fired
+- total amount of compensation
+- timestamps before compensation
+- timestamps after compensation
+- whether compensation can accumulate multiple seconds
+- whether compensation changes media duration or only phase
+- whether compensation violates monotonic sample-clock semantics
+
+If compensation is responsible for the 3.699s shift,
+prove it numerically.
+
+==================================================
+AUDIO COUNT VALIDATION
+==================================================
+
+Do not use only:
+
+observed AU/s
+
+Validate using actual total count and elapsed duration.
+
+Expected steady-state rate:
+
+44,100 / 1,024 ≈ 43.0664 AU/s
+
+The reported:
+
+46.1 AU/s at T+1m
+
+and:
+
+40.1 AU/s at T+15m
+
+must be treated as transient measurements unless proven otherwise.
+
+Do NOT claim ±0.8% "across the entire 30 minutes" when the
+actual interval measurements include substantially different
+startup/stress rates.
+
+==================================================
+CPU METRIC DOCUMENTATION
+==================================================
+
+The CPU harness correction is accepted conceptually.
+
+Update documentation to clearly define the CPU metric.
+
+Do not allow:
+
+100% CPU
+
+to be interpreted as:
+
+100% of all four emulator cores
+
+if the metric is actually single-core-equivalent normalization.
+
+==================================================
+MEMORY DOCUMENTATION
+==================================================
+
+Retain the improved distinction:
+
+working-set growth
+vs
+monotonic resource leak.
+
+Do NOT state:
+
+"zero memory leak"
+
+as an absolute claim.
+
+Use evidence-based language.
+
+==================================================
+ABR
+==================================================
+
+Production ABR cooldown must remain:
+
+3,000 ms
+
+with:
+
+3 consecutive healthy evaluation windows.
+
+Ensure no test-only override changes the approved production value.
+
+==================================================
+REQUIRED DECISION
+==================================================
+
+After the raw timestamp audit, provide a table:
+
+Metric | Count-based | PTS-based | Wall-clock | Difference | Explanation
+
+At minimum:
+
+Audio duration
+Video duration
+A/V delta
+AAC AU count
+Video frame count
+
+==================================================
+RETEST
+==================================================
+
+If the parser is wrong:
+
+FIX PARSER
+→ REBUILD
+→ RERUN A/V AUDIT
+→ REGRESSION
+
+If the production audio clock is wrong:
+
+FIX AUDIO CLOCK
+→ REBUILD
+→ RERUN A/V AUDIT
+→ FULL REGRESSION
+
+If the data is correct but the measurement window was wrong:
+
+CORRECT THE AUDIT METHOD
+→ RERUN MEASUREMENT
+→ DOCUMENT EXACTLY WHY
+
+Do not change acceptance thresholds merely to obtain PASS.
+
+==================================================
+FINAL REGRESSION
+==================================================
+
+After any code change:
+
+./gradlew clean testDebugUnitTest connectedDebugAndroidTest
+
+Record actual:
+
+unit tests
+connected tests
+exit code
+APK size
+
+==================================================
+FINAL DOCUMENTATION
+==================================================
+
+Synchronize:
+
+PROJECT_MEMORY.md
+DEVELOPMENT_LOG.md
+ARCHITECTURE.md
+REQUIREMENTS.md
+TESTING.md
+PERFORMANCE.md
+
+Update the M13 dossier with the corrected A/V evidence.
+
+Create a new Git checkpoint after revalidation.
+
+==================================================
+MILESTONE GATE
+==================================================
+
+M13 is STILL OPEN.
+
+M14 is STILL LOCKED.
+
+Do NOT start M14.
+
+Do NOT declare M13 approved.
+
+Submit the corrected targeted A/V revalidation dossier to ChatGPT.
+
+End with:
+
+🛑 M13 A/V REVALIDATION COMPLETE — WAITING FOR CHATGPT REVIEW
+
+STOP.
+🧠 Why I'm being strict here
+This isn't nitpicking. 
+M13 is the milestone where we're supposed to prove long-duration stability.
+ The existing report actually gives us enough numbers to detect a contradiction that would otherwise get carried into M14.
+The good part: 
+we don't need to redo everything.
+ The lifecycle, reconnect, regression, overlay/camera/thermal tests and CPU-harness investigation are valuable evidence already. 
+We just need Hermes to reconcile the 
+raw AAC count ↔ AAC PTS ↔ wall-clock duration ↔ video PTS
+ chain.
+Current official gate
+🟡 M13 — REVALIDATION REQUIRED
+🔒 M14 — LOCKED
+Once Hermes gives us the corrected A/V accounting, I'll make the final M13 gate decision.
+ChatGPT can make mistakes. Check important info.
+Ask anything

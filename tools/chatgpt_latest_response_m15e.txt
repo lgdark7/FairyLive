@@ -1,0 +1,2533 @@
+
+Milestone 15-C Video Pipeline & Audio Discontinuity Investigation & Fix Report
+1. Root Cause Analysis: Video Pipeline Stalling (~11.18s Span, 4.38 FPS, 24,224 ms A/V Delta)
+During the initial 35-second Creator Studio live broadcast test, video PTS stalled at 11.181 seconds (49 frames, 4.38 FPS) while audio progressed normally to 35.280 seconds, resulting in an A/V desynchronization delta of 24,224 ms.
+
+The 11-Stage Pipeline Trace & Empirical Breakdown:
+MediaProjection / VirtualDisplay: On Android 15 (Pixel 8 API 35 AVD), VirtualDisplay produces new graphic buffers only when the screen surface updates (e.g., during active touch, scrolling, or UI invalidation).
+SurfaceTexture onFrameAvailable: In the validation harness, user interactions (drag, HUD toggle, tab switching, camera/mic toggles) occurred during the first ~11 seconds. onFrameAvailable fired 49 times during this interaction period, then stopped firing completely once user input ended.
+SurfaceTexture.updateTexImage(): In GlesRenderer.consumeNewFrame(force = fromCallback), force is only true when driven by onFrameAvailable. During the 16 ms polling fallback (fromCallback = false), consumeNewFrame returned false because st.timestamp == lastCaptureTimestampNanos.
+OverlayCompositor drawFrame() [PRIMARY ROOT CAUSE]:
+Because isCaptureNew == false and isCameraNew == false when the screen was idle, the compositor skipped 100% of render iterations for the remaining 24 seconds, terminating all frame composition.
+EGL Presentation Timestamp [SECONDARY ROOT CAUSE]:
+In GlesRenderer.drawFrame():
+captureSurfaceTexture.timestamp was tied to the display producer's timestamp rather than the broadcast session monotonic clock. When the screen did not update, captureTs remained frozen at 11.181s.
+MediaCodec Input Submission: EGL14.eglSwapBuffers received zero invocations after second 11.
+MediaCodec Output Dequeue: HardwareVideoEncoder.drainLoop() was starved of input frames and dequeued zero output buffers after second 11.
+H264 Packet Creation: StreamPipeline.onVideoFrame() was not invoked; video packet generation ceased.
+FLV Mux Timestamp: Normalized video timestamps stalled at 11,181 ms.
+RTMP Transmission: Zero video RTMP chunks were transmitted over TCP port 19350 after second 11.
+RTMP Ingest Parser: Ingest recorded audio chunks continuously up to 35,830 ms, resulting in the 24,224 ms discrepancy.
+2. Root Cause Analysis: Audio Discontinuity (56 ms Gap) & Threshold Architecture
+A. Root Cause of the 56 ms Discontinuity:
+In StreamPipeline.kt, when AacMediaCodecEncoder produced the CSD / Codec-Specific Data config frame (BUFFER_FLAG_CODEC_CONFIG), the pipeline immediately queued an AAC sequence header with an arbitrary session timestamp (550 ms).
+The first compressed audio data access unit was dequeued at 606 ms.
+The difference between the sequence header tag (ts = 550) and the first audio access unit (ts = 606) was 56 ms. Subsequent AAC access units maintained a steady delta of 23.22 ms.
+Furthermore, in AudioCaptureEngine.kt, startTimestampUs was originally initialized before AudioRecord.startRecording() completed its initial blocking read, creating an artificial startup drift offset.
+B. Verification of GAP_COMPENSATION_THRESHOLD_US:
+In AudioCaptureEngine.kt line 306, the production threshold is strictly 40,000 µs (40 ms):
+In Milestone13StressUnitTest.kt, the unit test verifies driftUs > 40_000L.
+The prior mention of "50 ms" in documentation was an errant prose reference; the codebase and architectural contract are consistently 40 ms (40_000L µs).
+3. Engineering Fixes Implemented
+1. Continuous Broadcast Pacing (OverlayCompositor.kt)
+Updated renderFrame():
+If fromCallback == true (source active): drops callbacks arriving faster than intervalNs * 0.85 to enforce the target framerate ceiling (e.g., 24 or 30 FPS) without over-encoding.
+If fromCallback == false (periodic 16 ms poll): checks if elapsedSinceLastNs >= intervalNs. If a full frame interval has elapsed, it does not skip rendering. It composites the current screen texture and active animated overlays (GIF, widgets, goals), keeping broadcast video moving monotonically at the target framerate.
+Added guard: if (captureFramesReceived.get() == 0L && cameraFramesReceived.get() == 0L) return, ensuring the compositor does not push empty frames before the stream capture actually begins.
+Updated applyScene() to update sceneManager.switchScene synchronously so scene state is immediately consistent across threads.
+2. Monotonic EGL Presentation Timestamping (GlesRenderer.kt)
+Added presentationTimeNs: Long = 0L to drawFrame().
+Anchored presentation timestamps directly to com.fairylive.app.core.common.MediaClock.nanoTimeSource().
+Guaranteed strictly monotonic progression: val ptsNs = maxOf(targetPtsNs, lastPresentedTimestampNs + 1_000_000L) so MediaCodec never encounters non-increasing timestamps.
+Reset lastPresentedTimestampNs = 0L on initialize() and release().
+3. Video Framerate Plumbing (FairyStreamService.kt)
+Forwarded target fps from VideoEncoderConfig directly into overlayCompositor.start(encoderSurface, encW, encH, fps).
+4. Audio Monotonicity & Sequence Header Synchronization
+AudioCaptureEngine.kt: Anchored startTimestampUs on the first genuine audio read (if (totalSamplesRead == 0L) startTimestampUs = wallClockPtsUs), ensuring zero startup false-positive gap triggers. Standardized all audio time calculations on MediaClock.nanoTimeSource().
+StreamPipeline.kt: Updated onAudioFrame() so that when frame.isConfigFrame arrives, it caches audioPacketizer.setAudioSpecificConfig(frame.data) and emits the sequence header tagged with the exact ptsMs of the first compressed audio packet.
+tools/m15c_rtmp_flv_recorder.py: Updated audio PTS continuity evaluation to evaluate consecutive AAC audio access units (is_seq == False).
+4. Verification & Test Execution Status
+JVM Unit Tests:
+Command: ./gradlew testDebugUnitTest
+Result: BUILD SUCCESSFUL — 177 / 177 unit tests PASSING.
+Connected Android Instrumented Tests:
+Command: ./gradlew connectedDebugAndroidTest (executed on Pixel_8 Android 15 AVD API 35)
+Result: BUILD SUCCESSFUL — 31 / 31 instrumented tests PASSING.
+Total Automated Test Suite:
+208 / 208 automated tests PASSING (100%).
+On-Device Sandbox State:
+Debug APK installed on Pixel 8 emulator (app-debug.apk).
+9-overlay broadcast scene seeded into shared_prefs/fairy_scenes_prefs.xml.
+Local RTMP loopback endpoint (rtmp://127.0.0.1:19350/live) seeded into shared_prefs/fairy_live_settings.xml.
+…
+Got it. Based on this latest Hermes report, M15-C is not ready for final sign-off yet.
+
+The good news is the actual defect has been identified and fixed. The remaining job is fresh empirical validation, not another round of architecture work.
+
+What Hermes should do next
+Rebuild + reinstall the fixed APK.
+Start the local RTMP ingest/recorder.
+Launch Creator Studio.
+Start GO LIVE from Creator Studio and accept the Android 15 MediaProjection dialog.
+Run a genuine end-to-end broadcast for at least the agreed validation window.
+During the broadcast, verify:
+Gameplay/screen remains continuously encoded even when the UI becomes completely idle.
+Text overlay appears in the outgoing stream.
+QR/lower-third/other overlays appear in the outgoing stream.
+Facecam appears in the outgoing stream.
+Scene switching updates the actual broadcast composition.
+Drag/resize changes are reflected in the outgoing RTMP stream.
+Mic/audio continues normally.
+Record the actual outgoing FLV and analyze it packet-by-packet.
+Specifically prove the previous failure is gone:
+Video PTS continues past 11.181 s.
+Video does not stop when screen interaction stops.
+No ~24-second A/V divergence.
+AAC AUs remain continuous.
+No unexpected PTS jumps.
+Run the forced 250–350 ms HAL-gap test separately and label it as fresh M15-C evidence.
+Run the complete regression suite again.
+Build the final release APK.
+Produce real screenshots/video evidence from the final UI, not just automated test assertions.
+One important distinction
+The previous M13 30-minute soak is regression evidence, not proof that this new video-pacing defect is fixed.
+
+The critical evidence now is:
+
+Creator Studio → GO LIVE → actual RTMP → recorded FLV → continuous video + audio → overlays/Facecam visible → no video stall after UI becomes idle.
+
+If that passes, M15-C can finally come to the closing gate.
+
+And yes — don't start another giant feature milestone after this. The remaining work should be validation and final polish/sign-off.
+
+User attachment
+User attachment
+User attachment
+User attachment
+User attachment
+User attachment
+User attachment
+User attachment
+befoe that check the UI and i dont like the Ui and also theme! 
+i want make ui minimalist and preveiw edit it also not gud! that want also i want to change! 
+
+Bruh 😭 yes — now I see exactly what you're complaining about. Looking at these screenshots, I would not approve this UI as the final FAIRY LIVE UI.
+
+The functionality is impressive, but visually it still looks like a developer diagnostics app, not a polished streaming/creator app.
+
+And importantly: I would NOT tell Hermes to keep polishing this current layout. I would redesign the UI architecture now before doing the final release validation.
+
+What is wrong with the current UI
+1. The purple + cyan + yellow combination is too much
+Right now you have:
+
+Purple buttons
+Cyan buttons/text
+Yellow warnings/status
+Dark purple cards
+Cyan borders
+Purple navigation
+Yellow badges
+It gives a cyberpunk/admin dashboard feeling.
+
+For FAIRY LIVE, I'd go much more restrained:
+
+Near-black background + neutral surfaces + ONE accent color.
+
+For example:
+
+Theme direction
+
+Background: #090A0C
+Surface: #111318
+Elevated surface: #181B21
+Primary text: white
+Secondary text: gray
+Accent: one color only
+Destructive: red only when actually destructive
+LIVE: green only for live status
+No rainbow of accent colors.
+
+2. Dashboard is still way too technical
+This:
+
+Device Hardware Profile
+RAM: 2473MB
+CPU: 4 cores
+c2.android.avc.encoder
+Memory Class...
+
+is useful for Diagnostics.
+
+It is not useful as the first thing a streamer sees.
+
+The user should open FAIRY LIVE and immediately see:
+
+FAIRY LIVE
+
+Ready to stream
+
+┌──────────────────────────┐
+│                          │
+│       PREVIEW            │
+│                          │
+└──────────────────────────┘
+
+Gameplay
+
+       [ Go Live ]
+
+Camera       Mic
+That's it.
+
+Everything else can live under:
+
+Settings → Diagnostics
+
+3. Creator Studio currently doesn't feel like an editor
+This is the biggest problem.
+
+Your preview currently looks like:
+
+a dark rectangle containing some boxes.
+
+The user needs to feel:
+
+"I'm editing my actual stream."
+
+The preview should be the hero of the screen.
+
+Not the buttons.
+
+Not the diagnostics.
+
+Not the scene information.
+
+4. The current element editor is too developer-like
+For example:
+
+Type: WIDGET
+Z-Index: 10
+Position: (19%, 28%)
+
+That's technically useful, but it's not a good creator UX.
+
+Instead:
+
+WIDGET
+
+──────────────
+
+Position
+[ ← ] [ → ] [ ↑ ] [ ↓ ]
+
+Size
+[ − ]        [ + ]
+
+Opacity
+──────────────
+○──────●──────
+
+[ Edit ]       [ Delete ]
+Or even better, use direct manipulation and a compact bottom sheet.
+
+5. The preview needs to become a real WYSIWYG editor
+I would completely change the interaction model.
+
+Imagine:
+
+
+
+
+
+
+
+2
+The screen should essentially be:
+
+┌──────────────────────────────┐
+│  ←  Creator Studio       ⋮   │
+│                              │
+│     ┌──────────────────┐     │
+│     │                  │     │
+│     │                  │     │
+│     │   LIVE CANVAS    │     │
+│     │                  │     │
+│     │        ┌─────┐   │     │
+│     │        │ CAM │   │     │
+│     │        └─────┘   │     │
+│     │                  │     │
+│     └──────────────────┘     │
+│                              │
+│  Gameplay   Chatting   BRB   │
+│                              │
+│  + Add     Layers      Undo  │
+│                              │
+│  Camera    Mic       GO LIVE │
+└──────────────────────────────┘
+The canvas dominates.
+
+6. Don't show every control simultaneously
+The current screen tries to show:
+
+scene controls
+preview
+help text
+add
+layers
+scenes
+HUD
+camera
+microphone
+go live
+element controls
+navigation
+all at once.
+
+That's why it feels crowded.
+
+Instead use progressive disclosure.
+
+Normal state
+Only:
+
+Preview
+
+Scenes
+
++ Add     Layers
+
+Camera    Mic       GO LIVE
+When an element is selected
+The bottom area transforms into:
+
+Text Overlay
+
+Edit       Position       Size
+
+Opacity ─────────●──────
+
+Duplicate     Delete
+When + Add is pressed
+A bottom sheet:
+
+Add to stream
+
+Text
+Image
+Camera
+QR Code
+Goal
+Lower Third
+GIF
+Widget
+Alert
+That's much cleaner.
+
+7. Scenes should become horizontal and visual
+Instead of these chunky buttons:
+
+Gameplay | Just Chatting | Be Right Back | + New
+
+I'd use:
+
+Scenes
+
+[ Gameplay ] [ Chatting ] [ BRB ] [ + ]
+And optionally tiny thumbnails later.
+
+When switching:
+
+tap → scene changes
+
+No giant dialog required.
+
+8. The preview itself needs actual visual content
+This is important.
+
+Your screenshot has an almost completely black preview because there isn't a meaningful preview background.
+
+Even before actual gameplay is available, the editor should have a professional placeholder canvas.
+
+Something like:
+
+┌──────────────────────────┐
+│                          │
+│      GAMEPLAY PREVIEW    │
+│                          │
+│                          │
+│                 ┌─────┐  │
+│                 │ CAM │  │
+│                 └─────┘  │
+│                          │
+│  FAIRY LIVE              │
+└──────────────────────────┘
+The user should immediately understand:
+
+"This is what my viewers will see."
+
+9. Bottom navigation should be simpler
+Current:
+
+Dashboard / Studio / Settings / Diagnostics
+
+I don't think Diagnostics deserves a primary navigation item.
+
+That's developer-facing.
+
+I'd make:
+
+Home       Studio       Settings
+Then:
+
+Settings → Advanced → Diagnostics
+
+That alone makes the app feel much more consumer-friendly.
+
+10. Settings should also be redesigned
+Current settings looks like an old configuration panel.
+
+Instead:
+
+Settings
+
+STREAM
+  Destination                    >
+  Stream Key                     >
+  
+VIDEO
+  Quality                        >
+  Resolution                     >
+  FPS                            >
+
+AUDIO
+  Microphone                     >
+  Audio Quality                  >
+
+CAMERA
+  Facecam                        >
+
+ADVANCED
+  Diagnostics                   >
+  Performance                    >
+  About FAIRY LIVE               >
+Much cleaner.
+
+🔥 Most important: Don't change the backend
+This is critical because you've already done a lot of engineering.
+
+Tell Hermes:
+
+UI/UX refactor only. Preserve the existing domain model and streaming pipeline.
+
+Do NOT let it start rewriting:
+
+StreamPipeline
+AudioCaptureEngine
+HardwareVideoEncoder
+AacMediaCodecEncoder
+OverlayCompositor
+RTMP
+MediaProjection
+security
+scene persistence
+credential storage
+The current architecture has already passed your functional tests.
+
+We're changing the presentation layer, not rebuilding FAIRY LIVE.
+
+My recommendation for the final FAIRY LIVE design
+I'd call the visual direction:
+
+FAIRY LIVE — Minimal Creator UI
+Design principles
+1. Minimal
+
+No unnecessary cards.
+
+2. Canvas-first
+
+Preview is the primary element.
+
+3. One accent
+
+Not purple + cyan + yellow everywhere.
+
+4. Creator language
+
+Don't expose technical terminology unless the user enters Advanced settings.
+
+5. Contextual controls
+
+Controls appear based on what the user is doing.
+
+6. Full-screen editor
+
+Creator Studio should feel like a real editing workspace.
+
+7. Bottom sheets
+
+Use them instead of stacking panels vertically.
+
+8. Diagnostics hidden
+
+Advanced users can access them.
+
+🚨 And I would NOT let Hermes continue with M15-C yet
+You now have a functional M15 implementation, but visually I'd make this a UI revision checkpoint before final QA.
+
+Otherwise you're going to end up with:
+
+technically excellent streaming engine
+
+technically functional editor
+UI that looks unfinished
+And that's exactly what you're reacting to.
+
+Give Hermes this prompt
+FAIRY LIVE — FINAL UI/UX REDESIGN
+UI REVISION BEFORE M15-C FINAL RELEASE QA
+
+IMPORTANT:
+
+This is a PRESENTATION-LAYER REDESIGN.
+
+Do NOT rewrite or destabilize the existing streaming architecture.
+
+The existing backend, scene model, compositor, security, audio/video pipeline,
+RTMP pipeline, MediaProjection lifecycle, credential storage, and M15 functionality
+must remain intact.
+
+The objective is to replace the current developer-dashboard-style UI with a
+minimal, modern, creator-focused mobile streaming interface.
+
+============================================================
+1. DESIGN DIRECTION
+============================================================
+
+Replace the current purple/cyan/yellow-heavy cyberpunk dashboard appearance.
+
+Target visual identity:
+
+FAIRY LIVE
+Minimal Creator Studio
+Dark-first
+Clean
+Modern
+Professional
+Lightweight
+Touch-friendly
+
+Use:
+
+- near-black application background
+- neutral dark surfaces
+- white primary text
+- muted gray secondary text
+- ONE primary accent color
+- red only for destructive/error states
+- green only for LIVE/success states
+
+Do NOT use multiple competing accent colors throughout the UI.
+
+Avoid excessive:
+
+- borders
+- cards
+- badges
+- technical labels
+- decorative containers
+- gradients
+- shadows
+- oversized headers
+
+The application should look like a polished consumer creator app,
+not a hardware diagnostics application.
+
+============================================================
+2. INFORMATION ARCHITECTURE
+============================================================
+
+Primary navigation:
+
+HOME
+STUDIO
+SETTINGS
+
+Remove DIAGNOSTICS from primary bottom navigation.
+
+Diagnostics must move under:
+
+Settings
+  -> Advanced
+      -> Diagnostics
+
+The user should not encounter hardware information during normal streaming.
+
+============================================================
+3. HOME / DASHBOARD
+============================================================
+
+Redesign Dashboard completely.
+
+Primary purpose:
+
+Start streaming.
+
+The initial viewport should prioritize:
+
+1. FAIRY LIVE branding
+2. Current stream status
+3. Stream preview/status
+4. Current scene
+5. Camera toggle
+6. Microphone toggle
+7. GO LIVE
+
+Example conceptual layout:
+
+FAIRY LIVE
+
+Ready to stream
+
+[ Preview ]
+
+Gameplay
+
+Camera        Mic
+
+[           GO LIVE           ]
+
+Secondary actions:
+
+Configure Destination
+Scenes
+Advanced Settings
+
+Do NOT show:
+
+- CPU core count
+- RAM statistics
+- MediaCodec names
+- encoder implementation names
+- raw memory information
+- hardware profile
+- raw telemetry
+
+Those belong exclusively in Diagnostics.
+
+============================================================
+4. CREATOR STUDIO — COMPLETE REDESIGN
+============================================================
+
+Creator Studio must become a real WYSIWYG mobile editor.
+
+The preview canvas is the HERO of the screen.
+
+Do NOT make the preview a small rectangle surrounded by controls.
+
+Target hierarchy:
+
+HEADER
+SCENE SELECTOR
+LARGE 16:9 PREVIEW CANVAS
+EDITOR TOOLBAR
+LIVE CONTROLS
+
+Concept:
+
+------------------------------------------------
+
+← Creator Studio                         ⋮
+
+[ Gameplay ] [ Chatting ] [ BRB ] [ + ]
+
+┌────────────────────────────────────┐
+│                                    │
+│                                    │
+│          BROADCAST CANVAS          │
+│                                    │
+│                         ┌────────┐ │
+│                         │ FACECAM│ │
+│                         └────────┘ │
+│                                    │
+└────────────────────────────────────┘
+
++ Add       Layers       Undo       Redo
+
+Camera      Mic                  GO LIVE
+
+------------------------------------------------
+
+The exact layout can adapt to portrait/landscape,
+but the preview must remain 16:9.
+
+============================================================
+5. PREVIEW EDITOR
+============================================================
+
+The current preview editor is NOT acceptable as final UX.
+
+Preserve the existing normalized coordinate implementation.
+
+Preserve:
+
+- normalized [0,1] coordinates
+- hit testing
+- drag
+- resize
+- scene model updates
+- OverlayCompositor synchronization
+
+But completely redesign the visual interaction layer.
+
+Selected elements should have:
+
+- subtle selection outline
+- four compact resize handles
+- optional rotation handle if architecture allows
+- no oversized debug labels
+- no technical coordinate text by default
+
+Do NOT display:
+
+Type: WIDGET
+Z-Index: 10
+Position: (19%, 28%)
+
+as the primary editing UI.
+
+Technical information belongs in Advanced/Properties.
+
+============================================================
+6. ELEMENT EDITING
+============================================================
+
+When no element is selected:
+
+Show normal editor toolbar.
+
+When an element is selected:
+
+Replace the toolbar with contextual controls.
+
+Example:
+
+[ Element Name ]
+
+Edit     Position     Size
+
+Opacity ─────────────●
+
+Duplicate            Delete
+
+Keep this compact.
+
+Use a bottom sheet for detailed properties.
+
+============================================================
+7. ADD OVERLAY
+============================================================
+
+Replace the current large plain dialog with a modern bottom sheet.
+
+Title:
+
+Add to stream
+
+Items:
+
+Text
+Image
+Camera
+QR Code
+Goal
+Lower Third
+GIF
+Widget
+Alert
+
+Use clean icons + labels.
+
+Do not use developer terminology.
+
+All existing overlay types must remain functional.
+
+============================================================
+8. LAYERS
+============================================================
+
+Layers should be a bottom sheet.
+
+Example:
+
+Layers
+
+☰ Camera
+☰ Goal
+☰ Lower Third
+☰ Text
+
+Each row:
+
+[drag handle] [icon] [name] [visibility]
+
+Swipe/tap actions may expose:
+
+Hide
+Duplicate
+Delete
+
+Preserve existing layer ordering implementation.
+
+============================================================
+9. SCENES
+============================================================
+
+Scenes should be visually simple.
+
+Horizontal scene selector:
+
+[ Gameplay ] [ Chatting ] [ BRB ] [ + ]
+
+Preserve:
+
+- create scene
+- duplicate scene
+- rename scene
+- delete scene
+- switch scene
+- scene persistence
+
+Do not expose internal scene implementation details.
+
+============================================================
+10. UNDO / REDO
+============================================================
+
+Keep existing SceneHistoryManager.
+
+UI:
+
+[ Undo ] [ Redo ]
+
+Use subtle disabled state.
+
+Do not create a large dedicated panel.
+
+============================================================
+11. CAMERA / MIC
+============================================================
+
+Use compact icon buttons.
+
+Camera:
+enabled / disabled
+
+Microphone:
+enabled / muted
+
+Do not use large technical cards.
+
+During LIVE state:
+
+show clear visual state.
+
+============================================================
+12. GO LIVE
+============================================================
+
+GO LIVE must be the most visually prominent action.
+
+Before live:
+
+GO LIVE
+
+During live:
+
+LIVE
+00:12:34
+
+STOP
+
+The LIVE state should use a restrained success/live indicator.
+
+Do not make the entire interface bright or colorful.
+
+============================================================
+13. HUD
+============================================================
+
+HUD must be optional.
+
+OFF by default.
+
+When enabled, use a small floating telemetry overlay:
+
+FPS 30
+2.2 Mbps
+48 kHz
+A/V 0 ms
+
+Do not show large diagnostics panels over the editor.
+
+Existing telemetry functionality must remain.
+
+============================================================
+14. SETTINGS REDESIGN
+============================================================
+
+Redesign Settings as a clean grouped settings page.
+
+Sections:
+
+STREAM
+
+Destination
+Stream Key
+
+VIDEO
+
+Quality
+Resolution
+Frame Rate
+
+AUDIO
+
+Microphone
+Audio Quality
+
+CAMERA
+
+Facecam
+
+ADVANCED
+
+Performance
+Diagnostics
+About
+
+Use simple rows with navigation arrows.
+
+Do not expose raw implementation details in the main Settings page.
+
+============================================================
+15. DIAGNOSTICS
+============================================================
+
+Move all developer-facing information here.
+
+Diagnostics may continue displaying:
+
+- device model
+- Android version
+- CPU
+- RAM
+- encoder list
+- codec state
+- MediaProjection state
+- audio state
+- RTMP state
+- performance telemetry
+
+This screen can remain technical.
+
+It must not define the visual identity of the rest of the application.
+
+============================================================
+16. RESPONSIVE DESIGN
+============================================================
+
+Must work on:
+
+- portrait
+- landscape
+- small screens
+- low-RAM devices
+
+Do not introduce:
+
+- heavy UI frameworks
+- unnecessary animations
+- large image assets
+- unnecessary GPU effects
+
+Maintain the project's low-end-device objective.
+
+============================================================
+17. CRITICAL BACKEND INVARIANT
+============================================================
+
+DO NOT MODIFY THE BROADCAST ARCHITECTURE.
+
+The following must continue to work unchanged:
+
+Touch preview
+    ↓
+Normalized coordinates
+    ↓
+BroadcastSceneManager
+    ↓
+SceneStateNotifier
+    ↓
+OverlayCompositor
+    ↓
+OpenGL composition
+    ↓
+MediaCodec
+    ↓
+FLV
+    ↓
+RTMP
+
+Creator Studio controls must NEVER be burned into the outgoing stream.
+
+Only scene/overlay content belongs in the broadcast composition.
+
+============================================================
+18. VISUAL QUALITY GATE
+============================================================
+
+Before declaring the UI complete, capture real device screenshots.
+
+Required screenshots:
+
+01 Home
+02 Creator Studio empty
+03 Creator Studio with overlays
+04 Selected overlay
+05 Add overlay sheet
+06 Layers sheet
+07 Scene selector
+08 Live state
+09 Settings
+10 Diagnostics
+
+Review all screenshots for:
+
+- excessive empty space
+- cramped controls
+- inconsistent spacing
+- excessive colors
+- tiny text
+- oversized text
+- confusing hierarchy
+- unnecessary technical information
+- poor touch targets
+- broken landscape layout
+
+============================================================
+19. FUNCTIONAL REGRESSION
+============================================================
+
+After UI redesign run:
+
+./gradlew testDebugUnitTest
+
+./gradlew connectedDebugAndroidTest
+
+Verify all existing tests remain green.
+
+Do not delete or weaken tests.
+
+============================================================
+20. FINAL UI ACCEPTANCE CRITERIA
+============================================================
+
+The redesign passes only if:
+
+[ ] App looks like a consumer creator application
+[ ] Dark minimal visual system
+[ ] One primary accent
+[ ] No rainbow/cyberpunk appearance
+[ ] Dashboard is simple
+[ ] Diagnostics hidden from normal workflow
+[ ] Creator Studio is preview-first
+[ ] Preview occupies the majority of Studio viewport
+[ ] Preview remains 16:9
+[ ] Drag works
+[ ] Resize works
+[ ] Selection works
+[ ] Undo works
+[ ] Redo works
+[ ] Snapping works
+[ ] Add overlay works
+[ ] Layers work
+[ ] Scene switching works
+[ ] Camera toggle works
+[ ] Mic toggle works
+[ ] GO LIVE works
+[ ] Live state is clear
+[ ] Settings is simplified
+[ ] Diagnostics remains accessible
+[ ] No backend regression
+[ ] No compositor regression
+[ ] No RTMP regression
+[ ] Existing security architecture untouched
+[ ] Low-end performance preserved
+
+============================================================
+21. IMPORTANT STOP CONDITION
+============================================================
+
+Do NOT proceed to final M15-C release sign-off immediately after changing UI.
+
+First:
+
+1. Implement UI redesign.
+2. Build.
+3. Install on Pixel 8 AVD.
+4. Capture screenshots.
+5. Exercise every UI interaction.
+6. Run existing automated tests.
+7. Submit a UI verification report.
+
+Then wait for ChatGPT review.
+
+Do NOT claim:
+
+M15-C APPROVED
+PROJECT COMPLETE
+RELEASE READY
+
+until the redesigned UI has been reviewed and the fresh end-to-end
+Creator Studio → RTMP validation has passed.
+This is the direction I'd take. The current engineering underneath is much better than what the screenshots make it look like. We need the UI to finally show off the engineering instead of exposing it.
+
+User attachment
+User attachment
+User attachment
+User attachment
+User attachment
+User attachment
+User attachment
+it has so many glitches in edit! screen And also! in this it has limited features and also there is no add gif only showing gif 
+
+as soo many glitch
+
+BRO 😭 yes — now I can see the actual problem.
+This is not just a “theme needs improvement” issue. The Creator Studio editor itself is still prototype-level. I would NOT sign off M15-C yet.
+
+The good news: your streaming pipeline work can stay. Do not throw away the M15-C backend/encoding work. We should make this a dedicated Creator Studio UX + Editor Stabilization pass.
+
+🔴 What is actually wrong
+1. The editor feels like a debug tool, not a streaming app
+Current flow:
+
+Add → select layer → ugly card appears → Edit → modal → edit → Save
+
+That's too many disconnected surfaces.
+
+A creator should be able to:
+
+Add → see it immediately → tap it → manipulate it → configure it
+
+The screenshots currently feel like an engineering test interface.
+
+2. The preview/editor is the biggest problem
+This is the most important thing to fix.
+
+The preview currently has:
+
+Huge empty space around it
+Tiny content inside
+Weak visual hierarchy
+Selection boxes that look like debug outlines
+Tiny handles
+Poor touch targets
+Layer controls appearing below the canvas
+No obvious editing affordances
+No proper zoom/pan behavior
+No clear distinction between preview mode and editing mode
+The canvas should be the hero of Creator Studio.
+
+Something closer to:
+
+┌──────────────────────────────┐
+│ ← Creator Studio       ⋮     │
+├──────────────────────────────┤
+│                              │
+│       16 : 9 CANVAS          │
+│                              │
+│    ┌──────────────┐          │
+│    │   FACE CAM   │          │
+│    └──────────────┘          │
+│                              │
+│       🎮 GAMEPLAY            │
+│                              │
+├──────────────────────────────┤
+│  ◀  100%  ▶        Fit       │
+├──────────────────────────────┤
+│ Layers │ Add │ Scenes │ HUD  │
+├──────────────────────────────┤
+│ 📷  🎤                    🔴 │
+│          GO LIVE              │
+└──────────────────────────────┘
+The user should immediately understand:
+
+“This is my stream canvas.”
+
+🔴 3. The layer editing UX is broken
+This screenshot is particularly telling:
+
+Widget
+Edit | ▲ | ▼ | Copy | Delete
+
+That is not enough for a proper overlay editor.
+
+A layer needs a real property system.
+
+For example:
+
+Text
+TEXT
+─────────────────
+Content
+[ FAIRY LIVE ]
+
+Font
+[ Inter          ]
+
+Size
+[ 32        ]  +
+
+Weight
+[ Regular ▼ ]
+
+Color
+[ ● ]
+
+Alignment
+[ L  C  R ]
+
+Background
+[ Off ]
+
+Opacity
+━━━━━━●━━━━ 85%
+
+Position
+X [ 50 ]  Y [ 20 ]
+
+Rotation
+[ 0° ]
+
+Scale
+[ 100% ]
+Image
+Should have:
+
+Replace image
+Crop
+Fit / Fill
+Scale
+Rotation
+Opacity
+Position
+Corner radius
+Border
+Shadow
+Facecam
+Should have:
+
+Front/back camera
+Flip
+Shape
+Size
+Position
+Border
+Border width
+Corner radius
+Shadow
+Opacity
+Goal
+Should have:
+
+Goal title
+Current value
+Target value
+Progress style
+Colors
+Text
+Position
+Size
+Opacity
+etc.
+
+🔴 4. GIF is definitely incomplete
+You caught this correctly.
+
+Showing:
+
+GIF
+
+in the Add menu doesn't mean GIF support exists.
+
+The user needs:
+
+Add → GIF → actual GIF picker
+
+Something like:
+
+Add GIF
+────────────────────────
+
+Search GIFs
+
+[ 🔍 Search ]
+
+Recent
+────────────────
+[ GIF ] [ GIF ] [ GIF ]
+
+My GIFs
+────────────────
+[ + Import GIF ]
+
+Supported:
+GIF / animated WebP
+For a low-end device, though, I would NOT build a huge online GIF service first.
+
+Start with:
+
+Phase 1
+Import GIF from device
+
+Add → GIF → Choose GIF
+Then:
+
+Decode safely
+Downsample
+Limit dimensions
+Control FPS
+Cache frames
+Render through existing compositor
+Don't create another MediaCodec
+That's much safer for your architecture.
+
+Later:
+
+Phase 2
+Add online GIF provider/search.
+
+🔴 5. The Add menu needs redesigning
+Current:
+
+Text
+Image
+Camera
+QR Code
+Goal
+Lower Third
+GIF
+Widget
+Alert
+
+Functionally okay, but visually it feels like an Android dialog.
+
+Instead use a proper bottom sheet with categorized tools.
+
+Add to stream
+BASICS
+
+T Text
+▣ Image
+▤ GIF
+
+STREAM
+
+★ Goal
+▌ Lower Third
+▦ QR Code
+● Alert
+
+CAMERA
+
+▣ Facecam
+
+TOOLS
+
+⚙ Widget
+
+And each item should have a proper icon + short description.
+
+🔴 6. The editor modal is wrong
+This:
+
+Edit Text
+Content/Text
+opacity slider
+Delete / Save
+
+is too generic.
+
+You're forcing every object into the same editor.
+
+Instead:
+
+Tap Text
+Open a Text Inspector.
+
+Tap Image
+Open an Image Inspector.
+
+Tap GIF
+Open a GIF Inspector.
+
+Tap Facecam
+Open a Camera Inspector.
+
+Tap Widget
+Open a Widget Inspector.
+
+The inspector can be a bottom sheet that occupies ~40–60% of the screen, rather than a giant blocking dialog.
+
+🔴 7. Selection UI needs serious work
+Current selection:
+
+      ●────────●
+      │        │
+      │ WIDGET │
+      │        │
+      ●────────●
+It looks like an engineering debug overlay.
+
+Make it feel like a real design editor.
+
+Use:
+
+4 large corner handles
+optional edge handles
+rotation handle
+subtle selection border
+snap lines
+center indicator
+safe-area guides
+multi-touch scaling
+drag locking
+bounds clamping
+And importantly:
+
+Don't make the handles tiny.
+On a phone, touch targets need to be generous.
+
+🔴 8. You need a proper Layers experience
+Current layer editing is too primitive.
+
+Instead:
+
+LAYERS
+
+☰  🎥 Facecam          👁
+☰  T   Stream Title    👁
+☰  ★   Goal            👁
+☰  ▣   Logo            👁
+☰  GIF  Alert          👁
+☰  ⚙   Performance     👁
+User can:
+
+Drag to reorder
+Hide/show
+Lock/unlock
+Duplicate
+Delete
+Rename
+Select
+And:
+
+tap layer → select it on canvas
+
+tap canvas object → highlight its layer
+
+That two-way synchronization is essential.
+
+🟣 9. Theme needs to be completely changed
+Your current theme isn't terrible technically, but it has too much:
+
+purple
+cyan
+yellow
+dark gray
+outlined pills
+diagnostic styling
+all-caps labels
+It gives:
+
+Cyberpunk engineering dashboard
+
+instead of:
+
+Professional creator studio
+
+I'd go with a much cleaner palette:
+
+Background
+Almost-black neutral.
+
+Surface
+Very subtle dark gray.
+
+Primary
+One accent color — electric violet/indigo.
+
+Text
+White / muted gray.
+
+Status
+Green = live/ready
+Red = error/live stop
+Amber = warning
+
+That's it.
+
+Stop using cyan + purple + yellow everywhere.
+
+The accent should feel special because it's used sparingly.
+
+🟢 10. Home screen is actually much better
+The latest Home screenshot is moving in the right direction.
+
+This:
+
+Ready to stream
+
+Scene: Gameplay
+
+Camera / Microphone
+
+GO LIVE
+
+Configure Destination
+
+Creator Studio & Scenes
+
+is much more understandable.
+
+I'd keep that general philosophy.
+
+But simplify even further.
+
+The home screen should answer only:
+
+Am I ready?
+What am I streaming?
+Where am I streaming?
+Start streaming.
+Everything else goes into Settings/Studio.
+
+🚨 Most important architectural decision
+DO NOT tell Hermes/Gemini to redesign the entire application blindly.
+
+That's how you ended up with this.
+
+Give it strict boundaries.
+
+Your existing work has valuable things:
+
+SceneManager
+compositor
+MediaProjection
+encoder
+RTMP pipeline
+audio engine
+scene persistence
+undo/redo
+snapping
+asset storage
+diagnostics
+tests
+Those should not be rewritten just because the UI changes.
+
+The agent should work on:
+
+UI
+↓
+Creator Studio
+↓
+Editor interaction
+↓
+Layer inspector
+↓
+Asset picker
+↓
+Scene UX
+while preserving:
+
+RTMP
+MediaProjection
+MediaCodec
+AudioCaptureEngine
+StreamPipeline
+GlesRenderer
+OverlayCompositor
+unless a bug in those components is directly exposed by the editor.
+
+🧠 What I would do NOW
+Forget M15-C sign-off for the moment.
+
+Create a new internal milestone:
+
+M15-D — Creator Studio UX & Editor Stabilization
+Phase 1 — UX architecture
+Redesign:
+
+Home
+Creator Studio
+Add sheet
+Layers
+Inspector
+Scenes
+Settings
+Phase 2 — Canvas
+Fix:
+
+scaling
+dragging
+selection
+handles
+snapping
+zoom
+rotation
+safe areas
+orientation
+touch conflicts
+Phase 3 — Layer system
+Implement proper:
+
+visibility
+lock
+reorder
+duplicate
+delete
+rename
+selection synchronization
+Phase 4 — Object inspectors
+Individual editors for:
+
+Text
+Image
+GIF
+Facecam
+QR
+Goal
+Lower Third
+Alert
+Widget
+Phase 5 — Assets
+Actually implement:
+
+Image picker
+GIF picker
+GIF import
+animated playback
+asset caching
+safe decoding
+Phase 6 — Device testing
+Test every interaction on the emulator/device, not just screenshots.
+
+🔥 And one BIG rule for Hermes
+Give it this requirement:
+
+Do not declare a feature implemented because its UI entry exists. A feature is only implemented when the user can complete the entire workflow successfully on-device.
+
+So:
+
+❌ Add GIF button exists → NOT PASS
+
+✅ Add GIF → picker → select GIF → GIF appears → resize → move → opacity → save scene → switch scene → GIF remains → start broadcast → GIF appears in outgoing composition → PASS
+
+That's the difference between a demo and an actual app.
+
+The prompt I'd give Hermes
+Not the previous UI prompt. This should be a stabilization + redesign prompt:
+
+FAIRY LIVE — M15-D CREATOR STUDIO UX + EDITOR STABILIZATION
+
+IMPORTANT:
+The current Creator Studio UI is NOT release-ready.
+
+Do NOT start by blindly redesigning colors or applying cosmetic styling.
+
+First audit the existing Creator Studio implementation and fix the interaction architecture.
+
+The screenshots demonstrate that the current editor feels like a diagnostic/prototype interface rather than a professional mobile streaming studio.
+
+GOAL:
+
+Transform Creator Studio into a minimalist, professional, touch-first mobile streaming editor while preserving all existing working streaming/backend architecture.
+
+DO NOT rewrite or replace the RTMP pipeline, MediaProjection pipeline, AudioCaptureEngine, StreamPipeline, MediaCodec lifecycle, GlesRenderer, OverlayCompositor, or scene persistence unless a specific editor bug requires a minimal integration change.
+
+==================================================
+1. DESIGN DIRECTION
+==================================================
+
+Use a minimalist dark creator-studio design.
+
+Avoid:
+- excessive cyan
+- excessive purple
+- yellow UI everywhere
+- giant outlined pills
+- diagnostic-dashboard styling
+- unnecessary borders
+- excessive all-caps text
+- giant empty areas
+- desktop-style property panels
+
+Use:
+- near-black background
+- subtle dark surfaces
+- ONE primary accent color
+- white primary text
+- muted secondary text
+- green/red/amber only for status
+- clean typography
+- large touch targets
+- minimal visual noise
+
+The application should visually feel like a real creator/streaming app, not a hardware diagnostic application.
+
+==================================================
+2. CREATOR STUDIO CANVAS
+==================================================
+
+Make the 16:9 broadcast preview the primary UI element.
+
+Requirements:
+- large usable canvas
+- correct 16:9 geometry
+- responsive portrait layout
+- safe-area visualization
+- smooth layer selection
+- drag
+- pinch scale
+- rotation
+- snapping
+- center guides
+- edge guides
+- bounds clamping
+- undo/redo
+- no accidental movement while interacting with controls
+
+Selection handles must be large enough for mobile touch.
+
+Do not expose implementation/debug information inside the normal editor.
+
+Canvas editing must feel direct:
+tap object → manipulate object.
+
+==================================================
+3. LAYER SYSTEM
+==================================================
+
+Create a proper Layers interface.
+
+Each layer must support:
+- select
+- reorder
+- hide/show
+- lock/unlock
+- duplicate
+- delete
+- rename where appropriate
+
+Canvas selection and layer-list selection MUST remain synchronized.
+
+Dragging a layer in the layer list must update z-order immediately.
+
+==================================================
+4. OBJECT INSPECTORS
+==================================================
+
+DO NOT use one generic "Edit Content + Opacity" dialog for every object.
+
+Implement type-specific inspectors.
+
+TEXT:
+- content
+- font
+- size
+- weight
+- alignment
+- color
+- background
+- opacity
+- position
+- scale
+- rotation
+
+IMAGE:
+- replace
+- crop
+- fit/fill
+- opacity
+- position
+- scale
+- rotation
+- corner radius
+- border
+- shadow
+
+GIF:
+- replace
+- choose GIF
+- playback
+- speed
+- loop
+- opacity
+- position
+- scale
+- rotation
+
+FACECAM:
+- camera selection
+- flip
+- shape
+- border
+- border width
+- corner radius
+- shadow
+- opacity
+- position
+- scale
+
+GOAL:
+- title
+- current value
+- target
+- progress style
+- colors
+- text
+- opacity
+- position
+- scale
+
+QR:
+- payload
+- error correction if supported
+- size
+- foreground/background
+- opacity
+- position
+
+LOWER THIRD:
+- title
+- subtitle
+- colors
+- layout
+- animation if already supported
+- opacity
+- position
+
+ALERT:
+- text/content
+- style
+- duration
+- opacity
+- position
+
+WIDGET:
+- widget-specific configuration
+- opacity
+- position
+- scale
+
+Use bottom-sheet inspectors where appropriate instead of intrusive generic dialogs.
+
+==================================================
+5. ADD MENU
+==================================================
+
+Replace the current basic dialog with a proper mobile bottom sheet.
+
+Categories:
+
+BASICS
+- Text
+- Image
+- GIF
+
+STREAM
+- Goal
+- Lower Third
+- QR Code
+- Alert
+
+CAMERA
+- Facecam
+
+TOOLS
+- Widget
+
+Every menu item must actually perform its complete workflow.
+
+DO NOT leave placeholder entries.
+
+==================================================
+6. GIF — REAL IMPLEMENTATION
+==================================================
+
+The current application shows a GIF option but does not provide a real GIF asset workflow.
+
+Implement:
+
+Add → GIF → Choose GIF
+
+Use Android's document/image picker.
+
+Requirements:
+- import local GIF
+- copy into application-managed storage
+- safely decode
+- bounded dimensions
+- bounded memory usage
+- frame timing support
+- loop playback
+- preview playback
+- persist asset reference
+- restore asset after app restart
+- render in existing compositor
+
+Do NOT create another video codec for GIF playback.
+
+GIF decoding must be low-end-device safe.
+
+If online GIF search is not already architecturally present, do NOT introduce it yet.
+
+Local GIF import is the M15-D requirement.
+
+==================================================
+7. IMAGE ASSET WORKFLOW
+==================================================
+
+Image import must similarly provide:
+
+Add → Image → system picker → choose image → preview → edit → persist.
+
+Do not show an Image option that only creates an empty placeholder.
+
+==================================================
+8. EDITOR UX
+==================================================
+
+Remove the current workflow where:
+tap layer → ugly property card → generic Edit button → generic modal.
+
+Replace it with:
+
+Tap object
+↓
+Object selected
+↓
+compact contextual controls / inspector
+↓
+edit directly
+↓
+changes reflected immediately on canvas
+
+Saving should not destroy editor state.
+
+Cancel should restore the previous state.
+
+Delete must be undoable.
+
+==================================================
+9. HOME SCREEN
+==================================================
+
+Keep the simplified Home philosophy.
+
+Home should answer:
+
+- Ready / Offline / Live status
+- active scene
+- camera state
+- microphone state
+- destination
+- GO LIVE
+- Creator Studio shortcut
+- essential stream settings
+
+Do NOT put hardware diagnostics prominently on Home.
+
+Diagnostics belong under Settings → Diagnostics.
+
+==================================================
+10. SETTINGS
+==================================================
+
+Separate:
+
+STREAM
+- destination
+- stream key
+- resolution
+- FPS
+- bitrate
+
+AUDIO
+- microphone
+- audio bitrate
+
+CAMERA
+- camera
+- default position
+
+ADVANCED
+- diagnostics
+- codec information
+- system information
+
+Do not make diagnostic information part of the main creator workflow.
+
+==================================================
+11. FUNCTIONALITY-FIRST RULE
+==================================================
+
+A feature is NOT considered implemented because:
+- a button exists
+- a menu item exists
+- a dialog exists
+- a screenshot looks correct
+
+A feature is implemented only when the complete user workflow succeeds on-device.
+
+For every feature verify:
+
+ADD
+→ CONFIGURE
+→ PREVIEW
+→ MOVE
+→ SCALE
+→ EDIT
+→ SAVE
+→ REOPEN
+→ SCENE SWITCH
+→ RESTORE
+→ BROADCAST COMPOSITION
+
+==================================================
+12. REGRESSION SAFETY
+==================================================
+
+Preserve all existing passing tests.
+
+Run:
+./gradlew testDebugUnitTest
+
+./gradlew connectedDebugAndroidTest
+
+Do not delete tests simply because UI architecture changed.
+
+Add tests for:
+- layer selection
+- z-order
+- visibility
+- locking
+- duplication
+- deletion
+- undo/redo
+- asset persistence
+- GIF import
+- GIF restoration
+- inspector editing
+- scene restoration
+
+==================================================
+13. ON-DEVICE VALIDATION
+==================================================
+
+Use the Pixel 8 Android 15 API 35 test environment.
+
+Actually interact with the UI.
+
+Verify:
+1. Add Text
+2. Edit Text
+3. Move Text
+4. Scale Text
+5. Delete Text
+6. Undo Text deletion
+7. Add Image
+8. Import real image
+9. Add GIF
+10. Import real GIF
+11. Verify GIF animation
+12. Add Facecam
+13. Change camera settings
+14. Add Goal
+15. Edit Goal
+16. Add QR
+17. Edit QR
+18. Add Lower Third
+19. Add Alert
+20. Add Widget
+21. Reorder layers
+22. Hide layer
+23. Lock layer
+24. Duplicate layer
+25. Switch scenes
+26. Restore scenes
+27. Rotate device
+28. Verify canvas geometry
+29. Start broadcast
+30. Verify outgoing composition
+
+==================================================
+14. M15-C RELATIONSHIP
+==================================================
+
+Do NOT claim M15-C release sign-off merely because backend tests pass.
+
+M15-C remains blocked until:
+- Creator Studio UI is usable
+- editor interactions are stable
+- all advertised Add options work
+- GIF has a real import workflow
+- preview editing is reliable
+- end-to-end Creator Studio broadcast evidence exists
+
+==================================================
+15. FINAL DELIVERABLE
+==================================================
+
+Before reporting completion provide:
+
+1. files changed
+2. architecture changes
+3. UI screenshots
+4. functionality test matrix
+5. JVM test result
+6. connected test result
+7. on-device interaction result
+8. GIF import evidence
+9. editor manipulation evidence
+10. Creator Studio broadcast evidence
+11. known limitations
+
+DO NOT claim completion based only on compilation or automated tests.
+
+BUILD THE APP AS A REAL CREATOR PRODUCT, NOT AS A DIAGNOSTIC DEMO.
+Bottom line
+Don't continue adding more backend features right now. You have reached the point where polishing the encoder won't solve the user's actual problem.
+
+The priority should be:
+
+Editor interaction → Canvas → Layers → Inspectors → Real asset workflows → Theme → On-device UX testing → THEN final M15-C broadcast validation.
+
+And yes — the GIF issue is a real functional gap, not just a UI glitch.
+
+FAIRY LIVE — MILESTONE 15-E COMPLETION & PRODUCTION HARDENING DOSSIER
+Timestamp: 2026-09-16 16:40:00 IST
+Device: Google Pixel 8 AVD (emulator-5554, Android 15 VanillaIceCream API 35)
+Target APK: com.fairylive.app
+Git Commit: 34cbcad ("feat(studio): Milestone 15-E production hardening, single source of truth models, undo-redo multi-step integrity, and full overlay serialization")
+
+ARCHITECTURAL VALIDATION & VERIFICATION SUMMARY
+Phase A: Single Source of Truth (Model <-> Inspector Synchronization)
+• Verified that all inspector modifications (Text font/color/alignment/opacity, Facecam circle/border/facing, GIF speed/looping, etc.) immediately commit to the underlying BroadcastScene model via BroadcastSceneManager.updateOverlayInActiveScene().
+• Canvas rendering, inspector controls, and stream compositors consume this identical immutable model state.
+
+Phase B: Undo / Redo Multi-Step Snapshot Integrity
+• Verified complete state tree restoration across multi-step mutations:
+Add Element A -> Add Element B -> Mutate Element A -> Reorder Layers -> Delete Element B -> Undo 5x -> Redo 5x.
+• Undo/redo cleanly reverts all modifications, layer ordering, and element insertions/removals without state corruption or dangling references.
+
+Phase C: Full Overlay Serialization Coverage (9 Types)
+• Implemented and verified comprehensive JSON serialization/deserialization for all 9 overlay types:
+1. TEXT (font size, color, background, alignment, padding)
+2. IMAGE (aspect ratio, corner radius, resource path)
+3. PNG (transparent overlays, badge graphics)
+4. GIF (playback speed, loop flag, asset path)
+5. FACECAM (front/back camera, circle PIP mask, border ring)
+6. GOAL (title, current/target counts, currency symbol)
+7. LOWER_THIRD (title, subtitle banner)
+8. ALERT (headline, message, duration)
+9. WIDGET (module type, label, value)
+• Persists across backgrounding, process death, and app re-launch.
+
+Phase D: Asset Lifecycle & Missing File Graceful Degradation
+• Handled missing local file paths (e.g., deleted or moved files in device storage) safely without crashing the editor, compositor, or OpenGL pipeline.
+• Verified runtime replacement mechanism allowing creators to select alternate assets or fall back to bundled samples seamlessly.
+
+Phase E: Performance & High-Density Scene Scaling
+• Evaluated scene complexity scaling across 5, 10, 15, and 20 overlay elements.
+• Verified zero memory leaks, smooth layout updates, and bounded CPU overhead.
+
+Phase F: Touch Interaction & Locked Layer Invariance
+• Verified that elements marked with locked = true strictly reject canvas dragging, resizing handles, and accidental deletion.
+• Lock state persists through JSON export/import and undo/redo stacks.
+
+TEST SUITE PASS RATE
+• Automated JVM Unit Tests: 185 / 185 PASSED (100%) [BUILD SUCCESSFUL]
+
+app/src/test/java/com/fairylive/app/Milestone15EHardeningUnitTest.kt: 7/7 PASSED
+All existing suites (Milestone13, 14, 15, CreatorStudio, Compositor, Network, AMF): 178/178 PASSED
+• Instrumented Connected Android Tests: 31 / 31 PASSED (100%) on Pixel 8 emulator (API 35)
+• Total Test Count: 216 / 216 PASSED across all suites.
+RESOURCE METRICS & FOOTPRINT GATES
+• Release APK Binary Footprint: 2.3 MB (Unsigned release APK: 2,429,915 bytes)
+
+Hard constraint: < 15.0 MB (Passing at 15.3% of allowed budget)
+• Active Hardware / Software Codecs: Strictly bounded to 2 active codecs
+Video Encoder: c2.android.avc.encoder [SW fallback on Pixel 8 emulator]
+Audio Encoder: c2.android.aac.encoder
+• Sensitive Data / Security: Strictly [REDACTED] in all logs, exports, and UI fields.
+ARTIFACTS
+• Screenshot: screenshots/m15e_studio_running.png
+• Unit Test Report: app/build/test-results/testDebugUnitTest/
+• Instrumented Test Report: app/build/reports/androidTests/connected/
+…
+Reviewed Milestone 15-E decisions and clarified Creator Studio preview and GIF workflows
+
+Please provide your detailed review and decision for Milestone 15-E based on the dossier above.
+
+FAIRY LIVE — Milestone 15-E Review & Decision
+I reviewed the Milestone 15-E Completion & Production Hardening Dossier as the evidence for this gate.
+
+Decision: 🟡 CONDITIONAL APPROVAL — NOT FULL PRODUCTION SIGN-OFF
+Milestone 15-E is technically strong and the architectural hardening work can be accepted, but I would not mark the entire milestone as fully production-approved yet.
+
+The reason is important: the dossier proves the underlying editor architecture much better than it proves the actual user-facing Creator Studio experience.
+
+1. What I am approving ✅
+A. Single Source of Truth — PASS
+The model/inspector synchronization is exactly the direction FAIRY LIVE needs.
+
+The dossier establishes that inspector changes are committed through:
+
+BroadcastSceneManager.updateOverlayInActiveScene()
+
+and that the canvas, inspector and compositor consume the same scene state.
+
+Decision: 🟢 PASS
+
+This addresses one of the major risks from the earlier editor implementation: UI state drifting away from the actual broadcast scene.
+
+B. Undo / Redo — PASS
+The multi-step test is particularly important:
+
+Add A → Add B → Mutate A → Reorder → Delete B → Undo ×5 → Redo ×5
+
+That is substantially better evidence than simply testing one undo operation.
+
+Decision: 🟢 PASS
+
+The bounded history architecture from M15-B combined with the M15-E state-tree verification is acceptable.
+
+C. Nine Overlay Types Serialization — PASS
+The dossier explicitly covers:
+
+TEXT
+IMAGE
+PNG
+GIF
+FACECAM
+GOAL
+LOWER_THIRD
+ALERT
+WIDGET
+and includes meaningful properties rather than merely serializing the overlay type.
+
+Decision: 🟢 PASS
+
+This is an important foundation for scenes surviving:
+
+backgrounding
+process death
+relaunch
+undo/redo
+export/import
+D. Missing Asset Handling — PASS
+Graceful degradation for deleted/moved assets is a strong production requirement.
+
+The replacement/fallback mechanism is also a good decision.
+
+Decision: 🟢 PASS
+
+E. Locked Layers — PASS
+The requirement that locked elements reject:
+
+dragging
+resizing
+deletion
+while retaining lock state through serialization and undo/redo is appropriate.
+
+Decision: 🟢 PASS
+
+F. Performance / Scene Scaling — PASS, WITH ONE CAVEAT
+Testing:
+
+5 → 10 → 15 → 20 overlays
+
+is useful.
+
+However, the dossier gives the conclusion:
+
+"zero memory leaks, smooth layout updates, and bounded CPU overhead"
+
+without providing the actual measured CPU/memory/frame-time numbers.
+
+So I accept the test as evidence for this milestone, but I would not use it as proof of a quantified performance guarantee.
+
+Decision: 🟢 PASS for M15-E / 🟡 quantified performance evidence incomplete
+
+2. Test Suite — 🟢 PASS
+The reported regression state is excellent:
+
+Test	Result
+JVM	185 / 185
+Instrumented	31 / 31
+Total	216 / 216
+Failures	0
+This is a significant improvement from the previous 208-test state.
+
+Decision: 🟢 PASS
+
+There are no reported automated regressions.
+
+3. Codec Boundary — 🟢 PASS
+The dossier correctly states:
+
+Video: c2.android.avc.encoder
+Audio: c2.android.aac.encoder
+Maximum active codecs: 2
+And, importantly, it identifies the AVC encoder on the Pixel 8 AVD as software fallback.
+
+That terminology is correct and should remain that way.
+
+Do not describe this validation as proving physical hardware encoding.
+
+Decision: 🟢 PASS
+
+4. APK Size — 🟢 PASS
+Reported:
+
+2,429,915 bytes ≈ 2.3 MB
+
+against a:
+
+<15 MB requirement
+
+That's comfortably inside the limit.
+
+Decision: 🟢 PASS
+
+5. The BIG Issue: Creator Studio UI ❌
+This is where I would not accept the dossier's "Project Complete" statement yet.
+
+The previous screenshots you provided showed several genuine UX/editor problems:
+
+Preview/editor problems
+Preview feels like a basic container rather than a professional composition workspace.
+Selection handles/selection state are visually awkward.
+Editing is heavily dependent on modal bottom sheets.
+There is too much UI competing with the actual canvas.
+Layer controls consume significant screen space.
+The editor doesn't feel optimized around the preview.
+Some dialogs obscure almost the entire composition.
+The visual hierarchy is inconsistent.
+The current theme feels more like a debug/developer interface than a polished streaming studio.
+Overlay editing workflows aren't sufficiently contextual.
+Asset workflows are incomplete.
+And you specifically identified:
+
+"there is no add gif only showing gif"
+
+That's an important distinction.
+
+Displaying GIF as an option is not the same as implementing a complete GIF workflow.
+
+A production editor should have something like:
+
+Add → GIF → Select GIF → Preview → Configure → Place → Edit
+
+not simply:
+
+Add → GIF
+
+6. Why 216/216 Tests Does NOT Close This Issue
+This is the key distinction for the milestone.
+
+Automated tests can establish:
+
+"The underlying system behaves correctly under the tested conditions."
+
+They cannot establish:
+
+"The editor is intuitive, visually polished, comfortable to use, and free of interaction glitches."
+
+Likewise, serialization tests don't prove that:
+
+dragging feels correct,
+resizing feels correct,
+handles don't jump,
+the selected layer is obvious,
+bottom sheets don't interfere with editing,
+the preview feels responsive,
+GIF importing works from the user's perspective,
+the UI hierarchy is good.
+Therefore:
+
+216/216 PASS ≠ UI production approval
+Both kinds of validation are necessary.
+
+7. Another Important Issue: "Production Hardening" vs "UI Completion"
+I would separate M15-E into two conceptual gates:
+
+M15-E Core Architecture
+🟢 APPROVED
+
+The dossier provides strong evidence for:
+
+state synchronization
+undo/redo
+serialization
+asset resilience
+locking
+codec limits
+regression testing
+APK size
+security/log redaction
+M15-E Creator Experience
+🟡 NOT YET APPROVED
+
+The evidence does not sufficiently establish:
+
+polished final UI
+glitch-free interaction
+complete asset workflows
+professional preview/editor
+actual GIF import flow
+final usability
+final visual consistency
+8. What I Recommend We Do Next
+Do NOT start changing the streaming backend again.
+
+The streaming architecture has already gone through substantial hardening.
+
+The next work should be concentrated on:
+
+Creator Studio UX / Editor 2.0
+Priority 1 — Rebuild the preview experience
+The preview should become the center of the screen.
+
+Think:
+
+┌──────────────────────────────┐
+│  Scene              Undo Redo│
+│                              │
+│       ┌──────────────┐       │
+│       │              │       │
+│       │    PREVIEW   │       │
+│       │              │       │
+│       └──────────────┘       │
+│                              │
+├──────────────────────────────┤
+│ Selected layer               │
+│ [Edit] [Move] [Duplicate]    │
+├──────────────────────────────┤
+│ + Add    Layers    Scenes    │
+├──────────────────────────────┤
+│ Camera   Mic       GO LIVE   │
+└──────────────────────────────┘
+The preview should get more space, not less.
+
+Priority 2 — Fix selection/editing
+We need a robust editor interaction model:
+
+single tap → select
+drag → move
+corner handles → resize
+pinch → scale
+rotation gesture → rotate
+long press → contextual actions
+locked layer → no manipulation
+snapping → subtle guides
+selected layer → clear but minimal outline
+deselect → tap empty preview
+And most importantly:
+
+No accidental movement when opening an editor.
+
+Priority 3 — Stop using huge dialogs for everything
+Instead of:
+
+select element → huge bottom sheet covering preview → edit → close
+
+use a compact inspector / contextual editor.
+
+For example:
+
+TEXT
+────────────────
+Content
+[ FAIRY LIVE ]
+
+Opacity
+──────●──────
+
+Color
+[ ● ]
+
+Size
+[ 24 ]
+
+Alignment
+[ L ] [ C ] [ R ]
+Only show controls relevant to the selected element.
+
+9. Overlay System Needs to Become Truly Complete
+The nine overlay types should each have their own meaningful workflow.
+
+For example:
+
+TEXT
+content
+font
+size
+color
+background
+alignment
+padding
+opacity
+position
+scale
+rotation
+IMAGE / PNG
+gallery/file picker
+replacement
+crop/fit
+corner radius
+opacity
+scale
+GIF
+This is currently one of the biggest missing pieces.
+
+It should provide:
+
+Add GIF
+
+→ system file picker
+
+→ GIF preview
+
+→ add to scene
+
+→ GIF controls:
+
+speed
+looping
+scale
+position
+opacity
+And the editor must gracefully handle an invalid/missing GIF.
+
+FACECAM
+front/back
+position
+size
+
+
+

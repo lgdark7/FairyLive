@@ -1,0 +1,757 @@
+FAIRY LIVE V1.1 - PHASE 4 ENGINEERING MILESTONE DOSSIER: COMPLETE DELIVERY & VERIFICATION
+═══════════════════════════════════════════════════════════════════════════════════
+DATE: 2026-09-17
+PLATFORM: Pure-Kotlin Native Android Live-Streaming Engine
+BRANCH: main
+DEVICE: Google Pixel 8 AVD (emulator-5554, Android 15 API 35)
+
+-----------------------------------------------------------------------------------
+1. EXECUTIVE SUMMARY & VERIFICATION GATE
+-----------------------------------------------------------------------------------
+- JVM Unit Tests: 206 / 206 PASSING (100% pass rate, +6 new Phase 4 contract unit tests)
+- Connected On-Device Instrumentation: 31 / 31 PASSING (100% pass rate)
+- Production Release APK Footprint: 2.3 MB (Strict engineering budget: < 15.0 MB)
+- Live RTMP Composite Stream: tools/v11_phase4_broadcast.flv (832,449 bytes, 12.0s capture)
+- Stream Metrics:
+  * Video: 289 frames, 23.73 fps, span 12,180 ms, total video payload 674,434 bytes
+  * Audio: 520 AUs, avg PTS delta 23.22 ms, 0 gaps > 40ms, total audio payload 145,867 bytes
+  * A/V Sync Status: IN_SYNC (final PTS delta: 38 ms, within the <60 ms threshold)
+  * Average Bitrate: 547.33 kbps
+- Active Hardware/Software Codecs: Exactly 2 active codecs (c2.android.avc.encoder, c2.android.aac.encoder)
+- Security Compliance: Zero plaintext stream keys/tokens in code, logs, or UI [REDACTED]
+
+-----------------------------------------------------------------------------------
+2. DETAILED PHASE 4 IMPLEMENTATION SUMMARY
+-----------------------------------------------------------------------------------
+A. ARBITRARY GEOMETRY & ROTATION (0°–360°):
+- Full support for arbitrary element rotation in OverlayTransform, BroadcastPreviewView, and GlesRenderer.
+- Matrix math in GlesRenderer handles rotation, scaling, translation, and pivot points.
+- Interactive multi-touch two-finger rotation gesture and inspector angle slider/presets (0°, 90°, 180°, 270°).
+
+B. ARBITRARY RECTANGULAR & SHAPE CROPPING (MaskShape):
+- Integrated CropRegion normalized boundaries (cropLeft, cropTop, cropRight, cropBottom) into WebOverlayConfig.
+- Added MaskShape support (RECTANGLE, ROUNDED_RECT, CIRCLE) with cornerRadiusPx.
+- Implemented non-destructive bitmap crop in OffscreenWebRenderer and OpenGL ES shader texture coordinate mapping.
+
+C. HEADLESS WEB OVERLAY RASTERIZER (OffscreenWebRenderer):
+- Pure offscreen WebView rasterization directly to ARGB_8888 Bitmaps without attaching to on-screen view trees.
+- Programmatic scroll offsets (scrollX, scrollY) and zoom level (setInitialScale) targeting specific sub-regions.
+- CSS and JS injection via evaluateJavascript for widget styling and removing extraneous navigation headers.
+- Transparent canvas support with hardware canvas lock/unlock for zero-copy bitmap extraction.
+
+D. ZERO-LEAK RENDER DOMAIN ISOLATION:
+- Strict segregation of BROADCAST_COMPOSITE (game/screen capture + transformed overlays -> GLES -> MediaCodec AVC -> RTMP) and STREAMER_HUD_UI (WindowManager.addView TYPE_APPLICATION_OVERLAY).
+- Streamer HUD, chat bubbles, health counters, studio canvas controls, and inspectors NEVER leak into the broadcast stream.
+- Verified on Android 15 emulator with live screencap tools/v11_phase4_broadcast.flv.
+
+E. STREAMER FLOATING HUD ENHANCEMENTS:
+- Facecam toggle, Mic mute toggle, Chat HUD, and Pause/Freeze controls.
+- Dynamic drag-to-dock physics and non-intrusive floating pills.
+
+-----------------------------------------------------------------------------------
+3. TEST & ARTIFACT PROOF
+-----------------------------------------------------------------------------------
+- Unit Test Report: app/build/test-results/testDebugUnitTest/ (206 testcases passed)
+  * V11Phase4ContractUnitTest: testRenderDomainIsolationGuaranteed, testWebOverlayArbitraryRotation, testWebOverlayCropAndMaskShapePersistence, testWebOverlayScrollAndZoomConfig, testStreamerHudControlsIsolation, testYouTubeSubscriberBadgeIsolation
+- Connected Instrumentation: app/build/outputs/androidTest-results/connected/debug/ (31 testcases passed)
+- Release Binary: app/build/outputs/apk/release/app-release-unsigned.apk (2,374,484 bytes / 2.3 MB)
+- Visual Artifacts:
+  * screenshots/v11_phase4_home.png (Warm Editorial Dashboard)
+  * screenshots/v11_phase4_studio_web.png (Studio canvas with rotated & cropped web overlay)
+  * screenshots/v11_phase4_creator_hud.png (Creator Floating HUD)
+  * screenshots/v11_phase4_live_output.png (Broadcast composite stream proof)
+- Broadcast Capture:
+  * tools/v11_phase4_broadcast.flv (832,449 bytes)
+  * tools/v11_phase4_metrics.json (PTS continuity & A/V sync proof)
+
+Phase 4 requirements are 100% complete and verified. Ready for Phase 5 Master Directive.
+═══════════════════════════════════════════════════════════════════════════════════
+Show more
+￼
+￼
+ChatGPT said:
+Yep bruh 😭 — Phase 4 is the point where we stop adding random UI features and start making FAIRY LIVE feel like an actual serious streaming app.
+Based on everything you've established through V1.1 Phase 4, I’d make Phase 5 the Production Creator Experience + Reliability phase.
+Here is the prompt you can give Hermes:
+￼
+FAIRY LIVE V1.1 — PHASE 5 MASTER ENGINEERING DIRECTIVE
+"Production Creator Experience, Reliability & Live Control"
+You are continuing development of FAIRY LIVE, a native Kotlin Android live-streaming application.
+Current state:
+• V1.1 Phase 4 is complete.
+• Android 15 / Pixel 8 API 35 verification completed.
+• Pure Kotlin/native architecture.
+• Existing streaming pipeline is functional.
+• Real RTMP broadcast ingest has been verified.
+• Web overlays are now rendered into the actual broadcast composite.
+• Arbitrary rotation, crop, masking, scroll and zoom are implemented.
+• Creator-only HUD isolation is implemented.
+• YouTube subscriber widget and creator-only chat foundation exist.
+• Phase 4 reported:
+◦ 206/206 JVM tests passing.
+◦ 31/31 connected tests passing.
+◦ Exactly 2 active codecs.
+◦ A/V synchronization verified.
+◦ Stream keys/tokens protected.
+◦ Broadcast and creator UI render domains isolated.
+DO NOT assume the existing implementation is perfect. Audit it first.
+￼
+PHASE 5 — OBJECTIVE
+Transform FAIRY LIVE from a technically verified prototype into a reliable production-grade mobile creator streaming studio.
+The focus is now:
+1. Creator usability.
+2. Reliable live-session behavior.
+3. Real web overlay usability.
+4. Professional overlay editing.
+5. Creator-only live controls.
+6. YouTube integration reliability.
+7. Lifecycle/process-death recovery.
+8. Performance and memory safety.
+9. Error handling.
+10. Accessibility and touch ergonomics.
+11. Regression protection.
+Do NOT rewrite the existing streaming architecture.
+￼
+1. ABSOLUTE ARCHITECTURAL INVARIANTS
+These are protected.
+Do not replace, duplicate, or bypass:
+Broadcast pipeline
+BroadcastSceneManager
+        ↓
+Broadcast Composite
+        ↓
+GLES Renderer / Compositor
+        ↓
+MediaCodec AVC + AAC
+        ↓
+RTMP
+        ↓
+YouTube / RTMP Server
+Creator-only pipeline
+Android Activity / Window Layer
+        ↓
+STREAMER_HUD_UI
+        ↓
+Creator-only controls
+Creator-only UI must NEVER enter:
+• BroadcastSceneManager
+• GLES broadcast textures
+• AVC frames
+• RTMP packets
+• broadcast screenshots
+• web overlay textures
+The viewer must never see:
+• floating HUD
+• chat controls
+• mute buttons
+• pause buttons
+• inspector controls
+• studio editing controls
+• diagnostics
+• creator notifications
+￼
+2. REAL WEB OVERLAY — PRODUCTION HARDENING
+The Web Overlay must behave like an actual browser source in a streaming application.
+It must NOT be a fake placeholder.
+Pipeline remains:
+URL
+ ↓
+OffscreenWebRenderer
+ ↓
+WebView rendering
+ ↓
+Bitmap / texture
+ ↓
+GLES compositor
+ ↓
+AVC
+ ↓
+RTMP
+Implement/harden:
+URL management
+Support:
+• HTTPS URLs.
+• HTTP where Android/network policy allows it.
+• URL validation.
+• loading indicator.
+• timeout handling.
+• retry.
+• reload.
+• error state.
+• offline state.
+Never crash because a website fails.
+￼
+3. WEB OVERLAY INTERACTION
+The creator must be able to control the webpage independently from the overlay transformation.
+Provide:
+Page navigation
+• Reload.
+• Back.
+• Forward.
+• Stop loading.
+Page scrolling
+The creator must be able to scroll the webpage.
+Support:
+• vertical scrolling.
+• horizontal scrolling when required.
+• touch drag scrolling.
+• programmatic scroll.
+• scroll position persistence.
+Scrolling the webpage must NOT accidentally move the overlay itself.
+This distinction is critical:
+ONE-FINGER INSIDE WEB CONTENT
+        ↓
+WEBPAGE SCROLL
+while:
+DRAG OUTSIDE / TRANSFORM HANDLE
+        ↓
+MOVE OVERLAY
+Design gesture arbitration carefully.
+￼
+4. WEB ZOOM
+Implement two separate concepts:
+Webpage zoom
+Changes webpage rendering scale.
+Overlay scale
+Changes the size of the resulting broadcast overlay.
+Do NOT mix these values.
+Example:
+Web Zoom = 125%
+
+Overlay Scale = 0.75x
+Both must work independently.
+Persist both values.
+￼
+5. WEB OVERLAY CROPPING
+Provide a professional crop editor.
+Creator must be able to crop:
+LEFT
+TOP
+RIGHT
+BOTTOM
+Support:
+• rectangular crop.
+• rounded rectangle mask.
+• circle mask.
+• crop preview.
+• reset crop.
+• numeric values.
+• touch crop handles if practical.
+Crop must happen before final broadcast compositing.
+The creator must see the exact result in the studio preview.
+￼
+6. ROTATION
+Support:
+0° → 360°
+with:
+• two-finger rotation.
+• numeric angle.
+• slider.
+• 90° preset.
+• 180° preset.
+• 270° preset.
+• reset.
+Rotation must preserve:
+• crop.
+• scale.
+• opacity.
+• position.
+• mask.
+No clipping caused by transformation.
+￼
+7. PROFESSIONAL TRANSFORM UI
+When an overlay is selected, show:
+┌─────────────────────────────┐
+│        Selected: WEB        │
+│                             │
+│        ┌──────────┐         │
+│        │          │         │
+│        │  WEB     │         │
+│        │ OVERLAY  │         │
+│        │          │         │
+│        └──────────┘         │
+│                             │
+│ Edit   Rotate   Crop   Lock │
+└─────────────────────────────┘
+Selection controls must be creator-only.
+Never render them into the broadcast.
+￼
+8. OVERLAY LOCKING
+Every overlay should support:
+LOCK
+UNLOCK
+Locked overlays:
+• cannot be accidentally dragged.
+• cannot rotate.
+• cannot scale.
+• remain selectable for inspection.
+Provide clear locked visual state.
+￼
+9. LAYER MANAGEMENT
+Implement a professional layer panel.
+Example:
+LAYERS
+
+☰  YouTube Subscriber Counter
+☰  Browser Overlay
+☰  Facecam
+☰  Stream Goal
+☰  Text
+☰  Game Capture
+Support:
+• move up.
+• move down.
+• bring to front.
+• send to back.
+• hide/show.
+• lock/unlock.
+• duplicate.
+• delete.
+Layer ordering must map directly to BroadcastSceneManager ordering.
+￼
+10. CREATOR-ONLY FLOATING HUD
+Improve the floating HUD.
+The creator should have quick controls while live:
+┌──────────────────────────────────────┐
+│ ● LIVE   👁 1.2K   💬 12   🎙   ⏸   ⋮ │
+└──────────────────────────────────────┘
+Controls:
+Chat
+💬
+Opens creator-only YouTube Live Chat.
+Mic
+🎙 → 🔇
+Must control the actual audio pipeline.
+No fake UI-only mute.
+Camera
+📷 ON/OFF
+Controls actual facecam capture.
+Pause
+⏸
+Must use truthful stream semantics.
+Resume
+▶
+More
+Open:
+• stream diagnostics.
+• bitrate.
+• FPS.
+• dropped frames.
+• connection status.
+• stream duration.
+• encoder state.
+Diagnostics remain creator-only.
+￼
+11. CHAT SYSTEM
+YouTube Live Chat must be a real creator-only interface.
+Support:
+• live messages.
+• username.
+• message text.
+• timestamp.
+• unread count.
+• scroll.
+• auto-scroll.
+• pause auto-scroll when creator manually scrolls.
+• resume auto-scroll.
+• reply composer.
+• send message.
+• connection status.
+• reconnect.
+The chat UI must NEVER enter broadcast compositing.
+￼
+12. YOUTUBE SUBSCRIBER WIDGET
+The broadcast-facing subscriber counter must remain separate from creator chat.
+Example:
+╭──────────────────────╮
+│  ▶  FAIRY GAMING     │
+│     12.5K Subscribers│
+╰──────────────────────╯
+Support:
+• refresh interval.
+• loading state.
+• temporary API failure state.
+• cached last-known value.
+• retry.
+• formatting:
+999
+1.2K
+12.5K
+125K
+1.2M
+Never expose API tokens.
+Never log credentials.
+￼
+13. WEB WIDGET PRESETS
+Add a useful preset system.
+Creator should be able to enter:
+WEB OVERLAY
+and optionally choose:
+• Custom Website
+• Twitch-style chat
+• YouTube subscriber counter
+• YouTube live chat
+• Stream alerts
+• Stream goal
+• Social media panel
+• Custom HTML
+• Custom URL
+Important:
+Presets are convenience features.
+They must still use the real broadcast web-rendering pipeline.
+￼
+14. OVERLAY REFRESH
+Each web overlay should support:
+Refresh:
+OFF
+5 sec
+10 sec
+30 sec
+60 sec
+5 min
+Do not reload continuously.
+Avoid:
+• memory leaks.
+• WebView accumulation.
+• excessive CPU usage.
+• unnecessary network traffic.
+Only refresh the selected overlay instance.
+￼
+15. WEBVIEW MEMORY MANAGEMENT
+This is a major Phase 5 requirement.
+Prevent:
+WebView #1
+WebView #2
+WebView #3
+...
+from accumulating.
+Implement lifecycle ownership.
+When an overlay is:
+• deleted.
+• replaced.
+• scene removed.
+• app destroyed.
+• stream stopped.
+release resources appropriately.
+No WebView leaks.
+No bitmap accumulation.
+No GL texture leaks.
+￼
+16. STREAM LIFECYCLE HARDENING
+Test:
+START LIVE
+ ↓
+RUN
+ ↓
+OPEN CHAT
+ ↓
+MUTE MIC
+ ↓
+UNMUTE
+ ↓
+OPEN STUDIO
+ ↓
+RETURN
+ ↓
+PAUSE
+ ↓
+RESUME
+ ↓
+STOP
+Also test:
+START
+ ↓
+BACKGROUND APP
+ ↓
+RETURN
+and:
+START
+ ↓
+SCREEN LOCK
+ ↓
+UNLOCK
+and:
+START
+ ↓
+ROTATION / CONFIGURATION CHANGE
+and:
+START
+ ↓
+PROCESS INTERRUPTION
+ ↓
+APP RECOVERY
+No duplicate:
+• encoder.
+• MediaProjection.
+• RTMP socket.
+• audio capture.
+• foreground service.
+• WebView renderer.
+￼
+17. MEDIA PROJECTION SAFETY
+Preserve the existing full-display capture architecture.
+Do NOT silently switch back to single-app capture.
+The application must clearly communicate what the user is sharing.
+The creator-only HUD must remain outside the broadcast content.
+Test Android 14+ and Android 15 behavior.
+￼
+18. BACKGROUND STREAMING
+When streaming:
+Creator Studio UI
+may disappear into background, but:
+FairyStreamService
+must continue the broadcast.
+The stream must not stop merely because the Activity is no longer foregrounded.
+￼
+19. NETWORK FAILURE
+Implement clear creator states:
+● LIVE
+⚠ RECONNECTING
+✕ CONNECTION LOST
+✓ RECONNECTED
+Do not falsely display LIVE when the RTMP connection is dead.
+Implement safe reconnect behavior without creating duplicate encoders or sockets.
+￼
+20. ERROR RECOVERY
+No fatal crash for:
+• invalid URL.
+• WebView failure.
+• YouTube API failure.
+• chat disconnect.
+• RTMP disconnect.
+• encoder failure.
+• microphone unavailable.
+• camera unavailable.
+• MediaProjection stop.
+• insufficient memory.
+Every failure should have a recoverable UI state.
+￼
+21. PERFORMANCE REQUIREMENTS
+Audit:
+• UI thread workload.
+• WebView rendering.
+• bitmap allocation.
+• GL texture allocation.
+• frame copying.
+• garbage collection.
+• encoder latency.
+• audio latency.
+Avoid unnecessary:
+Bitmap.createBitmap()
+inside every render frame.
+Avoid recreating WebViews.
+Avoid allocating objects every compositor frame.
+￼
+22. BROADCAST FRAME RATE
+Verify:
+Target: 30 FPS
+and measure:
+• actual FPS.
+• dropped frames.
+• encoder stalls.
+• compositor latency.
+Do not claim 30 FPS merely because configuration says 30.
+Measure actual output.
+￼
+23. A/V SYNCHRONIZATION
+Continue verifying:
+Video PTS
+Audio PTS
+Maintain:
+A/V delta < 100 ms
+Preferably:
+< 60 ms
+No timestamp resets when:
+• mic muted.
+• mic unmuted.
+• stream resumed.
+• web overlay refreshed.
+￼
+24. CREATOR DASHBOARD
+Home should remain creator-focused.
+Do NOT bring back developer telemetry.
+Show:
+FAIRY LIVE
+
+● Ready to go live
+
+┌───────────────────────────┐
+│       STREAM PREVIEW      │
+│                           │
+│       16:9 Preview        │
+│                           │
+└───────────────────────────┘
+
+Balanced HD
+720p • 30 FPS
+
+        [ START LIVE ]
+
+Recent Broadcasts
+Technical information belongs under:
+Settings
+ ↓
+Stream Diagnostics
+￼
+25. CREATOR-ONLY DIAGNOSTICS
+Add a professional diagnostics page:
+STREAM DIAGNOSTICS
+
+Connection       ● Connected
+RTMP             ● Healthy
+Bitrate          4.2 Mbps
+FPS              29.8
+Dropped Frames   0.2%
+A/V Sync         32 ms
+Encoder          AVC
+Audio            AAC
+Duration         00:14:32
+Never expose stream keys.
+Never expose access tokens.
+￼
+26. ACCESSIBILITY
+Audit:
+• touch target sizes.
+• text contrast.
+• content descriptions.
+• TalkBack labels.
+• slider accessibility.
+• buttons.
+• chat input.
+• bottom sheet gestures.
+Minimum interactive target:
+48dp
+where practical.
+￼
+27. RESPONSIVE LAYOUT
+Test multiple Android screen sizes.
+At minimum:
+• Pixel 8.
+• smaller phone configuration.
+• larger phone configuration.
+No:
+• clipped controls.
+• inaccessible buttons.
+• overlapping inspector.
+• off-screen floating HUD.
+￼
+28. PERSISTENCE
+Persist:
+• scenes.
+• overlay positions.
+• scale.
+• rotation.
+• crop.
+• mask.
+• opacity.
+• layer order.
+• lock state.
+• visibility.
+• web URL.
+• web zoom.
+• scroll position.
+• refresh interval.
+• widget configuration.
+After:
+Force Stop
+Restart
+Process Recreation
+the scene must restore correctly.
+￼
+29. SECURITY
+Continue strict security requirements.
+Never store/log:
+• stream keys.
+• OAuth access tokens.
+• refresh tokens.
+• API secrets.
+Use secure storage.
+All logs must redact credentials:
+[REDACTED]
+Add automated tests that search generated logs/configuration for secrets.
+￼
+30. TEST REQUIREMENTS
+Expand the existing suite.
+Current baseline:
+206 JVM
+31 Connected
+Do not delete existing tests.
+Add tests for:
+Web
+• URL validation.
+• scroll persistence.
+• zoom persistence.
+• crop persistence.
+• rotation persistence.
+• mask persistence.
+• refresh lifecycle.
+• WebView cleanup.
+Render isolation
+Verify:
+CREATOR_ONLY ≠ BROADCAST
+for every creator HUD component.
+Stream lifecycle
+Test:
+• start.
+• stop.
+• pause.
+• resume.
+• reconnect.
+• duplicate start prevention.
+• service restart.
+YouTube
+Test:
+• subscriber widget.
+• chat.
+• token redaction.
+• disconnect/reconnect.
+Performance
+Test:
+• renderer resource cleanup.
+• bitmap lifecycle.
+• GL texture cleanup.
+￼
+31. REAL DEVICE / RTMP ACCEPTANCE
+Do not rely only on unit tests.
+Run an actual connected streaming test.
+Example:
+Pixel 8
+Android 15
+API 35
+ ↓
+MediaProjection
+ ↓
+FAIRY LIVE
+ ↓
+Local RTMP ingest
+ ↓
+FLV recording
+Broadcast scene must contain at least:
+Game / screen
++
+Rotated Web Overlay
++
+Cropped Web Overlay
++
+Subscriber Widget
++
+Text Overlay
+Creator-only UI must simultaneously show:
+HUD
++
+Chat
++
+Mic control
++
+Stream status
+Verify creator UI
+ChatGPT can make mistakes. Check important info.
+Scroll to bottom
+Message ChatGPT
+Add files and more
+Select ChatGPT model
+￼
+￼
+￼
+Notifications alt+T
+￼

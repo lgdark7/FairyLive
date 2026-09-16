@@ -1,0 +1,851 @@
+[210] 
+
+[211] 
+
+[212]    Same:
+[213] 
+
+[214]    - device
+[215] 
+
+[216]    - APK/build
+[217] 
+
+[218]    - resolution
+[219] 
+
+[220]    - bitrate
+[221] 
+
+[222]    - FPS
+[223] 
+
+[224]    - audio configuration
+[225] 
+
+[226]    - 5 overlays + animated GIF
+[227] 
+
+[228]    - duration
+[229] 
+
+[230]    - warm-up
+[231] 
+
+[232]    - measurement checkpoints
+[233] 
+
+[234] 
+
+[235]    Report mean and range for:
+[236] 
+
+[237]    - CPU
+[238] 
+
+[239]    - PSS
+[240] 
+
+[241]    - native heap
+[242] 
+
+[243]    - Dalvik heap
+[244] 
+
+[245]    - threads
+[246] 
+
+[247]    - sockets
+[248] 
+
+[249]    - queue memory
+[250] 
+
+[251] 
+
+[252]    Do not claim memory reduction.
+[253] 
+
+[254] 
+
+[255] 4. FULL REGRESSION
+[256] 
+
+[257]    Execute EXACTLY:
+[258] 
+
+[259] 
+
+[260]    ./gradlew clean testDebugUnitTest connectedDebugAndroidTest
+[261] 
+
+[262] 
+
+[263]    Record exit code and complete summary.
+[264] 
+
+[265] 
+
+[266] 5. FINAL COMMIT
+[267] 
+
+[268]    Update:
+[269] 
+
+[270]    PROJECT_MEMORY.md
+[271] 
+
+[272]    DEVELOPMENT_LOG.md
+[273] 
+
+[274]    ARCHITECTURE.md
+[275] 
+
+[276]    REQUIREMENTS.md
+[277] 
+
+[278]    TESTING.md
+[279] 
+
+[280]    PERFORMANCE.md
+[281] 
+
+[282] 
+
+[283]    Create the final M9 verification commit/checkpoint.
+[284] 
+
+[285] 
+
+[286] 6. FINAL REPORT
+[287] 
+
+[288]    Include raw evidence for all four items above.
+[289] 
+
+[290] 
+
+[291]    Clearly retain:
+[292] 
+
+[293]    - viewer-side seamless continuity NOT VALIDATED
+[294] 
+
+[295]    - physical Wi-Fi <-> Cellular handover NOT VALIDATED on this AVD
+[296] 
+
+[297]    - no unsupported hardware-encoder claims
+[298] 
+
+[299]    - no unsupported zero-leak claims
+[300] 
+
+[301] 
+
+[302]    If any test fails, report the failure and root cause instead of hiding it.
+[303] 
+
+[304] 
+
+[305]    End the report EXACTLY with:
+[306] 
+
+[307] 
+
+[308]    ?? M9 REVALIDATED - WAITING FOR CHATGPT REVIEW AND AUTHORIZATION FOR M10
+[309] 
+
+[310] 
+
+[311] DO NOT START M10.
+[312] 
+
+[313] DO NOT MODIFY M10.
+[314] 
+
+[315] WAIT FOR CHATGPT REVIEW AFTER THIS FINAL EVIDENCE PASS.
+[316] M10 remains locked.
+[317]  Once Hermes produces this final evidence pass, I'll do the final M9 sign-off.
+[318] You said:
+[319] Milestone 9 Revalidation Status & Review Progress Report
+[320] 1. What Was Accomplished & Delivered
+[321] We implemented the full set of empirical verification requirements, code decoupling, and documentation corrections demanded by desktop ChatGPT in its Milestone 9 reviews:
+[322] Decoupled Drop Metrics in the Architecture
+[323] :
+[324] strictly 0; keyframes are protected from eviction
+[325] Precise Disconnect & Reconnect Timeline Audit
+[326] :
+[327] 1,031 ms
+[328] Reconnection Failure & Exhaustion Verification
+[329] :
+[330] 10-Cycle Reconnection Resource Audit & Metric Clarification
+[331] :
+[332] 55 system-wide codec profiles
+[333] exactly 2 MediaCodec instances
+[334] 2.8 MB - 4.3 MB
+[335] 12.7 MB - 14.9 MB
+[336] ~
+[337] 54.8 MB - 76.2 MB
+[338] Controlled A/B Benchmark & Transport Distinction
+[339] :
+[340] Regression Suite
+[341] :
+[342] 108/108 Unit Tests Passing
+[343] 5/5 On-Device Connected Instrumented Tests Passing
+[344] 7.00 MB
+[345] 2. Desktop ChatGPT Review Feedback & Next Actions
+[346] Our revalidation submission was received and evaluated by desktop ChatGPT. ChatGPT's formal verdict is:
+[347] Verdict: M9 remains NOT APPROVED (Verification Cleanup Required). Do NOT begin M10.
+[348] 
+
+[349] "The implementation appears substantially complete. Perform verification-only corrections; do not redesign the M9 architecture unless a test exposes an actual defect."
+[350] Remaining Directives to Address:
+[351] ABR Downward Ladder Clarification & Controlled Step-by-Step Ledger
+[352] Design Clarification
+[353] Empirical Proof
+[354] 10-Cycle Resource Audit Final Ledger
+[355] 2
+[356] Controlled A/B Benchmark Table
+[357] Final Regression & Resubmission
+[358] ChatGPT said:
+[359] I reviewed this progress report against the remaining M9 blockers.
+[360] ?? Verdict: M9 STILL NOT APPROVED
+[361] The good news is that the 
+[362] resource-audit issue is now properly explained
+[363] : the 55 value was a system codec-profile enumeration, while the app has 2 actual MediaCodec instances. The documentation/commit work also looks substantially complete.
+[364] But Hermes is 
+[365] still reporting the remaining directives as "next actions" rather than completed evidence
+[366] .
+[367] Specifically:
+[368] ABR empirical ladder is still missing.
+[369] 
+
+[370] The report says Hermes will provide the stepped 
+[371] 1200  800  500  300
+[372]  throttle run, but does not provide the actual timestamped measurements yet.
+[373] 3-run A/B statistics are still missing.
+[374] 
+
+[375] We need the actual 3-run mean/range table for CPU, PSS, native, Dalvik, threads, sockets, and queue memory-not just the previous 
+[376] +0.4% CPU / ~0 MB
+[377]  summary.
+[378] Exact combined regression command is still not demonstrated.
+[379] 
+
+[380] It needs to show:
+[381] ./gradlew clean testDebugUnitTest connectedDebugAndroidTest
+[382] with successful completion/exit code.
+[383] Final report must contain the completed evidence
+[384] , not merely say that the evidence will be added.
+[385] The clarification about the ABR design is useful, but 
+[386] design intent ? empirical proof
+[387] .
+[388] Send Hermes this
+[389] Plain text
+[390] M9 FINAL GATE - DO NOT START M10
+[391] 
+
+[392] 
+
+[393] ChatGPT reviewed the latest M9 progress report.
+[394] 
+
+[395] 
+
+[396] Verdict remains:
+[397] 
+
+[398] ?? M9 NOT APPROVED
+[399] 
+
+[400] 
+
+[401] The implementation and resource-audit clarification are acceptable, but the final empirical evidence is still incomplete.
+[402] 
+
+[403] 
+
+[404] Complete ONLY these remaining verification items:
+[405] 
+
+[406] 
+
+[407] 1. ABR EMPIRICAL PROOF
+[408] 
+
+[409]    Execute the controlled throttle test and provide actual timestamped
+[410] 
+
+[411]    measurements for the downward behavior.
+[412] 
+
+[413] 
+
+[414]    Required:
+[415] 
+
+[416]    timestamp
+[417] 
+
+[418]    network throttle/capacity
+[419] 
+
+[420]    measured throughput
+[421] 
+
+[422]    latency
+[423] 
+
+[424]    queue depth
+[425] 
+
+[426]    current bitrate
+[427] 
+
+[428]    new bitrate
+[429] 
+
+[430]    network-health state
+[431] 
+
+[432]    decision reason
+[433] 
+
+[434]    encoder FPS
+[435] 
+
+[436]    keyframe request
+[437] 
+
+[438]    all drop/eviction counters
+[439] 
+
+[440] 
+
+[441]    Target behavior:
+[442] 
+
+[443]    1200 -> 800 -> 500 -> 300
+[444] 
+
+[445] 
+
+[446]    If the implementation legitimately skips 800 under POOR conditions,
+[447] 
+
+[448]    show the actual measured behavior and document the state-machine rule.
+[449] 
+
+[450]    Do NOT fabricate a transition.
+[451] 
+
+[452] 
+
+[453] 2. 3-RUN CONTROLLED A/B
+[454] 
+
+[455]    Perform 3 runs for each condition:
+[456] 
+
+[457] 
+
+[458]    A = M8 compositor-only
+[459] 
+
+[460]    B = M9 resilience active
+[461] 
+
+[462] 
+
+[463]    Identical:
+[464] 
+
+[465]    device
+[466] 
+
+[467]    resolution
+[468] 
+
+[469]    bitrate
+[470] 
+
+[471]    FPS
+[472] 
+
+[473]    audio
+[474] 
+
+[475]    five overlays + GIF
+[476] 
+
+[477]    duration
+[478] 
+
+[479]    warm-up
+[480] 
+
+[481]    measurement checkpoints
+[482] 
+
+[483] 
+
+[484]    Report each run AND:
+[485] 
+
+[486]    - mean
+[487] 
+
+[488]    - range
+[489] 
+
+[490] 
+
+[491]    for:
+[492] 
+
+[493]    CPU
+[494] 
+
+[495]    PSS
+[496] 
+
+[497]    native heap
+[498] 
+
+[499]    Dalvik heap
+[500] 
+
+[501]    threads
+[502] 
+
+[503]    sockets
+[504] 
+
+[505]    queue memory
+[506] 
+
+[507] 
+
+[508]    No memory-reduction claims.
+[509] 
+
+[510] 
+
+[511] 3. RESOURCE AUDIT
+[512] 
+
+[513]    Retain the corrected finding:
+[514] 
+
+[515]    "55 MediaCodec" = system codec profile enumeration,
+[516] 
+
+[517]    NOT active application codec instances.
+[518] 
+
+[519] 
+
+[520]    Explicitly report:
+[521] 
+
+[522]    active codecs = 2
+[523] 
+
+[524]    - 1 AVC video encoder
+[525] 
+
+[526]    - 1 AAC audio encoder
+[527] 
+
+[528] 
+
+[529]    Include post-GC memory measurements and measured trends.
+[530] 
+
+[531]    Do not claim "zero leaks" beyond what the evidence supports.
+[532] 
+
+[533] 
+
+[534] 4. FULL REGRESSION
+[535] 
+
+[536]    Execute EXACTLY:
+[537] 
+
+[538] 
+
+[539]    ./gradlew clean testDebugUnitTest connectedDebugAndroidTest
+[540] 
+
+[541] 
+
+[542]    Record:
+[543] 
+
+[544]    - command
+[545] 
+
+[546]    - exit code
+[547] 
+
+[548]    - unit result
+[549] 
+
+[550]    - connected result
+[551] 
+
+[552]    - build result
+[553] 
+
+[554] 
+
+[555] 5. FINAL DOCUMENTATION + COMMIT
+[556] 
+
+[557]    Update all six required documents.
+[558] 
+
+[559]    Create/retain final checkpoint commit.
+[560] 
+
+[561]    Current checkpoint: f9dc1ca
+[562] 
+
+[563] 
+
+[564] 6. FINAL REPORT
+[565] 
+
+[566]    Submit the COMPLETE evidence, not a plan for future evidence.
+[567] 
+
+[568] 
+
+[569]    Preserve these limitations:
+[570] 
+
+[571]    - viewer-side seamless continuity NOT validated
+[572] 
+
+[573]    - physical Wi-Fi <-> Cellular handover NOT validated on AVD
+[574] 
+
+[575]    - no unsupported hardware-encoder claims
+[576] 
+
+[577]    - no unsupported zero-leak claims
+[578] 
+
+[579] 
+
+[580]    End EXACTLY with:
+[581] 
+
+[582] 
+
+[583]    ?? M9 REVALIDATED - WAITING FOR CHATGPT REVIEW AND AUTHORIZATION FOR M10
+[584] 
+
+[585] 
+
+[586] DO NOT BEGIN M10.
+[587] Once Hermes returns the 
+[588] actual final ledger
+[589] , I'll make the final M9 decision.
+[590] You said:
+[591] ChatGPT said:
+[592] ?? FAIRY LIVE - M9 FINAL REVIEW
+[593] I reviewed the 
+[594] final revalidation report
+[595]  carefully.
+[596] ?? Verdict: M9 NOT APPROVED YET
+[597] This is 
+[598] very close
+[599] . Most of the previous blockers are now genuinely resolved.
+[600] ? Passed
+[601] ABR design is now honestly documented.
+[602] Actual throttle evidence exists
+[603] 3-run controlled A/B is present
+[604] Codec ambiguity is correctly resolved:
+[605] Reconnect timeline is precise.
+[606] Reconnect exhaustion is proven.
+[607] Exact requested regression command succeeded with exit code 0.
+[608] Six documentation files + final commit 
+[609] d68cc90
+[610]  are documented.
+[611] ?? One remaining evidence gap
+[612] The 
+[613] 10-cycle resource audit still isn't sufficiently presented
+[614] .
+[615] The report now gives an excellent explanation of the codec count and a 
+[616] post-GC checkpoint
+[617] :
+[618] Pasted text.txt
+[619] TXT
+[620] But our final gate specifically required the 
+[621] 10-cycle measurements
+[622]  for:
+[623] The submitted final report doesn't actually show the 
+[624] cycle-by-cycle resource ledger
+[625] . It only gives the post-GC endpoint.
+[626] That matters because a single final stable checkpoint cannot demonstrate whether resources repeatedly accumulate and later get reclaimed.
+[627] I am therefore NOT going to pretend this is proven.
+[628] ?? Final tiny revalidation
+[629] Tell Hermes:
+[630] Plain text
+[631] M9 FINAL EVIDENCE GAP - ONE LAST VERIFICATION ONLY
+[632] 
+
+[633] 
+
+[634] ChatGPT reviewed M9 final revalidation report d68cc90.
+[635] 
+
+[636] 
+
+[637] M9 is NOT APPROVED yet.
+[638] 
+
+[639] 
+
+[640] Everything else has passed.
+[641] 
+
+[642] 
+
+[643] ONLY remaining requirement:
+[644] 
+
+[645] 
+
+[646] Publish the actual 10-cycle resource audit ledger.
+[647] 
+
+[648] 
+
+[649] For Cycle 0 baseline and Cycles 1-10, provide measured values for:
+[650] 
+
+[651] 
+
+[652] - PSS
+[653] 
+
+[654] - Native heap
+[655] 
+
+[656] - Dalvik heap
+[657] 
+
+[658] - RSS
+[659] 
+
+[660] - thread count
+[661] 
+
+[662] - socket count
+[663] 
+
+[664] - ACTIVE MediaCodec INSTANCES
+[665] 
+
+[666] 
+
+[667] The codec count MUST explicitly remain:
+[668] 
+
+[669] 2 active app codecs:
+[670] 
+
+[671] 1 AVC video encoder
+[672] 
+
+[673] 1 AAC audio encoder
+[674] 
+
+[675] 
+
+[676] Do not use the old "55 MediaCodec" profile-enumeration metric.
+[677] 
+
+[678] 
+
+[679] Perform the measurements at consistent checkpoints, preferably after
+[680] 
+
+[681] the same post-GC procedure where technically appropriate.
+[682] 
+
+[683] 
+
+[684] Show the actual cycle-by-cycle numbers, not only the final post-GC value.
+[685] 
+
+[686] 
+
+[687] Then provide a conservative engineering conclusion:
+[688] 
+
+[689] - whether resources return/stabilize
+[690] 
+
+[691] - whether any monotonic growth remains
+[692] 
+
+[693] - whether active codec count remains exactly 2
+[694] 
+
+[695] - whether threads/sockets return to baseline
+[696] 
+
+[697] 
+
+[698] Do NOT claim "zero leaks" unless the measurements support it.
+[699] 
+
+[700] 
+
+[701] Do NOT change M9 architecture.
+[702] 
+
+[703] Do NOT begin M10.
+[704] 
+
+[705] 
+
+[706] After adding this ledger:
+[707] 
+
+[708] 1. Update PERFORMANCE.md / TESTING.md / PROJECT_MEMORY.md as necessary.
+[709] 
+
+[710] 2. Create the final checkpoint commit.
+[711] 
+
+[712] 3. Submit the complete M9 report.
+[713] 
+
+[714] 
+
+[715] End EXACTLY:
+[716] 
+
+[717] 
+
+[718] ?? M9 REVALIDATED - WAITING FOR CHATGPT REVIEW AND AUTHORIZATION FOR M10
+[719] Current status
+[720] M9 implementation:
+[721]  ??
+[722] 
+
+[723] M9 functional verification:
+[724]  ??
+[725] 
+
+[726] M9 regression:
+[727]  ??
+[728] 
+
+[729] M9 documentation:
+[730]  ??
+[731] 
+
+[732] M9 resource evidence:
+[733]  ?? one final ledger required
+[734] 
+
+[735] M10 authorization:
+[736]  ?? 
+[737] NOT YET
+[738] This is now a 
+[739] very small verification gap
+[740] , not an architecture problem.
+[741] You said:
+[742] ChatGPT said:
+[743] ?? FAIRY LIVE - M9 FINAL GATE REVIEW
+[744] ?? M9 APPROVED - M10 AUTHORIZED
+[745] I reviewed the 
+[746] latest final revalidation report
+[747] , including the new cycle-by-cycle resource ledger. This time, the evidence is sufficient to pass the M9 gate.
+[748] Why M9 passes
+[749] 1. ABR behavior is now properly proven and explained.
+[750] 
+
+[751] The implementation explicitly distinguishes acute 
+[752] POOR
+[753]  conditions, where 
+[754] 1200  500
+[755]  is intentional, from 
+[756] DEGRADED
+[757] , where the controller uses one-rung transitions such as 
+[758] 1200  800
+[759] . The empirical throttle test demonstrates the actual 
+[760] 1200  500  300
+[761]  behavior and records throughput, latency, queue depth, FPS, reasons, and keyframe requests.
+[762] This is important: Hermes did 
+[763] not
+[764]  manufacture an artificial 
+[765] 1200  800
+[766]  transition merely to satisfy the earlier wording.
+[767] 2. The 3-run A/B benchmark is complete.
+[768] 
+
+[769] Both conditions have three runs plus means/ranges. The measured M9 overhead is approximately 
+[770] +190 KB PSS (+0.28%)
+[771]  and 
+[772] +70 KB native heap (+0.49%)
+[773] , with no memory-reduction claim.
+[774] 3. The resource audit finally closes the previous blocker.
+[775] 
+
+[776] The report now provides all 10 cycles with PSS, native/Dalvik heap, RSS, threads, sockets, and active codec count. Most importantly, the active codec count remains 
+[777] exactly 2
+[778]  throughout: one AVC encoder and one AAC encoder.
+[779] The post-cycle analysis also shows no monotonic growth from Cycle 1 through Cycle 10 in the measured resource categories.
+[780] 4. Reconnection and failure handling remain solid.
+[781] 
+
+[782] The reconnect timeline, media-header reinjection, first-video/audio timing, and retry exhaustion are documented.
+[783] 5. Full regression passed.
+[784] 
+
+[785] The exact required command:
+[786] ./gradlew clean testDebugUnitTest connectedDebugAndroidTest
+[787] returned 
+[788] exit code 0
+[789] , with 
+[790] 108/108 unit tests
+[791]  and 
+[792] 5/5 connected tests
+[793]  passing.
+[794] 6. Engineering limitations are honestly preserved.
+[795] 
+
+[796] Viewer-side seamless continuity, physical Wi-Ficellular handover, and hardware encoding on the AVD are explicitly not overclaimed.
+[797] 7. Final checkpoint exists.
+[798] 
+
+[799] Git checkpoint: 
+[800] 1cb6145
+[801] .
+[802] Pasted text.txt
+[803] TXT
+[804] ?? M10 IS NOW AUTHORIZED
+[805] Milestone 9: ?? APPROVED
+[806] You can tell Hermes to proceed to:
+[807] M10 - Camera / Face Cam
+[808] Scope:
+[809] Do not redesign M9
+[810] One important rule for M10
+[811] Hermes should 
+[812] not assume the AVD proves physical-camera performance
+[813] . The Pixel 8 AVD/software-rendering limitations must continue to be explicitly identified wherever relevant.
+[814] And the milestone gate remains:
+[815] M10 implementation  build  run  test  debug  performance measurement  documentation  report  ChatGPT review  approval.
+[816] No skipping the gate.
+[817] ?? M9 APPROVED. M10 AUTHORIZED.
+[818] ChatGPT can make mistakes. Check important info.
+[819] 
+
+[820] Message ChatGPT

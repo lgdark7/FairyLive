@@ -1,0 +1,666 @@
+FAIRY LIVE — M15-B UI/UX REDESIGN DIRECTIVE
+
+STOP.
+
+Before implementing additional editor polish, reassess the current Creator Studio UI from a real end-user perspective.
+
+The current implementation is technically functional, but the UI is too developer/diagnostic-oriented and is NOT sufficiently user-friendly for a consumer live-streaming application.
+
+DO NOT simply add more controls to the existing layout.
+
+REDESIGN THE USER EXPERIENCE.
+
+============================================================
+PRODUCT VISION
+============================================================
+
+FAIRY LIVE should feel like:
+
+- a professional mobile creator studio
+- simple enough for a first-time streamer
+- powerful enough for advanced creators
+- gaming/streaming focused
+- modern
+- visually clean
+- touch friendly
+- fast
+- low-end friendly
+
+The user should understand the primary workflow immediately:
+
+OPEN FAIRY LIVE
+→ SEE PREVIEW
+→ CHOOSE SCENE
+→ CUSTOMIZE
+→ GO LIVE
+
+Do NOT make users understand encoder internals, codecs, PSS, ABI, CPU architecture, or pipeline terminology to start streaming.
+
+============================================================
+CRITICAL UX RULE
+============================================================
+
+SEPARATE:
+
+CREATOR EXPERIENCE
+
+from
+
+ENGINEERING / DIAGNOSTICS.
+
+The creator-facing UI must never look like a debug console.
+
+Keep technical diagnostics available under:
+
+Settings
+→ Advanced
+→ Diagnostics
+
+or a dedicated Diagnostics page.
+
+Do not remove the diagnostics functionality.
+
+Simply stop presenting it as the primary user experience.
+
+============================================================
+CREATOR STUDIO — PRIMARY SCREEN
+============================================================
+
+The Creator Studio must be centered around the live preview.
+
+Hierarchy:
+
+1. Preview
+2. Scene
+3. Add/Edit
+4. Layers
+5. Stream controls
+6. Optional performance information
+
+NOT:
+
+1. Hardware information
+2. Encoder information
+3. FPS counters
+4. CPU information
+5. Technical state
+============================================================
+NEW CREATOR STUDIO STRUCTURE
+============================================================
+
+Top:
+
+FAIRY LIVE
+[OFFLINE / LIVE]
+
+Optional:
+[⚙]
+
+Main:
+
+LIVE PREVIEW
+
+The preview should dominate the screen.
+
+Maintain the selected broadcast aspect ratio.
+
+Inside preview:
+
+- game/screen capture
+- facecam
+- overlays
+- text
+- widgets
+- goals
+- alerts
+
+The creator should immediately understand:
+
+"THIS IS WHAT MY VIEWERS WILL SEE."
+
+============================================================
+SCENE SELECTOR
+============================================================
+
+Use a compact scene selector.
+
+Example:
+
+[ Gameplay ] [ Just Chatting ] [ BRB ] [ + ]
+
+Avoid oversized buttons.
+
+Allow horizontal scrolling if necessary.
+
+Scene selector should feel like a modern creator application.
+
+============================================================
+ADD BUTTON
+============================================================
+
+The primary editing action should be:
+
+[ + Add ]
+
+When pressed, show a bottom sheet/grid:
+
++----------------------------+
+| ADD TO STREAM              |
++----------------------------+
+
+🖼 Image
+🔤 Text
+🎞 GIF
+📷 Facecam
+🎯 Goal
+📋 Lower Third
+🔳 QR Code
+📊 Widget
+🔔 Alert
+
+Use icons + short labels.
+
+Do not expose implementation terminology.
+
+============================================================
+LAYER EDITOR
+============================================================
+
+Layers should be accessible through:
+
+[ Layers ]
+
+Opening Layers should use a bottom sheet or side sheet depending on orientation.
+
+Example:
+
+LAYERS
+
+👁 📷 Facecam                ☰
+👁 🔤 Stream Title           ☰
+👁 🎯 Goal                   ☰
+👁 🔳 QR Code                ☰
+
+Interactions:
+
+- tap → select
+- eye → visibility
+- drag handle → reorder
+- swipe/delete → remove
+
+Selected layer should be clearly highlighted.
+
+============================================================
+SELECTED ELEMENT EDITOR
+============================================================
+
+When an overlay is selected:
+
+show a compact contextual editor.
+
+Example:
+
+FACE CAM
+
+Position
+[ X ] [ Y ]
+
+Size
+[ Width ] [ Height ]
+
+Opacity
+━━━━━━●━━
+
+[ Mirror ]
+
+[ Delete ]
+
+Do not permanently consume screen space with a large property panel.
+
+Prefer bottom sheets/contextual controls.
+
+============================================================
+TOUCH EDITING
+============================================================
+
+Preview interaction must remain:
+
+Tap
+→ select
+
+Drag
+→ move
+
+Corner drag
+→ resize
+
+Pinch
+→ scale
+
+Optional rotation gesture where supported.
+
+Selection should have:
+
+- subtle border
+- corner handles
+- clear selected-state indicator
+
+Avoid excessive visual decoration.
+
+============================================================
+STREAM CONTROLS
+============================================================
+
+Bottom control area:
+
+[ 🎙 Mic ] [ 📷 Camera ] [ 🔴 GO LIVE ]
+
+GO LIVE must be the dominant action.
+
+When live:
+
+[ 🎙 ] [ 📷 ] [ ⏹ STOP ]
+
+Show elapsed time and a compact live indicator.
+
+Do not display large technical telemetry here.
+
+============================================================
+PERFORMANCE HUD
+============================================================
+
+HUD is OPTIONAL.
+
+Default:
+
+OFF.
+
+If enabled:
+
+show a compact floating card:
+
+FPS 30
+2.2 Mbps
+AUDIO ✓
+NETWORK ✓
+
+Do not show:
+
+ABI
+PSS
+Dalvik
+RSS
+codec implementation names
+CPU architecture
+MediaCodec internals
+
+Those belong in Diagnostics.
+
+============================================================
+DASHBOARD
+============================================================
+
+Dashboard should become a creator home screen.
+
+Example:
+
+FAIRY LIVE
+
+[ Ready to stream ]
+
+┌─────────────────────────┐
+│ Last Scene              │
+│ Gameplay                │
+│                         │
+│       PREVIEW           │
+└─────────────────────────┘
+
+[ OPEN CREATOR STUDIO ]
+
+Quick actions:
+
+[ Go Live ]
+[ Scenes ]
+[ Settings ]
+
+Status cards:
+
+Network      ✓ Ready
+Camera       ✓ Ready
+Microphone   ✓ Ready
+
+Do not overwhelm the user with engineering metrics.
+============================================================
+SETTINGS
+============================================================
+
+Organize settings into understandable categories:
+
+STREAM
+
+Video Quality
+Resolution
+FPS
+Bitrate
+RTMP Server
+
+AUDIO
+
+Microphone
+Audio Quality
+Mute
+
+CAMERA
+
+Camera
+Mirror
+Facecam
+
+APPEARANCE
+
+Theme
+Preview
+HUD
+
+ADVANCED
+
+Performance
+Diagnostics
+Debug Information
+
+SECURITY
+
+Stream Credentials
+Privacy
+
+Technical information should be progressively disclosed.
+
+============================================================
+DIAGNOSTICS
+============================================================
+
+The existing technical diagnostics screen can remain.
+
+But redesign it as an advanced screen.
+
+Organize information into cards:
+
+DEVICE
+Memory
+CPU
+Android version
+
+VIDEO
+Encoder
+Resolution
+FPS
+
+AUDIO
+AAC
+Sample rate
+Bitrate
+
+NETWORK
+RTMP
+Latency
+Throughput
+Reconnect state
+
+MEMORY
+PSS
+Native
+Dalvik
+
+THERMAL
+Temperature
+Thermal state
+
+Do NOT dump raw technical text into a giant terminal-style block.
+
+Use readable labels and values.
+
+============================================================
+VISUAL DESIGN
+============================================================
+
+Keep the existing FAIRY identity:
+
+- dark UI
+- cyan primary accent
+- purple secondary accent
+- high contrast
+- clean cards
+- rounded corners
+- modern typography
+
+But reduce:
+
+- unnecessary borders
+- excessive cards
+- excessive status pills
+- huge technical labels
+- excessive spacing
+- oversized buttons
+
+Use visual hierarchy.
+
+Primary action:
+GO LIVE
+
+Secondary:
+Add / Layers / Scenes
+
+Tertiary:
+Settings / Diagnostics
+
+============================================================
+LOW-END PERFORMANCE
+============================================================
+
+IMPORTANT:
+
+This is NOT permission to introduce a heavyweight UI framework.
+
+Remain:
+
+- Native Android
+- lightweight
+- efficient
+- existing architecture compatible
+
+Avoid:
+
+- continuous animated backgrounds
+- blur-heavy effects
+- expensive shadows everywhere
+- excessive Lottie animations
+- unnecessary image assets
+- high-frequency UI updates
+
+Preview rendering must remain connected to the existing GPU compositor.
+
+============================================================
+BROADCAST INVARIANT
+============================================================
+
+ABSOLUTELY DO NOT BREAK:
+
+Creator UI
+≠
+Broadcast composition
+
+The following must NEVER appear in the outgoing stream:
+
+- GO LIVE button
+- Layers panel
+- Scene buttons
+- Settings
+- bottom navigation
+- HUD UI unless explicitly added as broadcast widget
+- editor handles
+- selection borders
+- resize handles
+
+Only the actual broadcast scene goes to the compositor.
+
+============================================================
+EDITOR POLISH
+============================================================
+
+After the core redesign:
+
+Implement/finish:
+
+- undo
+- redo
+- snap-to-grid
+- alignment guides
+- center guides
+- safe-area guides
+- duplicate
+- delete
+- reset transform
+- asset picker
+- property editor
+- scene persistence
+
+Keep these contextual and unobtrusive.
+
+============================================================
+USER FLOW ACCEPTANCE TEST
+============================================================
+
+A new user should be able to perform:
+
+1. Open app.
+2. Understand where to stream.
+3. Open Creator Studio.
+4. See preview.
+5. Select Gameplay.
+6. Press + Add.
+7. Add Text.
+8. Move Text.
+9. Add Facecam.
+10. Resize Facecam.
+11. Open Layers.
+12. Hide/show element.
+13. Save scene.
+14. Press GO LIVE.
+15. Understand that stream is live.
+16. Stop stream.
+
+The user should NOT need to understand:
+
+- MediaCodec
+- AAC AU
+- PTS
+- ABI
+- PSS
+- Dalvik
+- RTMP packetization
+- EGL
+- OpenGL ES
+- hardware codec internals
+
+Those are engineering details.
+
+============================================================
+M15-B ACCEPTANCE CRITERIA
+============================================================
+[ ] Creator Studio feels consumer-friendly
+[ ] Preview is visually dominant
+[ ] Primary workflow is obvious
+[ ] Add menu is intuitive
+[ ] Layers are intuitive
+[ ] Scene switching is intuitive
+[ ] Touch editing is intuitive
+[ ] Properties are contextual
+[ ] GO LIVE is obvious
+[ ] Technical diagnostics are separated
+[ ] Dashboard is creator-oriented
+[ ] Settings are categorized
+[ ] Portrait works
+[ ] Landscape works
+[ ] Existing compositor remains intact
+[ ] No Creator UI enters broadcast
+[ ] No streaming regression
+[ ] No performance regression
+[ ] No memory regression
+
+============================================================
+MANDATORY DEVICE REVIEW
+============================================================
+
+Install on Pixel 8 AVD.
+
+Actually interact with the UI.
+
+Perform:
+
+- first-launch test
+- Studio navigation
+- scene selection
+- Add menu
+- layer editor
+- overlay selection
+- drag
+- resize
+- camera
+- microphone
+- save/load scene
+- orientation
+- GO LIVE
+- STOP
+
+Take screenshots of:
+
+1. Dashboard
+2. Creator Studio
+3. Add menu
+4. Layers
+5. Selected overlay editor
+6. Scene selector
+7. Live state
+8. Settings
+9. Diagnostics
+
+The screenshots must demonstrate the final UX.
+
+============================================================
+IMPORTANT
+============================================================
+
+Do NOT call M15-B complete merely because tests pass.
+
+The UI must be evaluated as a USER EXPERIENCE.
+
+The goal is not:
+
+"Technically functional."
+
+The goal is:
+
+"Someone can install FAIRY LIVE and immediately understand how to create a stream."
+
+============================================================
+FINAL GATE
+============================================================
+
+After redesign:
+
+Build
+→ Install
+→ Device test
+→ Fix
+→ Regression
+→ Performance check
+→ Git checkpoint
+→ Documentation
+
+Then submit:
+
+M15-B UI/UX + Preview Editor Verification Report
+
+STOP and wait for ChatGPT review.
+
+Do not start M15-C until ChatGPT approves M15-B.

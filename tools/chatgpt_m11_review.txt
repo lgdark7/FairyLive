@@ -1,0 +1,263 @@
+TOTAL_TEXTS: 321
+=== ITEM 271 ===
+The order should be:
+=== ITEM 272 ===
+BASELINE
+   
+MEASURE
+   
+IDENTIFY ACTUAL BOTTLENECK
+   
+OPTIMIZE
+   
+MEASURE AGAIN
+   
+COMPARE
+   
+REGRESSION TEST
+=== ITEM 273 ===
+Specific areas Hermes may investigate:
+=== ITEM 274 ===
+frame throttling
+=== ITEM 275 ===
+unnecessary rendering
+=== ITEM 276 ===
+memory/OOM protection
+=== ITEM 277 ===
+texture/buffer pressure
+=== ITEM 278 ===
+encoder load
+=== ITEM 279 ===
+adaptive resolution/FPS
+=== ITEM 280 ===
+thermal mitigation
+=== ITEM 281 ===
+startup cost
+=== ITEM 282 ===
+network resilience under constrained hardware
+=== ITEM 284 ===
+no optimization should be justified solely because it sounds useful
+=== ITEM 285 ===
+. It needs measurement.
+=== ITEM 286 ===
+Physical-device requirement
+=== ITEM 287 ===
+This is particularly important for M12:
+=== ITEM 288 ===
+The Pixel 8 AVD is not sufficient to declare low-end optimization complete.
+=== ITEM 289 ===
+Hermes should use the weakest practical physical Android device available. If it cannot access suitable physical hardware, it must explicitly document that limitation and distinguish:
+=== ITEM 290 ===
+AVD validation
++
+available physical-device validation
+=== ITEM 291 ===
+rather than pretending the AVD represents low-end hardware.
+=== ITEM 292 ===
+Current project gate
+=== ITEM 294 ===
+ ?? Approved
+=== ITEM 296 ===
+M11 Scenes:
+=== ITEM 298 ===
+Revalidation required
+=== ITEM 300 ===
+M12 Low-End Optimization:
+=== ITEM 302 ===
+Scope defined, but locked until M11 passes
+=== ITEM 304 ===
+M13 Stress Testing:
+=== ITEM 307 ===
+M14 Security:
+=== ITEM 310 ===
+M15 Release QA:
+=== ITEM 312 ===
+Send Hermes this:
+=== ITEM 313 ===
+?? FAIRY LIVE - M11 CHATGPT REVALIDATION
+
+M11 implementation is architecturally acceptable, but M11 is
+NOT YET APPROVED.
+
+Do NOT begin M12 implementation yet.
+
+Two verification items must be corrected.
+
+==================================================
+1. RTMP CONTINUITY - CRITICAL
+==================================================
+
+The report claims scene switching does not interrupt/recreate
+the active RTMP stream.
+
+The current evidence only records:
+
+"LIVE (Unbroken)"
+
+That is insufficient by itself to prove same-session RTMP
+continuity.
+
+Perform a focused connected validation:
+
+START STREAM
+ Gameplay
+ Just Chatting
+ Be Right Back
+ Gameplay
+ repeat scene switching
+ STOP STREAM
+
+Produce an actual continuity ledger containing, where
+technically observable:
+
+- exact switch timestamps
+- RTMP connection/session identity
+- socket state/identity
+- reconnect count
+- MediaCodec identity/state
+- video timestamps before/after switch
+- audio timestamps before/after switch
+- pipeline drops
+- stream-state transitions
+
+The desired result is:
+
+RTMP disconnects = 0
+RTMP reconnects = 0
+stream restart = 0
+false LIVE transition = 0
+pipeline drops = 0
+
+IMPORTANT:
+
+If exact RTMP connection identity cannot be observed, explicitly
+state that limitation.
+
+Do NOT claim evidence that was not actually collected.
+
+==================================================
+2. RESOURCE AUDIT WORDING
+==================================================
+
+The 10-cycle ledger shows:
+
+PSS:
+63,173  63,177 KB
+
+Native:
+13,258  13,258 KB
+
+Dalvik:
+8,049  8,049 KB
+
+Threads:
+19  19
+
+Sockets:
+10  10
+
+Codecs:
+2  2
+
+Do NOT describe this as mathematical proof of zero leaks.
+
+Use evidence-supported wording:
+
+"No meaningful monotonic resource growth was observed across
+the 10-cycle scene switching audit."
+
+Do not claim zero leaks unless stronger evidence exists.
+
+==================================================
+3. REGRESSION
+==================================================
+
+After the focused revalidation, run:
+
+./gradlew clean testDebugUnitTest connectedDebugAndroidTest
+
+Confirm the actual final counts and exit code.
+
+==================================================
+4. DOCUMENTATION
+==================================================
+
+Synchronize:
+
+PROJECT_MEMORY.md
+DEVELOPMENT_LOG.md
+ARCHITECTURE.md
+REQUIREMENTS.md
+TESTING.md
+PERFORMANCE.md
+
+Remove unsupported wording.
+
+==================================================
+5. GIT
+==================================================
+
+Create a final clean M11 checkpoint only after revalidation.
+
+==================================================
+6. M12 PREPARATION - DO NOT IMPLEMENT YET
+==================================================
+
+After M11 is approved, M12 will be:
+
+LOW-END OPTIMIZATION.
+
+Official M12 measurement scope:
+
+- RAM
+- CPU
+- GPU
+- FPS
+- dropped frames
+- encoder load
+- startup
+- network stability
+- battery
+- temperature
+
+Optimization must be measurement-driven.
+
+Potential optimization areas include:
+
+- frame throttling
+- thermal mitigation
+- OOM protection
+- dynamic resolution/FPS adaptation
+- memory/texture pressure
+- encoder load
+- startup performance
+
+Do not blindly optimize.
+
+Pixel 8 AVD results must NOT be presented as low-end physical
+device validation.
+
+Use the weakest practical physical Android hardware available.
+If unavailable, document that limitation honestly.
+
+==================================================
+STOP CONDITION
+==================================================
+
+Do NOT start M12 until ChatGPT approves this M11 revalidation.
+
+After completing the revalidation, submit:
+
+?? M11 REVALIDATED - WAITING FOR CHATGPT REVIEW AND AUTHORIZATION FOR M12
+=== ITEM 314 ===
+So Hermes should do only this focused M11 revalidation now.
+=== ITEM 315 ===
+ If that comes back clean, I'll give the 
+=== ITEM 316 ===
+?? M11 APPROVED  M12 AUTHORIZED
+=== ITEM 317 ===
+ decision and your continuous overnight workflow can continue.
+=== ITEM 318 ===
+ChatGPT can make mistakes. Check important info.
+=== ITEM 319 ===
+Ask anything

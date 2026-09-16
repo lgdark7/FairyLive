@@ -1,0 +1,37 @@
+{
+  "test_title": "M13 Fresh Post-Fix 30-Minute RTMP Soak & Targeted A/V Audit",
+  "flv_recorded_file": "tools/output_m13_postfix_soak.flv",
+  "flv_file_size_bytes": 53604525,
+  "metrics": {
+    "total_aac_aus": 78365,
+    "captured_aus": 78365,
+    "synthesized_silence_aus": 0,
+    "total_aac_samples": 80245760,
+    "sample_derived_duration_seconds": 1819.632,
+    "first_aac_pts_ms": 214,
+    "last_aac_pts_ms": 1819823,
+    "aac_pts_span_ms": 1819609,
+    "aac_pts_span_seconds": 1819.609,
+    "first_video_pts_ms": 201,
+    "last_video_pts_ms": 1819802,
+    "video_pts_span_ms": 1819601,
+    "video_pts_span_seconds": 1819.601,
+    "final_av_delta_ms": 21,
+    "cumulative_drift_ms": 8,
+    "invariant_formula": "total_aac_samples / 44100 \u2248 aac_pts_span_seconds",
+    "sample_duration_vs_pts_discrepancy_seconds": 0.0227,
+    "max_consecutive_aac_pts_gap_ms": 24,
+    "number_of_timestamp_discontinuities_over_40ms": 0,
+    "logcat_silence_events_count": 0,
+    "logcat_silence_events": [],
+    "transport_pipeline_drops": 0
+  },
+  "stress_window_audit_min13_to_20": {
+    "total_aus_in_stress_window": 18088,
+    "captured_aus": 18088,
+    "synthesized_silence_aus": 0,
+    "silence_presence_verified": false,
+    "post_recovery_audio_rate_au_per_sec": 43.07,
+    "decodable_stream": true
+  }
+}

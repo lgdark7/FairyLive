@@ -71,15 +71,34 @@ data class WidgetOverlayConfig(
     val accentColorRgba: Int = Color.rgb(0, 229, 255)
 )
 
+enum class MaskShape {
+    RECTANGLE,
+    ROUNDED_RECT,
+    CIRCLE
+}
+
 /** Configuration for live browser / HTML web overlays. */
 data class WebOverlayConfig(
-    val url: String,
+    val url: String = "https://example.com",
     val transparentBackground: Boolean = true,
     val refreshIntervalSeconds: Int = 0, // 0 = no periodic refresh
     val cssInjection: String? = null,
     val isInteractive: Boolean = false,
-    val fallbackText: String = "Web overlay unavailable"
+    val fallbackText: String = "Web overlay unavailable",
+    val customWidth: Int = 800,
+    val customHeight: Int = 450,
+    val scrollX: Int = 0,
+    val scrollY: Int = 0,
+    val cropLeft: Float = 0f,
+    val cropTop: Float = 0f,
+    val cropRight: Float = 1f,
+    val cropBottom: Float = 1f,
+    val maskShape: MaskShape = MaskShape.RECTANGLE,
+    val cornerRadiusPx: Float = 0f
 )
+
+/** Typealias for YouTube subscriber widget config consistency */
+typealias YouTubeSubscriberConfig = YouTubeSubscriberWidgetConfig
 
 /** Configuration for YouTube live subscriber count widget. */
 data class YouTubeSubscriberWidgetConfig(

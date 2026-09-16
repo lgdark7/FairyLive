@@ -143,6 +143,7 @@ class OverlayCompositor(
         // Blocking: initialize GL on the render thread (the EGL context belongs to it).
         val initResult = handler.postWithResult {
             try {
+                renderer.context = appContext
                 val captureSurface = renderer.initialize(
                     encoderSurface,
                     width,

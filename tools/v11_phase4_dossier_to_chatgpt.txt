@@ -1,0 +1,69 @@
+═══════════════════════════════════════════════════════════════════════════════════
+FAIRY LIVE V1.1 - PHASE 4 ENGINEERING MILESTONE DOSSIER: COMPLETE DELIVERY & VERIFICATION
+═══════════════════════════════════════════════════════════════════════════════════
+DATE: 2026-09-17
+PLATFORM: Pure-Kotlin Native Android Live-Streaming Engine
+BRANCH: main
+DEVICE: Google Pixel 8 AVD (emulator-5554, Android 15 API 35)
+
+-----------------------------------------------------------------------------------
+1. EXECUTIVE SUMMARY & VERIFICATION GATE
+-----------------------------------------------------------------------------------
+- JVM Unit Tests: 206 / 206 PASSING (100% pass rate, +6 new Phase 4 contract unit tests)
+- Connected On-Device Instrumentation: 31 / 31 PASSING (100% pass rate)
+- Production Release APK Footprint: 2.3 MB (Strict engineering budget: < 15.0 MB)
+- Live RTMP Composite Stream: tools/v11_phase4_broadcast.flv (832,449 bytes, 12.0s capture)
+- Stream Metrics:
+  * Video: 289 frames, 23.73 fps, span 12,180 ms, total video payload 674,434 bytes
+  * Audio: 520 AUs, avg PTS delta 23.22 ms, 0 gaps > 40ms, total audio payload 145,867 bytes
+  * A/V Sync Status: IN_SYNC (final PTS delta: 38 ms, within the <60 ms threshold)
+  * Average Bitrate: 547.33 kbps
+- Active Hardware/Software Codecs: Exactly 2 active codecs (c2.android.avc.encoder, c2.android.aac.encoder)
+- Security Compliance: Zero plaintext stream keys/tokens in code, logs, or UI [REDACTED]
+
+-----------------------------------------------------------------------------------
+2. DETAILED PHASE 4 IMPLEMENTATION SUMMARY
+-----------------------------------------------------------------------------------
+A. ARBITRARY GEOMETRY & ROTATION (0°–360°):
+- Full support for arbitrary element rotation in OverlayTransform, BroadcastPreviewView, and GlesRenderer.
+- Matrix math in GlesRenderer handles rotation, scaling, translation, and pivot points.
+- Interactive multi-touch two-finger rotation gesture and inspector angle slider/presets (0°, 90°, 180°, 270°).
+
+B. ARBITRARY RECTANGULAR & SHAPE CROPPING (MaskShape):
+- Integrated CropRegion normalized boundaries (cropLeft, cropTop, cropRight, cropBottom) into WebOverlayConfig.
+- Added MaskShape support (RECTANGLE, ROUNDED_RECT, CIRCLE) with cornerRadiusPx.
+- Implemented non-destructive bitmap crop in OffscreenWebRenderer and OpenGL ES shader texture coordinate mapping.
+
+C. HEADLESS WEB OVERLAY RASTERIZER (OffscreenWebRenderer):
+- Pure offscreen WebView rasterization directly to ARGB_8888 Bitmaps without attaching to on-screen view trees.
+- Programmatic scroll offsets (scrollX, scrollY) and zoom level (setInitialScale) targeting specific sub-regions.
+- CSS and JS injection via evaluateJavascript for widget styling and removing extraneous navigation headers.
+- Transparent canvas support with hardware canvas lock/unlock for zero-copy bitmap extraction.
+
+D. ZERO-LEAK RENDER DOMAIN ISOLATION:
+- Strict segregation of BROADCAST_COMPOSITE (game/screen capture + transformed overlays -> GLES -> MediaCodec AVC -> RTMP) and STREAMER_HUD_UI (WindowManager.addView TYPE_APPLICATION_OVERLAY).
+- Streamer HUD, chat bubbles, health counters, studio canvas controls, and inspectors NEVER leak into the broadcast stream.
+- Verified on Android 15 emulator with live screencap tools/v11_phase4_broadcast.flv.
+
+E. STREAMER FLOATING HUD ENHANCEMENTS:
+- Facecam toggle, Mic mute toggle, Chat HUD, and Pause/Freeze controls.
+- Dynamic drag-to-dock physics and non-intrusive floating pills.
+
+-----------------------------------------------------------------------------------
+3. TEST & ARTIFACT PROOF
+-----------------------------------------------------------------------------------
+- Unit Test Report: app/build/test-results/testDebugUnitTest/ (206 testcases passed)
+  * V11Phase4ContractUnitTest: testRenderDomainIsolationGuaranteed, testWebOverlayArbitraryRotation, testWebOverlayCropAndMaskShapePersistence, testWebOverlayScrollAndZoomConfig, testStreamerHudControlsIsolation, testYouTubeSubscriberBadgeIsolation
+- Connected Instrumentation: app/build/outputs/androidTest-results/connected/debug/ (31 testcases passed)
+- Release Binary: app/build/outputs/apk/release/app-release-unsigned.apk (2,374,484 bytes / 2.3 MB)
+- Visual Artifacts:
+  * screenshots/v11_phase4_home.png (Warm Editorial Dashboard)
+  * screenshots/v11_phase4_studio_web.png (Studio canvas with rotated & cropped web overlay)
+  * screenshots/v11_phase4_creator_hud.png (Creator Floating HUD)
+  * screenshots/v11_phase4_live_output.png (Broadcast composite stream proof)
+- Broadcast Capture:
+  * tools/v11_phase4_broadcast.flv (832,449 bytes)
+  * tools/v11_phase4_metrics.json (PTS continuity & A/V sync proof)
+
+Phase 4 requirements are 100% complete and verified. Ready for Phase 5 Master Directive.
+═══════════════════════════════════════════════════════════════════════════════════

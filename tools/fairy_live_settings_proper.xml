@@ -1,0 +1,12 @@
+<?xml version='1.0' encoding='utf-8' standalone='yes' ?>
+<map>
+    <string name="profile">LOW</string>
+    <int name="width" value="854" />
+    <int name="fps" value="24" />
+    <int name="audio_bitrate" value="96" />
+    <string name="server_url">rtmp://127.0.0.1:19350/live</string>
+    <boolean name="mic_enabled" value="true" />
+    <int name="video_bitrate" value="1200" />
+    <string name="stream_key">m13_stream</string>
+    <int name="height" value="480" />
+</map>

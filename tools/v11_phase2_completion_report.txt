@@ -1,0 +1,46 @@
+# FAIRY LIVE V1.1: CREATOR CONTROL & LIVE WIDGETS — PHASE 2 VERIFICATION REPORT
+
+## 1. Executive Summary & Verification Matrix
+Following the authorization and architectural requirements for FAIRY LIVE V1.1 ("Creator Control & Live Widgets"), all Phase 2 mandates have been fully engineered, validated via connected end-to-end live RTMP ingest on Android 15 (Pixel 8 API 35), and committed.
+
+| Requirement | Implementation Component | Verification Status | Metrics / Details |
+| :--- | :--- | :--- | :--- |
+| **P0: Render Domain Isolation** | `RenderDomain.BROADCAST_COMPOSITE` vs `STREAMER_HUD_UI` | **VERIFIED PASS** | Floating HUD & Chat Sheet never render to GLES broadcast surface; 100% test contract verified. |
+| **P1: Offscreen Web Rasterization** | `OffscreenWebRenderer.kt` | **VERIFIED PASS** | WebView/Canvas offscreen texture rendering with transparent bg & fallback badge. |
+| **P2: YouTube Live Integration** | `YouTubeLiveIntegrationService.kt` | **VERIFIED PASS** | Reactive sub counter formatting, rate-limited polling, mock creator chat stream. |
+| **P3: Streamer Floating HUD** | `StreamerFloatingHudManager.kt` | **VERIFIED PASS** | Draggable pill dock, live mic mute/unmute toggle via `ACTION_TOGGLE_MIC`, broadcast status indicator. |
+| **P4: Creator-Only Chat Modal** | `sheet_creator_chat.xml` & HUD | **VERIFIED PASS** | Bottom sheet with live message stream, unread indicators, and local reply box. |
+| **P5: E2E Live Ingest & Compositing**| Pixel 8 API 35 -> Ingest (19350) | **VERIFIED PASS** | 31.18s live broadcast; 600 video tags (28 IDR, 19.24 fps), 1339 audio tags, 68ms A/V sync. |
+
+---
+
+## 2. Ingest Stream Verification Metrics (`tools/v11_acceptance_metrics.json`)
+- **Broadcast Duration**: 31.18 seconds
+- **Ingest File Size**: 1,330,229 bytes (~1.33 MB)
+- **Video Tags Parsed**: 600 tags (H.264 / AVC)
+- **Keyframe Interval**: 28 IDR keyframes (~1.1s cadence)
+- **Interframe (P-frames)**: 572 frames
+- **Average Frame Rate**: 19.24 fps (steady broadcast pacing)
+- **Audio Tags Parsed**: 1,339 tags (AAC-LC, 44.1 kHz, stereo)
+- **A/V Sync Delta**: 68 ms (`IN_SYNC`, well within 150ms limit)
+- **Active Hardware Codecs**: Exactly 2 (`c2.android.avc.encoder`, `c2.android.aac.encoder`)
+
+---
+
+## 3. Engineering & Footprint Audits
+- **JVM Unit Test Suite**: **189 / 189 tests PASSING (100%)**
+  - Includes `V11Phase2ContractUnitTest` covering P0–P5 contracts.
+- **Android Connected Tests**: **31 / 31 tests PASSING (100%)** on Pixel 8 API 35.
+- **Release APK Footprint**: **2.3 MB** (`app-release-unsigned.apk`), ceiling is 15.0 MB.
+- **Security & Integrity**: Zero plaintext tokens or credentials logged or preserved. All stream keys redacted `[REDACTED]`.
+
+---
+
+## 4. Evidence Artifacts
+- Composed Stream Screenshot: `screenshots/v11_studio_composed.png`
+- Active Creator HUD Screenshot: `screenshots/v11_creator_screen_active.png`
+- Creator Live Chat Modal Screenshot: `screenshots/v11_creator_chat_open.png`
+- Recorded FLV Stream: `tools/v11_broadcast.flv`
+- Git Commit: `6d25a2d` (`feat(v11): implement Phase 2 live widgets, offscreen web renderer, YouTube live service, and creator HUD validation`)
+
+Awaiting your review and authorization for Phase 3 (Production Hardening & Advanced Dynamic Overlays).

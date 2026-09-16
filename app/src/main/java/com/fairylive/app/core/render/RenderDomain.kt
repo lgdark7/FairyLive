@@ -17,5 +17,10 @@ enum class RenderDomain {
      * MUST NEVER enter BroadcastScene, GLES Compositor, or RTMP packets.
      * Examples: Streamer Floating HUD, YouTube Live Chat, Diagnostics, Mic/Camera Dock.
      */
-    CREATOR_ONLY
+    CREATOR_ONLY;
+
+    companion object {
+        val BROADCAST_COMPOSITE = BROADCAST
+        val STREAMER_HUD_UI = CREATOR_ONLY
+    }
 }

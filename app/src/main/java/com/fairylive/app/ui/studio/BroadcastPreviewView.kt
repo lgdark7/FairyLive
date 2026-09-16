@@ -16,18 +16,26 @@ import android.widget.TextView
 import androidx.core.content.ContextCompat
 import com.fairylive.app.R
 import com.fairylive.app.core.camera.model.FacecamConfig
-import com.fairylive.app.core.compositor.model.OverlayElement
-import com.fairylive.app.core.compositor.model.OverlayType
+import com.fairylive.app.core.compositor.model.*
 import com.fairylive.app.core.compositor.rasterizer.QrMatrixEncoder
+import com.fairylive.app.core.compositor.render.OffscreenWebRenderer
 import com.fairylive.app.core.scene.model.BroadcastScene
 import com.fairylive.app.core.scene.model.SceneBackgroundMode
+import kotlin.math.atan2
+import kotlin.math.hypot
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.roundToInt
 
 /**
  * High-fidelity, touch-interactive Live Preview View for the Creator Studio.
  * Renders the shared scene model WYSIWYG without burning studio UI controls into the broadcast.
- * Handles hit-testing, dragging, and resizing with normalized coordinates [0.0..1.0].
+ * Supports:
+ * - Direct Web Viewport internal scrolling (single finger inside web overlay)
+ * - Move, Scale, and live Rotation Handle (0..360°)
+ * - Two-finger simultaneous pinch-zoom and rotation
+ * - Non-destructive Web Viewport Cropping
+ * - RenderDomain isolation: All editing handles are Creator-Only UI and never leak to composite.
  */
 class BroadcastPreviewView @JvmOverloads constructor(
     context: Context,
@@ -39,6 +47,9 @@ class BroadcastPreviewView @JvmOverloads constructor(
         fun onElementSelected(elementId: String?)
         fun onElementTransformed(elementId: String, normX: Float, normY: Float, normW: Float, normH: Float)
         fun onFacecamTransformed(normX: Float, normY: Float, normW: Float, normH: Float)
+        fun onElementRotated(elementId: String, rotationDegrees: Float) {}
+        fun onWebScrolled(elementId: String, scrollX: Int, scrollY: Int) {}
+        fun onCropUpdated(elementId: String, cropLeft: Float, cropTop: Float, cropRight: Float, cropBottom: Float) {}
     }
 
     var interactionListener: InteractionListener? = null
@@ -51,6 +62,12 @@ class BroadcastPreviewView @JvmOverloads constructor(
     private var lastTouchX = 0f
     private var lastTouchY = 0f
     private var activeCorner = -1 // 0: TL, 1: TR, 2: BR, 3: BL
+
+    // Two-finger gesture tracking
+    private var initialFingerDistance = 0f
+    private var initialFingerAngle = 0f
+    private var initialElementScale = 1f
+    private var initialElementRotation = 0f
 
     private val selectionPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.STROKE
@@ -72,6 +89,17 @@ class BroadcastPreviewView @JvmOverloads constructor(
         style = Paint.Style.STROKE
         strokeWidth = 1.5f * resources.displayMetrics.density
         color = Color.parseColor("#6366F1")
+    }
+
+    private val rotationStemPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE
+        strokeWidth = 1.5f * resources.displayMetrics.density
+        color = Color.parseColor("#6366F1")
+    }
+
+    private val rotationHandlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.FILL
+        color = Color.parseColor("#38BDF8") // Cyan accent for rotation
     }
 
     private val guidelinePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -100,9 +128,11 @@ class BroadcastPreviewView @JvmOverloads constructor(
         get() = HANDLE_RADIUS_DP * resources.displayMetrics.density
     private val handleTouchRadiusPx: Float
         get() = 24f * resources.displayMetrics.density
+    private val rotationStemHeightPx: Float
+        get() = 28f * resources.displayMetrics.density
 
     private enum class TouchMode {
-        NONE, DRAG, RESIZE
+        NONE, DRAG, RESIZE, ROTATE, TWO_FINGER, WEB_SCROLL
     }
 
     init {
@@ -114,7 +144,6 @@ class BroadcastPreviewView @JvmOverloads constructor(
         val width = MeasureSpec.getSize(widthMeasureSpec)
         val height = MeasureSpec.getSize(heightMeasureSpec)
 
-        // Strict 16:9 aspect ratio letterbox/pillarbox
         val targetRatio = 16f / 9f
         val calculatedHeight = (width / targetRatio).toInt()
 
@@ -203,6 +232,7 @@ class BroadcastPreviewView @JvmOverloads constructor(
                     leftMargin = fcX
                     topMargin = fcY
                 }
+                rotation = fc.rotationDegrees
             }
             addView(facecamView)
         }
@@ -329,6 +359,22 @@ class BroadcastPreviewView @JvmOverloads constructor(
                     tv.setPadding(6, 4, 6, 4)
                     tv
                 }
+                OverlayType.WEB -> {
+                    val iv = ImageView(context)
+                    val cfg = elem.webConfig ?: WebOverlayConfig()
+                    val bmp = OffscreenWebRenderer.getInstance(context).getOrRenderBitmap(elem.id, cfg)
+                    iv.setImageBitmap(bmp)
+                    iv.scaleType = ImageView.ScaleType.FIT_CENTER
+                    iv
+                }
+                OverlayType.YOUTUBE_SUBSCRIBER -> {
+                    val iv = ImageView(context)
+                    val cfg = elem.youtubeSubscriberConfig ?: YouTubeSubscriberConfig()
+                    val bmp = com.fairylive.app.core.compositor.rasterizer.YouTubeSubscriberRasterizer.rasterize(cfg)
+                    iv.setImageBitmap(bmp)
+                    iv.scaleType = ImageView.ScaleType.FIT_CENTER
+                    iv
+                }
                 OverlayType.ALERT -> {
                     val tv = TextView(context)
                     val cfg = elem.alertConfig
@@ -350,6 +396,7 @@ class BroadcastPreviewView @JvmOverloads constructor(
             overlayView.alpha = elem.opacity
             overlayView.scaleX = elem.scale
             overlayView.scaleY = elem.scale
+            overlayView.rotation = elem.rotationDegrees
             overlayView.layoutParams = LayoutParams(elemW, elemH).apply {
                 leftMargin = elemX
                 topMargin = elemY
@@ -385,32 +432,48 @@ class BroadcastPreviewView @JvmOverloads constructor(
         val rect = getElementBounds(scene, selId, w, h) ?: return
         val elem = if (selId != "facecam") scene.overlayElements.firstOrNull { it.id == selId } else null
         val isLocked = elem?.locked == true
+        val rotDegrees = elem?.rotationDegrees ?: (if (selId == "facecam") scene.facecamConfig.rotationDegrees else 0f)
+
+        canvas.save()
+        val centerX = rect.centerX()
+        val centerY = rect.centerY()
+        canvas.rotate(rotDegrees, centerX, centerY)
 
         // 1. Draw bounding rectangle
         canvas.drawRect(rect, selectionFillPaint)
         canvas.drawRect(rect, selectionPaint)
 
-        // 2. Draw 4 corner resize handles (only if unlocked)
+        // 2. Draw handles (only if unlocked)
         if (!isLocked) {
             val r = handleRadiusPx
             val corners = arrayOf(
-                Pair(rect.left, rect.top),
-                Pair(rect.right, rect.top),
-                Pair(rect.right, rect.bottom),
-                Pair(rect.left, rect.bottom)
+                Pair(rect.left, rect.top),     // TL
+                Pair(rect.right, rect.top),    // TR
+                Pair(rect.right, rect.bottom), // BR
+                Pair(rect.left, rect.bottom)   // BL
             )
             for ((cx, cy) in corners) {
                 canvas.drawCircle(cx, cy, r, handlePaint)
                 canvas.drawCircle(cx, cy, r, handleStrokePaint)
             }
+
+            // 3. Draw rotation handle extending above the top edge
+            val topCenterX = rect.centerX()
+            val topCenterY = rect.top
+            val rotHandleY = topCenterY - rotationStemHeightPx
+
+            canvas.drawLine(topCenterX, topCenterY, topCenterX, rotHandleY, rotationStemPaint)
+            canvas.drawCircle(topCenterX, rotHandleY, r * 1.2f, rotationHandlePaint)
+            canvas.drawCircle(topCenterX, rotHandleY, r * 1.2f, handleStrokePaint)
         }
 
-        // 3. Draw clean element type badge (no technical coordinates)
+        // 4. Element type badge
         val label = if (selId == "facecam") {
             "Camera"
         } else {
             val baseName = elem?.type?.name?.lowercase()?.replaceFirstChar { it.uppercase() } ?: "Overlay"
-            if (isLocked) "🔒 $baseName" else baseName
+            val rotSuffix = if (rotDegrees != 0f) " • ${rotDegrees.roundToInt()}°" else ""
+            if (isLocked) "🔒 $baseName$rotSuffix" else "$baseName$rotSuffix"
         }
 
         val textWidth = labelPaint.measureText(label)
@@ -420,6 +483,8 @@ class BroadcastPreviewView @JvmOverloads constructor(
         }
         canvas.drawRoundRect(labelBg, 4f, 4f, labelBgPaint)
         canvas.drawText(label, labelBg.left + 8f, labelBg.bottom - 6f, labelPaint)
+
+        canvas.restore()
     }
 
     private fun getElementBounds(scene: BroadcastScene, id: String, viewW: Float, viewH: Float): RectF? {
@@ -451,6 +516,61 @@ class BroadcastPreviewView @JvmOverloads constructor(
         val h = height.toFloat()
         if (w <= 0f || h <= 0f) return super.onTouchEvent(event)
 
+        val pointerCount = event.pointerCount
+
+        // P5 & P9: Two-finger arbitration for simultaneous pinch scale and rotation
+        if (pointerCount == 2) {
+            val selId = selectedId
+            if (selId != null) {
+                val elem = if (selId != "facecam") scene.overlayElements.firstOrNull { it.id == selId } else null
+                if (elem?.locked != true) {
+                    val p0x = event.getX(0)
+                    val p0y = event.getY(0)
+                    val p1x = event.getX(1)
+                    val p1y = event.getY(1)
+
+                    when (event.actionMasked) {
+                        MotionEvent.ACTION_POINTER_DOWN -> {
+                            touchMode = TouchMode.TWO_FINGER
+                            initialFingerDistance = hypot((p1x - p0x).toDouble(), (p1y - p0y).toDouble()).toFloat()
+                            initialFingerAngle = Math.toDegrees(atan2((p1y - p0y).toDouble(), (p1x - p0x).toDouble())).toFloat()
+                            initialElementScale = elem?.scale ?: 1f
+                            initialElementRotation = elem?.rotationDegrees ?: (if (selId == "facecam") scene.facecamConfig.rotationDegrees else 0f)
+                            parent?.requestDisallowInterceptTouchEvent(true)
+                            return true
+                        }
+                        MotionEvent.ACTION_MOVE -> {
+                            if (touchMode == TouchMode.TWO_FINGER && initialFingerDistance > 10f) {
+                                val currentDistance = hypot((p1x - p0x).toDouble(), (p1y - p0y).toDouble()).toFloat()
+                                val currentAngle = Math.toDegrees(atan2((p1y - p0y).toDouble(), (p1x - p0x).toDouble())).toFloat()
+
+                                val scaleFactor = currentDistance / initialFingerDistance
+                                val newScale = (initialElementScale * scaleFactor).coerceIn(0.1f, 5.0f)
+
+                                val deltaAngle = currentAngle - initialFingerAngle
+                                val newRot = ((initialElementRotation + deltaAngle) % 360f + 360f) % 360f
+
+                                if (selId != "facecam") {
+                                    val overlay = elem ?: return true
+                                    val updated = overlay.copy(scale = newScale, rotationDegrees = newRot)
+                                    val updatedScene = scene.copy(
+                                        overlayElements = scene.overlayElements.map { if (it.id == selId) updated else it }
+                                    )
+                                    setScene(updatedScene)
+                                    interactionListener?.onElementRotated(selId, newRot)
+                                }
+                                invalidate()
+                                return true
+                            }
+                        }
+                        MotionEvent.ACTION_POINTER_UP -> {
+                            touchMode = TouchMode.NONE
+                        }
+                    }
+                }
+            }
+        }
+
         val touchX = event.x
         val touchY = event.y
 
@@ -459,7 +579,7 @@ class BroadcastPreviewView @JvmOverloads constructor(
                 lastTouchX = touchX
                 lastTouchY = touchY
 
-                // Check if touching a resize handle of current selection
+                // Check hit on rotation handle or resize handles of selected element
                 val selId = selectedId
                 if (selId != null) {
                     val elem = if (selId != "facecam") scene.overlayElements.firstOrNull { it.id == selId } else null
@@ -467,6 +587,14 @@ class BroadcastPreviewView @JvmOverloads constructor(
                     if (!isLocked) {
                         val rect = getElementBounds(scene, selId, w, h)
                         if (rect != null) {
+                            // Check rotation handle hit
+                            if (isHitRotationHandle(rect, touchX, touchY)) {
+                                touchMode = TouchMode.ROTATE
+                                parent?.requestDisallowInterceptTouchEvent(true)
+                                return true
+                            }
+
+                            // Check resize handle hit
                             val hitHandle = getHitHandle(rect, touchX, touchY)
                             if (hitHandle >= 0) {
                                 activeCorner = hitHandle
@@ -474,11 +602,18 @@ class BroadcastPreviewView @JvmOverloads constructor(
                                 parent?.requestDisallowInterceptTouchEvent(true)
                                 return true
                             }
+
+                            // Check Web Overlay internal scroll hit (P1 & P10)
+                            if (elem?.type == OverlayType.WEB && rect.contains(touchX, touchY)) {
+                                touchMode = TouchMode.WEB_SCROLL
+                                parent?.requestDisallowInterceptTouchEvent(true)
+                                return true
+                            }
                         }
                     }
                 }
 
-                // Hit-test elements (top-most z-index first)
+                // Hit-test elements
                 val hitElement = hitTestElements(scene, touchX, touchY, w, h)
                 if (hitElement != null) {
                     selectedId = hitElement
@@ -490,7 +625,6 @@ class BroadcastPreviewView @JvmOverloads constructor(
                     invalidate()
                     return true
                 } else {
-                    // Tap outside deselects
                     selectedId = null
                     touchMode = TouchMode.NONE
                     interactionListener?.onElementSelected(null)
@@ -509,6 +643,49 @@ class BroadcastPreviewView @JvmOverloads constructor(
                 val deltaNormY = dy / h
 
                 when (touchMode) {
+                    TouchMode.ROTATE -> {
+                        val rect = getElementBounds(scene, selId, w, h) ?: return false
+                        val centerX = rect.centerX()
+                        val centerY = rect.centerY()
+                        val rad = atan2((touchY - centerY).toDouble(), (touchX - centerX).toDouble())
+                        var deg = Math.toDegrees(rad).toFloat() + 90f // +90 because handle is at top
+                        deg = ((deg % 360f) + 360f) % 360f
+
+                        if (selId != "facecam") {
+                            val overlay = elem ?: return false
+                            val updated = overlay.copy(rotationDegrees = deg)
+                            val updatedScene = scene.copy(
+                                overlayElements = scene.overlayElements.map { if (it.id == selId) updated else it }
+                            )
+                            setScene(updatedScene)
+                            interactionListener?.onElementRotated(selId, deg)
+                        }
+                        invalidate()
+                        return true
+                    }
+
+                    TouchMode.WEB_SCROLL -> {
+                        // P1 & P10: Single finger drag inside webpage scrolls document, NOT the overlay
+                        val overlay = elem ?: return false
+                        val cfg = overlay.webConfig ?: WebOverlayConfig()
+                        val scrollSpeedMultiplier = 2.0f
+                        val newScrollX = (cfg.scrollX - (dx * scrollSpeedMultiplier).toInt()).coerceAtLeast(0)
+                        val newScrollY = (cfg.scrollY - (dy * scrollSpeedMultiplier).toInt()).coerceAtLeast(0)
+
+                        val updatedCfg = cfg.copy(scrollX = newScrollX, scrollY = newScrollY)
+                        val updatedElem = overlay.copy(webConfig = updatedCfg)
+                        val updatedScene = scene.copy(
+                            overlayElements = scene.overlayElements.map { if (it.id == selId) updatedElem else it }
+                        )
+                        setScene(updatedScene)
+                        OffscreenWebRenderer.getInstance(context).scrollWebPage(selId, updatedCfg, newScrollX, newScrollY)
+                        interactionListener?.onWebScrolled(selId, newScrollX, newScrollY)
+                        lastTouchX = touchX
+                        lastTouchY = touchY
+                        invalidate()
+                        return true
+                    }
+
                     TouchMode.DRAG -> {
                         snapGuideVerticalX = null
                         snapGuideHorizontalY = null
@@ -535,7 +712,7 @@ class BroadcastPreviewView @JvmOverloads constructor(
                         var newX = (origX + deltaNormX).coerceIn(0f, 1f - elemW)
                         var newY = (origY + deltaNormY).coerceIn(0f, 1f - elemH)
 
-                        // 1. Center & Margin Snap on X axis
+                        // Center & Margin Snapping
                         val centerX = newX + elemW / 2f
                         if (Math.abs(centerX - 0.5f) < 0.025f) {
                             newX = 0.5f - elemW / 2f
@@ -548,7 +725,6 @@ class BroadcastPreviewView @JvmOverloads constructor(
                             snapGuideVerticalX = 0.95f * w
                         }
 
-                        // 2. Center & Margin Snap on Y axis
                         val centerY = newY + elemH / 2f
                         if (Math.abs(centerY - 0.5f) < 0.025f) {
                             newY = 0.5f - elemH / 2f
@@ -608,6 +784,14 @@ class BroadcastPreviewView @JvmOverloads constructor(
         return super.onTouchEvent(event)
     }
 
+    private fun isHitRotationHandle(rect: RectF, x: Float, y: Float): Boolean {
+        val topCenterX = rect.centerX()
+        val rotHandleY = rect.top - rotationStemHeightPx
+        val radius = handleTouchRadiusPx * 1.3f
+        val distSq = (x - topCenterX) * (x - topCenterX) + (y - rotHandleY) * (y - rotHandleY)
+        return distSq <= radius * radius
+    }
+
     private fun getHitHandle(rect: RectF, x: Float, y: Float): Int {
         val radius = handleTouchRadiusPx
         val corners = arrayOf(
@@ -627,7 +811,6 @@ class BroadcastPreviewView @JvmOverloads constructor(
     }
 
     private fun hitTestElements(scene: BroadcastScene, x: Float, y: Float, viewW: Float, viewH: Float): String? {
-        // 1. Check overlays in reverse z-index order (top-most first)
         val sortedDesc = scene.overlayElements.sortedByDescending { it.zIndex }
         for (elem in sortedDesc) {
             if (!elem.visible) continue
@@ -637,7 +820,6 @@ class BroadcastPreviewView @JvmOverloads constructor(
             }
         }
 
-        // 2. Check facecam
         if (scene.facecamConfig.enabled) {
             val fcRect = getElementBounds(scene, "facecam", viewW, viewH)
             if (fcRect != null && fcRect.contains(x, y)) {

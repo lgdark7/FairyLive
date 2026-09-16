@@ -43,6 +43,7 @@ import com.google.android.material.switchmaterial.SwitchMaterial
 import androidx.core.widget.doAfterTextChanged
 import com.fairylive.app.core.camera.model.CameraFacing
 import com.fairylive.app.core.camera.model.FacecamConfig
+import com.fairylive.app.core.compositor.render.OffscreenWebRenderer
 import kotlin.math.roundToInt
 
 class CreatorStudioFragment : Fragment(),
@@ -373,6 +374,16 @@ class CreatorStudioFragment : Fragment(),
         val sheetView = layoutInflater.inflate(R.layout.sheet_add_overlay, null)
         dialog.setContentView(sheetView)
 
+        dialog.setOnShowListener {
+            val bottomSheet = dialog.findViewById<View>(com.google.android.material.R.id.design_bottom_sheet) as? FrameLayout
+            if (bottomSheet != null) {
+                val behavior = BottomSheetBehavior.from(bottomSheet)
+                val displayMetrics = resources.displayMetrics
+                behavior.peekHeight = (displayMetrics.heightPixels * 0.75f).toInt()
+                behavior.state = BottomSheetBehavior.STATE_EXPANDED
+            }
+        }
+
         sheetView.findViewById<View>(R.id.item_add_text).setOnClickListener {
             dialog.dismiss()
             showAddTextDialog()
@@ -407,7 +418,7 @@ class CreatorStudioFragment : Fragment(),
         }
         sheetView.findViewById<View>(R.id.item_add_widget).setOnClickListener {
             dialog.dismiss()
-            addDefaultWidget()
+            addDefaultWebOverlay()
         }
         sheetView.findViewById<View>(R.id.item_add_alert).setOnClickListener {
             dialog.dismiss()
@@ -658,41 +669,46 @@ class CreatorStudioFragment : Fragment(),
             }
         })
 
-        // Position & Scale
+        // Position, Scale & Rotation
         val sectionTransform = sheetView.findViewById<View>(R.id.section_transform_controls)
         val etPosX = sheetView.findViewById<EditText>(R.id.et_pos_x)
         val etPosY = sheetView.findViewById<EditText>(R.id.et_pos_y)
         val etScale = sheetView.findViewById<EditText>(R.id.et_scale)
+        val etRot = sheetView.findViewById<EditText>(R.id.et_rotation)
 
-        val showTransform = when (elem.type) {
-            OverlayType.TEXT, OverlayType.IMAGE, OverlayType.GIF, OverlayType.QR -> true
-            else -> false
+        // Show transform for all visual overlay types (P3 requirement)
+        sectionTransform.visibility = View.VISIBLE
+        etPosX.setText("${(currentElem.normalizedX * 100).roundToInt()}")
+        etPosY.setText("${(currentElem.normalizedY * 100).roundToInt()}")
+        etScale.setText(String.format(java.util.Locale.US, "%.1f", currentElem.scale))
+        etRot.setText("${currentElem.rotationDegrees.roundToInt()}")
+
+        etPosX.doAfterTextChanged { text ->
+            val v = text?.toString()?.toIntOrNull()
+            if (v != null) {
+                val normX = (v / 100f).coerceIn(0f, 1f - currentElem.normalizedWidth)
+                applyLiveUpdate(currentElem.copy(normalizedX = normX))
+            }
         }
-        if (showTransform) {
-            sectionTransform.visibility = View.VISIBLE
-            etPosX.setText("${(currentElem.normalizedX * 100).roundToInt()}")
-            etPosY.setText("${(currentElem.normalizedY * 100).roundToInt()}")
-            etScale.setText(String.format(java.util.Locale.US, "%.1f", currentElem.scale))
-
-            etPosX.doAfterTextChanged { text ->
-                val v = text?.toString()?.toIntOrNull()
-                if (v != null) {
-                    val normX = (v / 100f).coerceIn(0f, 1f - currentElem.normalizedWidth)
-                    applyLiveUpdate(currentElem.copy(normalizedX = normX))
-                }
+        etPosY.doAfterTextChanged { text ->
+            val v = text?.toString()?.toIntOrNull()
+            if (v != null) {
+                val normY = (v / 100f).coerceIn(0f, 0.95f)
+                applyLiveUpdate(currentElem.copy(normalizedY = normY))
             }
-            etPosY.doAfterTextChanged { text ->
-                val v = text?.toString()?.toIntOrNull()
-                if (v != null) {
-                    val normY = (v / 100f).coerceIn(0f, 0.95f)
-                    applyLiveUpdate(currentElem.copy(normalizedY = normY))
-                }
+        }
+        etScale.doAfterTextChanged { text ->
+            val v = text?.toString()?.toFloatOrNull()
+            if (v != null && v > 0f) {
+                applyLiveUpdate(currentElem.copy(scale = v.coerceIn(0.1f, 5.0f)))
             }
-            etScale.doAfterTextChanged { text ->
-                val v = text?.toString()?.toFloatOrNull()
-                if (v != null && v > 0f) {
-                    applyLiveUpdate(currentElem.copy(scale = v.coerceIn(0.1f, 5.0f)))
-                }
+        }
+        etRot.doAfterTextChanged { text ->
+            val v = text?.toString()?.toFloatOrNull()
+            if (v != null) {
+                // Normalize to [-180..180] or [0..360]
+                val normalizedRot = ((v % 360f) + 360f) % 360f
+                applyLiveUpdate(currentElem.copy(rotationDegrees = normalizedRot))
             }
         }
 
@@ -985,6 +1001,85 @@ class CreatorStudioFragment : Fragment(),
                 }
             }
 
+            OverlayType.WEB -> {
+                val sec = sheetView.findViewById<View>(R.id.section_web_controls)
+                sec.visibility = View.VISIBLE
+                val etUrl = sheetView.findViewById<EditText>(R.id.et_web_url)
+                val btnLoad = sheetView.findViewById<MaterialButton>(R.id.btn_web_load)
+                val switchTransparent = sheetView.findViewById<SwitchMaterial>(R.id.switch_web_transparent)
+                val etScrollX = sheetView.findViewById<EditText>(R.id.et_web_scroll_x)
+                val etScrollY = sheetView.findViewById<EditText>(R.id.et_web_scroll_y)
+                val btnCrop10 = sheetView.findViewById<MaterialButton>(R.id.btn_web_crop_10)
+                val btnCropReset = sheetView.findViewById<MaterialButton>(R.id.btn_web_crop_reset)
+
+                val cfg = elem.webConfig ?: WebOverlayConfig()
+                etUrl.setText(cfg.url)
+                switchTransparent.isChecked = cfg.transparentBackground
+                etScrollX.setText(cfg.scrollX.toString())
+                etScrollY.setText(cfg.scrollY.toString())
+
+                fun updateWebConfig(
+                    newUrl: String = etUrl.text?.toString() ?: "",
+                    transparent: Boolean = switchTransparent.isChecked,
+                    scrollX: Int = etScrollX.text?.toString()?.toIntOrNull() ?: 0,
+                    scrollY: Int = etScrollY.text?.toString()?.toIntOrNull() ?: 0,
+                    cropLeft: Float = (currentElem.webConfig ?: cfg).cropLeft,
+                    cropTop: Float = (currentElem.webConfig ?: cfg).cropTop,
+                    cropRight: Float = (currentElem.webConfig ?: cfg).cropRight,
+                    cropBottom: Float = (currentElem.webConfig ?: cfg).cropBottom,
+                    forceReload: Boolean = false
+                ) {
+                    val updatedCfg = (currentElem.webConfig ?: cfg).copy(
+                        url = newUrl,
+                        transparentBackground = transparent,
+                        scrollX = scrollX,
+                        scrollY = scrollY,
+                        cropLeft = cropLeft,
+                        cropTop = cropTop,
+                        cropRight = cropRight,
+                        cropBottom = cropBottom
+                    )
+                    val updatedElem = currentElem.copy(webConfig = updatedCfg)
+                    applyLiveUpdate(updatedElem, commitHistory = forceReload)
+                    if (forceReload) {
+                        OffscreenWebRenderer.getInstance(requireContext()).reload(currentElem.id, updatedCfg)
+                    } else {
+                        OffscreenWebRenderer.getInstance(requireContext()).scrollWebPage(currentElem.id, updatedCfg, scrollX, scrollY)
+                    }
+                    binding.broadcastPreviewView.invalidate()
+                }
+
+                etUrl.doAfterTextChanged { text ->
+                    updateWebConfig(newUrl = text?.toString() ?: "", forceReload = false)
+                }
+
+                btnLoad.setOnClickListener {
+                    updateWebConfig(forceReload = true)
+                }
+
+                switchTransparent.setOnCheckedChangeListener { _, isChecked ->
+                    updateWebConfig(transparent = isChecked, forceReload = true)
+                }
+
+                etScrollX.doAfterTextChanged { text ->
+                    val sx = text?.toString()?.toIntOrNull() ?: 0
+                    updateWebConfig(scrollX = sx)
+                }
+
+                etScrollY.doAfterTextChanged { text ->
+                    val sy = text?.toString()?.toIntOrNull() ?: 0
+                    updateWebConfig(scrollY = sy)
+                }
+
+                btnCrop10.setOnClickListener {
+                    updateWebConfig(cropLeft = 0.10f, cropTop = 0.10f, cropRight = 0.90f, cropBottom = 0.90f)
+                }
+
+                btnCropReset.setOnClickListener {
+                    updateWebConfig(cropLeft = 0f, cropTop = 0f, cropRight = 1f, cropBottom = 1f)
+                }
+            }
+
             else -> {}
         }
 
@@ -1254,6 +1349,34 @@ class CreatorStudioFragment : Fragment(),
         persistAndSyncScene(newScene)
     }
 
+    override fun onElementRotated(elementId: String, rotationDegrees: Float) {
+        val app = requireActivity().application as FairyLiveApplication
+        val elem = app.sceneManager.activeScene.overlayElements.firstOrNull { it.id == elementId } ?: return
+        val updated = elem.copy(rotationDegrees = rotationDegrees)
+        val newScene = app.sceneManager.updateOverlayInActiveScene(updated)
+        persistAndSyncScene(newScene)
+    }
+
+    override fun onWebScrolled(elementId: String, scrollX: Int, scrollY: Int) {
+        val app = requireActivity().application as FairyLiveApplication
+        val elem = app.sceneManager.activeScene.overlayElements.firstOrNull { it.id == elementId } ?: return
+        val curCfg = elem.webConfig ?: WebOverlayConfig()
+        val updatedCfg = curCfg.copy(scrollX = scrollX, scrollY = scrollY)
+        val updated = elem.copy(webConfig = updatedCfg)
+        val newScene = app.sceneManager.updateOverlayInActiveScene(updated)
+        persistAndSyncScene(newScene)
+    }
+
+    override fun onCropUpdated(elementId: String, cropLeft: Float, cropTop: Float, cropRight: Float, cropBottom: Float) {
+        val app = requireActivity().application as FairyLiveApplication
+        val elem = app.sceneManager.activeScene.overlayElements.firstOrNull { it.id == elementId } ?: return
+        val curCfg = elem.webConfig ?: WebOverlayConfig()
+        val updatedCfg = curCfg.copy(cropLeft = cropLeft, cropTop = cropTop, cropRight = cropRight, cropBottom = cropBottom)
+        val updated = elem.copy(webConfig = updatedCfg)
+        val newScene = app.sceneManager.updateOverlayInActiveScene(updated)
+        persistAndSyncScene(newScene)
+    }
+
     override fun onFacecamTransformed(normX: Float, normY: Float, normW: Float, normH: Float) {
         val app = requireActivity().application as FairyLiveApplication
         val fc = app.sceneManager.activeScene.facecamConfig
@@ -1405,6 +1528,29 @@ class CreatorStudioFragment : Fragment(),
             x = 0.05f,
             y = 0.05f,
             width = 0.40f,
+            zIndex = 15
+        )
+        val newScene = app.sceneManager.addOverlayToActiveScene(elem)
+        persistAndSyncScene(newScene)
+        binding.broadcastPreviewView.setSelectedElement(id)
+        onElementSelected(id)
+        updateUndoRedoState()
+    }
+
+    private fun addDefaultWebOverlay() {
+        val app = requireActivity().application as FairyLiveApplication
+        val id = "web_${System.currentTimeMillis() % 10000}"
+        val elem = OverlayElement.createWeb(
+            id = id,
+            config = WebOverlayConfig(
+                url = "https://example.com",
+                transparentBackground = true,
+                customWidth = 800,
+                customHeight = 450
+            ),
+            x = 0.15f,
+            y = 0.20f,
+            width = 0.45f,
             zIndex = 15
         )
         val newScene = app.sceneManager.addOverlayToActiveScene(elem)

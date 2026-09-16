@@ -1,0 +1,8 @@
+<?xml version='1.0' encoding='utf-8' standalone='yes' ?>
+<map>
+    <string name="key_server_url">rtmp://127.0.0.1:19350/live</string>
+    <string name="key_stream_key">m13_reconnect</string>
+    <boolean name="key_audio_enabled" value="true" />
+    <int name="key_video_bitrate" value="1200000" />
+    <int name="key_video_fps" value="30" />
+</map>

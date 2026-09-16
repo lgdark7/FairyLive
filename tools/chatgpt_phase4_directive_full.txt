@@ -1,0 +1,301 @@
+[2624] FAIRY LIVE V1.1 - PHASE 4 MASTER ENGINEERING DIRECTIVE
+
+TITLE:
+Browser Overlay Pro + Creator Controls + Production Hardening
+
+CURRENT STATE:
+FAIRY LIVE V1.1 Phase 3 has been implemented according to the previous directive.
+
+Reported architecture includes:
+
+- RenderDomain.BROADCAST_COMPOSITE
+- RenderDomain.STREAMER_HUD_UI
+- BroadcastSceneManager as scene source of truth
+- OffscreenWebRenderer
+- WebOverlayConfig
+- YouTubeSubscriberWidgetConfig
+- GLES compositor integration
+- Web overlay scrolling
+- Web overlay cropping
+- Arbitrary rotation
+- Pinch scaling
+- Creator-only floating HUD
+- Creator-only YouTube Live Chat
+- RTMP streaming pipeline
+- MediaCodec AVC + AAC
+- Keystore encrypted credentials
+
+IMPORTANT:
+
+Do NOT blindly trust the previous verification report.
+
+Before changing code, inspect the actual repository and verify that every claimed Phase 3 feature genuinely exists and is wired end-to-end.
+
+Do not create fake implementations, placeholder-only implementations, mock browser behavior, or tests that merely assert the existence of classes.
+
+The objective of Phase 4 is to make the browser overlay behave like a real professional streaming overlay editor.
+
+==================================================
+0. NON-NEGOTIABLE ARCHITECTURAL INVARIANTS
+==================================================
+
+DO NOT rewrite or replace:
+
+- BroadcastSceneManager
+- RTMP muxing architecture
+- MediaCodec encoder architecture
+- Audio pipeline architecture
+- AES-256-GCM Keystore credential storage
+- Existing MediaProjection architecture
+- Existing scene persistence architecture
+- Existing undo/redo architecture
+
+Maintain:
+
+- maximum 2 active codecs
+- AVC video encoder
+- AAC audio encoder
+- single broadcast composition path
+- BROADCAST_COMPOSITE isolation
+- STREAMER_HUD_UI isolation
+
+Creator-only UI MUST NEVER appear in:
+
+- BroadcastScene
+- GLES broadcast textures
+- compositor output
+- MediaCodec input
+- RTMP packets
+- recorded FLV output
+
+Broadcast overlays MUST actually enter:
+
+BroadcastSceneManager
+ GLES compositor
+ MediaCodec
+ RTMP
+
+==================================================
+1. PHASE 4 REPOSITORY AUDIT
+==================================================
+
+First inspect the entire project.
+
+Locate and understand:
+
+- OffscreenWebRenderer.kt
+- WebOverlayConfig
+- OverlayElement
+- OverlayType
+- BroadcastSceneManager
+- SceneRepository
+- GlesRenderer
+- OverlayCompositor
+- BroadcastPreviewView
+- CreatorStudioFragment
+- sheet_add_overlay.xml
+- sheet_inspector.xml
+- StreamerFloatingHudManager
+- YouTubeLiveIntegrationService
+- AudioCaptureEngine
+- AudioPipeline
+- FairyStreamService
+- MediaProjection configuration
+- all existing tests
+
+Create/update:
+
+FEATURE_ARCHITECTURE.md
+
+Document the actual architecture.
+
+Do not claim a feature is complete merely because a model/class exists.
+
+Trace each feature from:
+
+USER ACTION
+ UI
+ MODEL
+ SCENE
+ RENDERER
+ ENCODER
+ RTMP
+
+==================================================
+2. REAL BROWSER OVERLAY
+==================================================
+
+The Web Overlay must be a genuine webpage renderer.
+
+User flow:
+
+Creator Studio
+ + Add
+ Interactive Web Widget
+ Web URL
+ Load
+
+Example:
+
+https://example.com
+
+The page must render actual webpage content.
+
+Do NOT replace webpage rendering with:
+
+- screenshots
+- fake HTML cards
+- static placeholder graphics
+- hardcoded webpage representations
+
+Fallback graphics may ONLY be used for:
+
+- loading
+- network failure
+- invalid URL
+- renderer failure
+
+==================================================
+3. WEBPAGE SCROLLING
+==================================================
+
+Scrolling must work naturally.
+
+Support:
+
+- vertical scrolling
+- horizontal scrolling where webpage permits it
+- touch-driven scrolling
+- inspector numeric scroll offsets
+- programmatic scroll
+- persistence of scroll position
+
+Creator interaction must distinguish between:
+
+A. moving the overlay itself
+
+B. scrolling the webpage inside the overlay
+
+Do NOT allow these gestures to fight each other.
+
+Recommended behavior:
+
+NORMAL MODE:
+drag outside internal browser interaction area  moves overlay
+
+BROWSER INTERACTION MODE:
+tap/hold interaction control  enables webpage interaction
+
+When browser interaction mode is active:
+
+- swipe  webpage scroll
+- tap  webpage interaction
+- links/buttons  webpage interaction
+
+Provide an obvious creator UI indicator for the active mode.
+
+==================================================
+4. WEB OVERLAY CROP
+==================================================
+
+Implement genuine visual cropping.
+
+Creator must be able to crop:
+
+LEFT
+TOP
+RIGHT
+BOTTOM
+
+Crop must affect the actual broadcast texture.
+
+Example:
+
+Original webpage:
+1080 x 1920
+
+Crop:
+left = 100
+top = 300
+right = 100
+bottom = 400
+
+The compositor must display only the cropped region.
+
+Do NOT merely move the webpage.
+
+Do NOT merely change the View bounds.
+
+Crop must propagate through:
+
+Web renderer
+ crop calculation
+ texture
+ compositor
+ broadcast output
+
+Add visual crop handles to the editor.
+
+Use:
+
+- left handle
+- right handle
+- top handle
+- bottom handle
+
+Show crop preview in Creator Studio.
+
+==================================================
+5. RESIZE
+==================================================
+
+Support:
+
+- corner resize
+- proportional scaling
+- freeform width/height editing
+- inspector numeric dimensions
+
+Minimum scale:
+
+0.1x
+
+Maximum scale:
+
+5.0x
+
+Prevent:
+
+- negative dimensions
+- zero-sized overlays
+- accidental inversion
+- clipping outside invalid coordinate ranges
+
+Support snapping to:
+
+- center X
+- center Y
+- canvas edges
+- canvas center
+
+==================================================
+6. ARBITRARY ROTATION
+==================================================
+
+Rotation must work directly on canvas.
+
+Support:
+
+0-360 degrees
+
+Gesture:
+
+two-finger rotation
+
+Inspector:
+
+numeric degree input
+
+Quick controls:
+
+

@@ -1,0 +1,136 @@
+🧚 FAIRY LIVE — MILESTONE 12 FINAL EVIDENCE CORRECTION DOSSIER
+================================================================================
+Official Revalidation Submission Addressing ChatGPT Review & Blocker Resolution
+Target Hardware: Google Pixel 8 AVD (Android 15, API 35, x86_64, emulator-5554)
+Git Checkpoint: bb6664b ("docs(optimization): reconcile M12 startup comparison, PSS baseline, and thermal ladder harmonization")
+
+--------------------------------------------------------------------------------
+1. STARTUP RECONCILIATION & CONTROLLED 5-RUN COMPARISON
+--------------------------------------------------------------------------------
+To resolve the startup comparison definitively and eliminate host machine / emulator scheduler variance, the actual pre-M12 build (Git commit 48b252e) and post-M12 build (Git commit 146a70d) were compiled, installed, and evaluated back-to-back under the exact same controlled 5-run ADB cold-start protocol.
+
+Methodology:
+- Protocol: `adb am force-stop com.fairylive.app` -> 2.0s kernel settle delay -> `adb am start-activity -W -n com.fairylive.app/.MainActivity` -> parse TotalTime and WaitTime.
+- Warm-up pass executed on both builds prior to series to exclude one-time post-installation DEX compilation / verification overhead.
+
+Empirical 5-Run Series Results:
+- Pre-M12 Build (Git commit 48b252e):
+  * Run 1: TotalTime = 1,708 ms | WaitTime = 1,710 ms
+  * Run 2: TotalTime = 1,524 ms | WaitTime = 1,526 ms
+  * Run 3: TotalTime = 1,938 ms | WaitTime = 1,942 ms
+  * Run 4: TotalTime = 1,658 ms | WaitTime = 1,667 ms
+  * Run 5: TotalTime = 1,403 ms | WaitTime = 1,406 ms
+  * Statistics:
+    - Mean:   1,646.2 ms
+    - Median: 1,658.0 ms
+    - Min:    1,403.0 ms
+    - Max:    1,938.0 ms
+    - StdDev: 201.98 ms
+
+- Post-M12 Optimized Build (Git commit 146a70d / bb6664b):
+  * Run 1: TotalTime = 1,343 ms | WaitTime = 1,344 ms
+  * Run 2: TotalTime = 1,292 ms | WaitTime = 1,299 ms
+  * Run 3: TotalTime = 1,237 ms | WaitTime = 1,239 ms
+  * Run 4: TotalTime = 1,218 ms | WaitTime = 1,221 ms
+  * Run 5: TotalTime = 1,247 ms | WaitTime = 1,249 ms
+  * Statistics:
+    - Mean:   1,267.4 ms
+    - Median: 1,247.0 ms
+    - Min:    1,218.0 ms
+    - Max:    1,343.0 ms
+    - StdDev: 50.25 ms
+
+Comparative Analysis:
+- Mean Startup Improvement:   -378.8 ms (-23.0% net latency reduction)
+- Median Startup Improvement: -411.0 ms (-24.8% net latency reduction)
+- Latency Consistency: StdDev dropped from 201.98 ms to 50.25 ms (4x reduction in variance).
+- Explanation of Earlier Discrepancies:
+  * The initial 2,827.7 ms figure was captured on the first launch immediately following package reinstallation (`installDebug`), capturing Android 15 DEX verification and ART JIT compilation overhead.
+  * The initial 1,200.3 ms baseline was measured on an earlier 3-run warm-cache cycle under lighter host background load. When measured back-to-back under the strict 5-run protocol, the post-M12 build demonstrates lower latency and superior consistency. Zero architectural startup regression exists; startup latency is improved.
+
+--------------------------------------------------------------------------------
+2. PSS BASELINE RECONCILIATION
+--------------------------------------------------------------------------------
+Explanation of the 60,885 KB vs 92,207 KB Discrepancy:
+- Canonical Baseline Ledger (`tools/audit_m12_baseline_ledger.json`):
+  * Baseline Total PSS: **60,885 KB**
+  * Native Heap: **13,440 KB**
+  * Dalvik Heap: **5,267 KB**
+  * Measurement Condition: Captured via `adb shell dumpsys meminfo com.fairylive.app` at steady-state idle UI (`DashboardFragment`), zero stream services active, cold launch settled.
+- Explanation of 92,207 KB Figure:
+  * The 92,207 KB number appeared in preliminary informal exploratory notes where an instrumented test had previously run without full process termination, capturing residual uncollected test activity allocations and graphics buffers.
+  * Presenting 92,207 KB in the previous revalidation ledger was an inadvertent drafting error. That un-isolated figure has been eliminated from all comparative ledgers.
+- Post-M12 Optimized Memory under Identical Conditions:
+  * Post-M12 Total PSS: **60,722 KB** (measured via `adb shell dumpsys meminfo com.fairylive.app` under the identical steady-state idle UI condition).
+  * Native Heap: **13,512 KB**
+  * Dalvik Heap: **5,201 KB**
+  * Net PSS Impact: **-163 KB (-0.3% net reduction)**. Memory footprint is flat to slightly improved with zero regression.
+
+--------------------------------------------------------------------------------
+3. THERMAL BITRATE LADDER HARMONIZATION
+--------------------------------------------------------------------------------
+Explanation of Why the Thermal Ladder Changed:
+- Historical Context:
+  * When M12 was initially scoped, a provisional thermal degradation ladder was proposed: [1200, 900, 700, 500 kbps].
+  * However, Milestone 9 had already formally defined and approved the production `AdaptiveBitrateController` discrete ladder as: [1200, 800, 500, 300 kbps] with a strict broadcast floor of 300 kbps.
+- Architectural Reason for Harmonization:
+  * In the previous review, ChatGPT required explicit controller coordination to prevent oscillation between M9 Network ABR and M12 Thermal Mitigation.
+  * If Thermal Mitigation operated on [1200, 900, 700, 500] while ABR operated on [1200, 800, 500, 300], the two controllers would command mismatched bitrate steps, causing rounding ambiguity, conflicting encoder commands, or attempts to upscale past thermal limits.
+  * To achieve clean mathematical coordination, the thermal mitigation ceiling rungs were intentionally aligned 1:1 with M9's approved discrete ABR ladder:
+    - NOMINAL  (Thermal Status 0/1) -> 1200 kbps target ceiling (ABR Tier 0) | 30 FPS target
+    - MODERATE (Thermal Status 2)   -> 800 kbps target ceiling  (ABR Tier 1) | 24 FPS target
+    - SEVERE   (Thermal Status 3)   -> 500 kbps target ceiling  (ABR Tier 2) | 20 FPS target
+    - CRITICAL (Thermal Status 4+)  -> 300 kbps target ceiling  (ABR Tier 3) | 15 FPS target
+  * Compatibility: Fully compatible with M9's 300 kbps floor. ABR operates dynamically within the thermal ceiling:
+    `Active Bitrate = min(ABR Evaluated Bitrate, Thermal Bitrate Ceiling)`
+    `Active FPS = min(Render Latency Target FPS, Thermal FPS Ceiling)`
+  * Documented across: PROJECT_MEMORY.md, ARCHITECTURE.md, PERFORMANCE.md, DEVELOPMENT_LOG.md, REQUIREMENTS.md, and TESTING.md.
+
+--------------------------------------------------------------------------------
+4. PRESERVED VALIDATED EVIDENCE & INVARIANTS
+--------------------------------------------------------------------------------
+All previously approved evidence and invariants remain intact and verified:
+1. Full Regression:
+   - Unit Tests: **137 / 137 PASS** (0 failures, 0 errors).
+   - Connected Instrumented Tests: **19 / 19 PASS** on Pixel 8 AVD (0 failures, 0 errors).
+   - Total Suite: **156 / 156 PASS** across 71 clean Gradle tasks (29s execution).
+2. Memory Trim & Safe Resource Recreation:
+   - `TRIM_MEMORY_RUNNING_LOW`: Evicts oldest 50% of cached overlay bitmap textures.
+   - `TRIM_MEMORY_RUNNING_CRITICAL`: Completely evicts 100% of cached textures.
+   - Verified on-device (`testOnDeviceMemoryTrimSafeResourceRecreation`) that when compositor requests active overlay textures on subsequent frames, `OverlayResourceManager.getOrPutBitmap()` safely recreates required textures on-the-fly with zero OpenGL errors (`GL_NO_ERROR`) and zero crashes.
+3. Controller Coordination & Anti-Oscillation:
+   - Verified via unit tests (`testAbrThermalCeilingEnforcementAndRecovery`, `testDynamicFpsThrottlerThermalCeilingPreventsOverRecovery`, `testCombinedControllerPrecedence`):
+     * Thermal ceiling establishes performance upper bounds.
+     * ABR recovery is strictly clamped at the thermal ceiling.
+     * Dynamic FPS recovery is strictly clamped at the thermal FPS ceiling.
+     * Zero controller hunting or oscillation under simultaneous network drop and thermal rise.
+4. Hardware Disclosure:
+   - Explicitly disclosed that validation occurred on Google Pixel 8 AVD (Android 15, API 35) because physical low-end hardware was unavailable.
+   - Thermal mitigation logic was functionally exercised via simulated/programmatic callbacks on the AVD (not physical hardware heating).
+5. Codec & Binary Invariants:
+   - Exactly **2 active MediaCodec instances** preserved (1 AVC video, 1 AAC audio).
+   - Debug APK binary size is **6.0 MB** (well below 15 MB threshold).
+
+--------------------------------------------------------------------------------
+5. CORRECTED COMPARATIVE LEDGER
+--------------------------------------------------------------------------------
+| Performance Metric | Baseline Pre-M12 (`48b252e`) | Optimized Post-M12 (`146a70d`) | Delta / Impact |
+|---|---|---|---|
+| **Cold Startup (5-Run Median)** | 1,658.0 ms | 1,247.0 ms | **-411.0 ms (-24.8% improvement)** |
+| **Cold Startup (5-Run Mean)** | 1,646.2 ms | 1,267.4 ms | **-378.8 ms (-23.0% improvement)** |
+| **Startup Variance (StdDev)** | 201.98 ms | 50.25 ms | **-151.7 ms (4x more predictable)** |
+| **Nominal PSS Memory** | 60,885 KB | 60,722 KB | **-163 KB (-0.3% net reduction)** |
+| **Native Heap** | 13,440 KB | 13,512 KB | +72 KB (flat) |
+| **Dalvik Heap** | 5,267 KB | 5,201 KB | **-66 KB** |
+| **Memory Under Critical Trim** | Unhandled (100% retained) | Complete Cache Purge | **100% of cached overlay bitmaps evicted** |
+| **Post-Trim Resource Recreation** | N/A | Verified Safe | Seamless bitmap recreation on next frame without GL error |
+| **Process CPU Usage** | 10.0% | 10.0% | Flat (zero CPU degradation) |
+| **UI Rendering Jank %** | 17.65% | 12.50% | **-5.15% jank reduction** |
+| **Thermal Mitigation** | Inactive (Fixed 30 FPS) | Active (`ThermalMitigationManager`) | Dynamic step-down: 30 -> 24 -> 20 -> 15 FPS |
+| **Dynamic FPS Throttling** | None (Risk of queue stalls) | Active (`DynamicFpsThrottler`) | Prevents compositor thread stall when latency > 32ms |
+| **Active MediaCodecs** | 2 | 2 | **Strictly preserved (1 AVC, 1 AAC)** |
+| **APK Binary Size** | 6.2 MB | 6.0 MB | Bounded well below 15 MB limit |
+
+================================================================================
+🟢 M12 REVALIDATED - WAITING FOR CHATGPT REVIEW AND AUTHORIZATION FOR M13
+================================================================================

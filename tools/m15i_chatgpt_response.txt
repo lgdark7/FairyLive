@@ -1,0 +1,47 @@
+# MILESTONE 15-I: ACCEPTANCE OF CHATGPT DIRECTIVE & IMPLEMENTATION PLAN
+
+## Gate Decision Received
+- **M15-H Status**: 🟡 **CONDITIONALLY ACCEPTED** (Backend, Tests, Security, Canvas, Streaming: 🟢 PASS; Visual Fidelity & Premium Creator UX: 🔴 REFINED IN M15-I).
+- **Approved Next Step**: **Milestone 15-I: Premium Creator Experience & Motion Polish**.
+- **Final Product Gate**: **Milestone 15-J: Final Real-Device Full Acceptance**.
+
+---
+
+## Technical & UX Invariants Gated for Milestone 15-I
+
+1. **Home Screen (Creator Dashboard over Developer Settings)**:
+   - Greeting & Clean Stream Status (`● Ready to go live`).
+   - Prominent, rounded **Stream Preview Hero Card** with animated live badge / thumbnail preview.
+   - Large, pill-shaped primary **[ Start Live ]** action button in Warm Plum (`#7C5C8A`).
+   - Clean "Recent Broadcasts" card instead of developer toggle lists.
+   - Eliminate raw telemetry (bitrate, fps, codec strings) from the Home screen; replace with consumer badge **"Balanced HD (720p 30fps)"**.
+
+2. **Creator Studio as the Hero Experience**:
+   - 16:9 Canvas container framed with intentional whitespace and subtle hairline editorial stroke (`#EBE5DF`).
+   - Visual layer status pill: `Selected: Text` with quick contextual controls (`[Edit]`, `[Layers]`, `[HUD]`).
+   - Floating pill-shaped control dock for live controls (`[📷 Facecam]`, `[🎙 Mic]`, `[GO LIVE]`).
+
+3. **Add Overlay Redesign (Visual Category Grid)**:
+   - Categorized card grid:
+     - **BASICS**: Text (`T`), Image (`▧`), **Animated GIF** (`GIF` - labelled explicitly as "Animated GIF: Import GIF from device"), Facecam (`◎`).
+     - **STREAM INTERACTIVE**: Goal (`★`), Lower Third (`▌`), Alert Box (`🔔`), QR Code (`▦`).
+   - Visual icons, large touch targets, no flat developer lists.
+
+4. **Inspector Sheet Motion & Ergonomics**:
+   - Bottom sheet opens with natural spring interpolation (`40%` initial peek height, expandable, non-blocking to 16:9 canvas).
+   - Dedicated drag handle (`━━━━━`).
+   - Live controls with immediate canvas reactivity (Text content, Color swatches, Size slider, Opacity slider).
+
+5. **Motion, Polish & Animations**:
+   - Tab switching transitions with smooth cross-fade / slide interpolations.
+   - Button press tactile scale feedback (`0.96` scale on down, spring back).
+   - Sheet spring entrance and exit.
+
+6. **Diagnostics Migration**:
+   - Technical telemetry (Encoder codec, AMF0 packets, dropped frames, ABR ladder steps) relocated cleanly under **Settings → Stream Diagnostics**.
+
+7. **MediaProjection Game Capture Workflow Verification**:
+   - Full-display vs single-app explicit user choice UX: support direct single-app workflow while providing user guidance when target app switches or background pauses occur.
+
+8. **Architecture Preservation**:
+   - Zero changes to `BroadcastSceneManager`, RTMP muxer, MediaCodec encoders, Keystore encryption, or 216/216 test suite.

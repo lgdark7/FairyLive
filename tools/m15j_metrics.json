@@ -1,0 +1,31 @@
+{
+  "timestamp": "2026-09-16 20:01:40",
+  "duration_seconds": 15.02,
+  "total_bytes_received": 735542,
+  "average_bitrate_kbps": 391.77,
+  "video": {
+    "total_frames": 355,
+    "first_pts_ms": 188,
+    "last_pts_ms": 15252,
+    "pts_span_ms": 15064,
+    "fps": 23.57,
+    "total_bytes": 553659
+  },
+  "audio": {
+    "total_access_units": 646,
+    "first_pts_ms": 288,
+    "last_pts_ms": 15242,
+    "pts_span_ms": 14954,
+    "sample_derived_duration_ms": 15000.09,
+    "span_vs_sample_discrepancy_ms": 46.09,
+    "max_consecutive_pts_gap_ms": 24,
+    "gaps_over_40ms": 0,
+    "avg_pts_delta_ms": 23.22,
+    "total_bytes": 181214
+  },
+  "av_sync": {
+    "final_delta_ms": 10,
+    "status": "IN_SYNC"
+  },
+  "flv_file": "tools/m15j_broadcast.flv"
+}

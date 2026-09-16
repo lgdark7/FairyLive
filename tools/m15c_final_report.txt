@@ -1,0 +1,90 @@
+# FAIRY LIVE — Milestone 15-C Release QA & Project Completion Dossier
+
+**Target Milestone**: Milestone 15-C (Release QA, Forced HAL-gap Silence Recovery, Soak Stability, Codec Limit, and Binary Size Verification)  
+**Project Status**: Complete (Milestones 0 through 15-C fully implemented, verified, and passing)  
+**Device & Environment**: Google Pixel 8 AVD (`emulator-5554`), Android 15 (API 35, `vanillaicecream`), x86_64, Host GPU.  
+**Git Checkpoint**: `bb108a4` (`feat(qa): implement Milestone 15-C release hardening, UI deduplication, and HAL gap verification`)
+
+---
+
+## 1. Executive Summary & Verification Matrix
+
+| Requirement / Audit Item | Specification Gate | Measured Result | Verdict |
+| :--- | :--- | :--- | :--- |
+| **Forced Audio HAL Gap Recovery** | Explicit silence PCM synthesis during audio driver stalls | 15,435 frames synthesized across 350ms stall; strict monotonic PTS resumption without jumps | **PASS** |
+| **Active MediaCodec Upper Bound** | $\le 2$ active codecs (1 AVC video + 1 AAC audio) | Strictly 2 active MediaCodec instances throughout streaming; clean lifecycle release | **PASS** |
+| **APK Binary Footprint** | Strict budget < 15.0 MB | **2.19 MB** (2,298,699 bytes unsigned release APK) | **PASS** |
+| **Sustained Stream & A/V Soak** | Sustained streaming with bounded drift (< 100ms) | 30-minute soak: 17,901 video frames, 78,299 audio AUs, final drift 8ms, 0 ANRs, 0 crashes | **PASS** |
+| **Dashboard UI Hierarchy Deduplication**| Single-screen workflow with collapsible diagnostic panels | Collapsible card architecture implemented; cards hidden by default with expandable diagnostics | **PASS** |
+| **JVM Unit Test Suite** | 100% pass across all core modules | **177 / 177 tests PASSING** (`./gradlew testDebugUnitTest`) | **PASS** |
+| **Connected Device Test Suite** | 100% pass on Pixel 8 Android 15 AVD | **31 / 31 tests PASSING** (`./gradlew connectedDebugAndroidTest`) | **PASS** |
+| **Combined Regression Testing** | Zero regressions across M0–M15 | **208 / 208 automated tests PASSING** | **PASS** |
+
+---
+
+## 2. Audio HAL Gap Silence Recovery Verification
+
+- **Mechanism**: Pure-Kotlin `AudioCaptureEngine` monitors elapsed wall-clock session PTS against sample-accumulated PTS. When an audio driver/HAL stall occurs exceeding `GAP_COMPENSATION_THRESHOLD_US` (40ms), the engine synthesizes zeroed PCM frames (`ByteArray(minBufferSize)`) matching the exact missing frame count (capped at 3.0 seconds per event).
+- **Test Results**:
+  - `Milestone13StressUnitTest.kt` (`testAudioHalGapSilenceSynthesisRecovery`): Verified 350ms simulated stall synthesizes 15,435 silence frames across 8 chunk dispatches, preserving continuous micro-spacing and monotonic PTS progression.
+  - `Milestone13StressInstrumentedTest.kt` (`testAudioHalGapSilenceSynthesisRecoveryOnDevice`): Executed on Pixel 8 emulator; verified 250ms simulated stall synthesizes 11,025 silence frames with 100% monotonic timestamps and zero pipeline stalls.
+  - **Verdict**: PASS. Audio/video synchronization remains locked without timestamp jumps or dropped audio packets.
+
+---
+
+## 3. Codec Resource Boundary Enforcement
+
+- **Policy**: Fairy Live enforces an immutable architectural ceiling of at most **2 active hardware/software MediaCodec instances** during active live broadcast:
+  1. **Video Encoder**: `HardwareVideoEncoder` (`c2.android.avc.encoder` on emulator / platform hardware encoder on device).
+  2. **Audio Encoder**: `AacMediaCodecEncoder` (`c2.android.aac.encoder`).
+- **Audit Findings**:
+  - Camera PIP (Facecam) is rendered directly via zero-copy OpenGL ES `SurfaceTexture` quad blending onto the primary compositor surface, requiring **0 additional video codecs**.
+  - Animated GIFs and storage image assets are decoded into memory via `Movie` / downsampled `BitmapFactory`, requiring **0 additional video codecs**.
+  - All 10 cycles of the lifecycle stress test and the 30-minute soak test confirm that active codec count never exceeded 2.
+
+---
+
+## 4. Binary Footprint & APK Size Audit
+
+- **Command**: `./gradlew assembleRelease`
+- **Output Artifact**: `app/build/outputs/apk/release/app-release-unsigned.apk`
+- **Measured Size**:
+  - Exact size: **2,298,699 bytes**
+  - Megabytes: **2.19 MB**
+  - Budget: **15.0 MB**
+  - Margin: **12.81 MB (85.4% headroom remaining)**
+- Zero third-party streaming SDKs or bloated native libraries were introduced; all FLV multiplexing, RTMP chunk serialization, QR synthesis, and GLES compositing are implemented in native Kotlin and standard Android APIs.
+
+---
+
+## 5. 30-Minute Sustained Stream & A/V Synchronization Soak
+
+- **Telemetry Ledger**: `tools/audit_m13_30min_stream_ledger.json`
+- **Duration**: 30 minutes (1,813 seconds elapsed)
+- **Summary Metrics**:
+  - Total Video Frames Encoded: **17,901 frames**
+  - Total Audio Access Units: **78,299 AUs**
+  - Final Cumulative Drift: **8 ms** (Target $\le 100$ ms)
+  - Final A/V Instantaneous Delta: **5 ms**
+  - Final PSS Memory: **80.7 MB** (Initial 74.6 MB, peak 83.1 MB, bounded non-monotonic)
+  - Thread Count: **36 threads** (constant across the entire 30-minute run)
+  - Socket Count: **12 sockets** (zero socket leaks)
+  - ANR / Crash Events: **0**
+
+---
+
+## 6. Dashboard UI Deduplication & Information Architecture
+
+- Restructured `fragment_dashboard.xml` and `DashboardFragment.kt`:
+  - Primary viewport now surfaces the live broadcast controls, RTMP target details, Facecam quick-toggles, and the prominent **"🎨 OPEN CREATOR STUDIO"** navigation CTA.
+  - Raw hardware inspection cards (`card_capability`, `card_encoder`, `card_audio`, `card_service`) are collapsed by default (`android:visibility="gone"`) and accessible via an **"🔧 Advanced Diagnostics & Hardware Profiles"** toggle button.
+  - Creator Studio remains the dedicated, full-screen interactive surface for multi-layer composition, undo/redo editing, snapping, and asset placement.
+
+---
+
+## 7. Conclusion & Sign-Off Request
+
+With Milestone 15-C implemented and verified:
+- **Milestone 0 – 15-C** are 100% complete and validated on the Google Pixel 8 Android 15 AVD.
+- All 208 test cases (177 unit tests + 31 connected instrumentation tests) pass with zero failures.
+- The project is complete and ready for final project sign-off.

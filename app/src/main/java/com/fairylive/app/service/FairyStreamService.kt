@@ -538,7 +538,13 @@ class FairyStreamService : Service() {
         try {
             val notification = buildForegroundNotification(statusText)
 
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            if (Build.VERSION.SDK_INT >= 34) { // Android 14+ (UPSIDE_DOWN_CAKE)
+                var serviceType = ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION
+                if (withMediaProjection) {
+                    serviceType = serviceType or ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
+                }
+                startForeground(NOTIFICATION_ID, notification, serviceType)
+            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 var serviceType = ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
                 if (withMediaProjection) {
                     serviceType = serviceType or ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION

@@ -39,6 +39,16 @@
         android:contentDescription="Mute or Unmute Microphone"
         android:src="@android:drawable/ic_btn_speak_now" />
 
+    <!-- Facecam Camera Toggle Button -->
+    <ImageButton
+        android:id="@+id/hudBtnCamera"
+        android:layout_width="38dp"
+        android:layout_height="38dp"
+        android:layout_marginEnd="6dp"
+        android:background="@drawable/bg_hud_circle_button"
+        android:contentDescription="Toggle Facecam Camera"
+        android:src="@android:drawable/ic_menu_camera" />
+
     <!-- Stream Pause/Freeze Toggle Button -->
     <ImageButton
         android:id="@+id/hudBtnPause"
