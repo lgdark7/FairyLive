@@ -1,5 +1,7 @@
 package com.fairylive.app
 
+import com.fairylive.app.ui.hud.StreamerFloatingHudManager
+
 import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
@@ -14,11 +16,13 @@ import com.fairylive.app.ui.settings.SettingsFragment
 class MainActivity : AppCompatActivity(), StreamStateNotifier.Listener {
 
     private lateinit var binding: ActivityMainBinding
+    private var hudManager: StreamerFloatingHudManager? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
+        hudManager = StreamerFloatingHudManager(this)
 
         StreamStateNotifier.addListener(this)
 
@@ -88,6 +92,7 @@ class MainActivity : AppCompatActivity(), StreamStateNotifier.Listener {
                 binding.headerStatusBadge.text = "OFFLINE"
                 binding.headerStatusBadge.setTextColor(ContextCompat.getColor(this, R.color.text_muted))
                 binding.headerStatusBadge.setBackgroundResource(R.drawable.bg_scene_chip)
+                hudManager?.dismiss()
             }
             StreamState.STARTING -> {
                 binding.headerStatusBadge.text = "CONNECTING..."
@@ -103,6 +108,7 @@ class MainActivity : AppCompatActivity(), StreamStateNotifier.Listener {
                 binding.headerStatusBadge.text = "● LIVE"
                 binding.headerStatusBadge.setTextColor(ContextCompat.getColor(this, R.color.status_green))
                 binding.headerStatusBadge.setBackgroundResource(R.drawable.bg_scene_chip)
+                hudManager?.show()
             }
             StreamState.PAUSED -> {
                 binding.headerStatusBadge.text = "PAUSED"

@@ -401,6 +401,10 @@ class CreatorStudioFragment : Fragment(),
             dialog.dismiss()
             addDefaultGif()
         }
+        sheetView.findViewById<View>(R.id.item_add_youtube_sub)?.setOnClickListener {
+            dialog.dismiss()
+            addDefaultYouTubeSub()
+        }
         sheetView.findViewById<View>(R.id.item_add_widget).setOnClickListener {
             dialog.dismiss()
             addDefaultWidget()
@@ -1384,6 +1388,29 @@ class CreatorStudioFragment : Fragment(),
         binding.broadcastPreviewView.setSelectedElement("facecam")
         onElementSelected("facecam")
         updateCameraIcon(true)
+        updateUndoRedoState()
+    }
+
+    private fun addDefaultYouTubeSub() {
+        val app = requireActivity().application as FairyLiveApplication
+        val id = "yt_sub_" + System.currentTimeMillis().toString().takeLast(4)
+        val elem = OverlayElement.createYouTubeSubscriber(
+            id = id,
+            config = com.fairylive.app.core.compositor.model.YouTubeSubscriberWidgetConfig(
+                channelId = "UC_DEMO",
+                channelTitle = "FAIRY LIVE",
+                subscriberCountFormatted = "12.4K",
+                rawSubscriberCount = 12400L
+            ),
+            x = 0.05f,
+            y = 0.05f,
+            width = 0.40f,
+            zIndex = 15
+        )
+        val newScene = app.sceneManager.addOverlayToActiveScene(elem)
+        persistAndSyncScene(newScene)
+        binding.broadcastPreviewView.setSelectedElement(id)
+        onElementSelected(id)
         updateUndoRedoState()
     }
 
