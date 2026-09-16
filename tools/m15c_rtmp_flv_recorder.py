@@ -122,13 +122,18 @@ def write_flv_tag(flv_file, tag_type, timestamp, payload):
     data_size = len(payload)
     ts_lower = timestamp & 0x00FFFFFF
     ts_upper = (timestamp >> 24) & 0xFF
-    stream_id = 0
-    header = struct.pack(">B3s3sBB",
-                         tag_type,
-                         struct.pack(">I", data_size)[1:],
-                         struct.pack(">I", ts_lower)[1:],
-                         ts_upper,
-                         stream_id)
+    header = bytearray(11)
+    header[0] = tag_type
+    header[1] = (data_size >> 16) & 0xFF
+    header[2] = (data_size >> 8) & 0xFF
+    header[3] = data_size & 0xFF
+    header[4] = (ts_lower >> 16) & 0xFF
+    header[5] = (ts_lower >> 8) & 0xFF
+    header[6] = ts_lower & 0xFF
+    header[7] = ts_upper
+    header[8] = 0
+    header[9] = 0
+    header[10] = 0
     flv_file.write(header)
     flv_file.write(payload)
     flv_file.write(struct.pack(">I", data_size + 11))

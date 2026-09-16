@@ -537,6 +537,7 @@ class FairyStreamService : Service() {
 
             StreamStateNotifier.updateState(StreamState.READY)
         } catch (e: Exception) {
+            Log.e("FairyStreamService", "startForeground failed with exception!", e)
             StreamStateNotifier.updateState(StreamState.ERROR)
             stopSelf()
         }
