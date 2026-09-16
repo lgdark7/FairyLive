@@ -1,0 +1,14 @@
+{
+  "flv_file": "tools/v11_broadcast.flv",
+  "file_size_bytes": 1330229,
+  "duration_seconds": 31.18,
+  "video_tags": 600,
+  "audio_tags": 1339,
+  "script_tags": 0,
+  "keyframe_count": 28,
+  "interframe_count": 572,
+  "fps": 19.24,
+  "av_sync_delta_ms": 68,
+  "has_audio": true,
+  "has_video": true
+}
