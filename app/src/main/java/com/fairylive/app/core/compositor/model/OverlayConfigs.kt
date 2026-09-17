@@ -83,12 +83,15 @@ data class WebOverlayConfig(
     val transparentBackground: Boolean = true,
     val refreshIntervalSeconds: Int = 0, // 0 = no periodic refresh
     val cssInjection: String? = null,
+    val jsInjection: String? = null,
     val isInteractive: Boolean = false,
+    val allowTouchInteraction: Boolean = true,
     val fallbackText: String = "Web overlay unavailable",
     val customWidth: Int = 800,
     val customHeight: Int = 450,
     val scrollX: Int = 0,
     val scrollY: Int = 0,
+    val zoomLevel: Float = 1.0f,     // Webpage zoom (independent of overlay scale)
     val cropLeft: Float = 0f,
     val cropTop: Float = 0f,
     val cropRight: Float = 1f,

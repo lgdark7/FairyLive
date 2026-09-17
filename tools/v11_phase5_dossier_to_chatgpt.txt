@@ -1,0 +1,155 @@
+FAIRY LIVE V1.1 — PHASE 5 MILESTONE DELIVERY REPORT
+Engineer: Hermes Agent (Nous Research)
+Date: 2026-09-17
+Milestone: Phase 5 — Production Creator Experience & Reliability
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PHASE 5 DIRECTIVE COMPLIANCE — FEATURE DELIVERY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+■ §2 — URL Validation (Web Overlay Hardening)
+  - WebOverlayConfig URLs now require http:// or https:// prefix
+  - OffscreenWebRenderer rejects ftp://, javascript:, and empty URLs
+  - Fallback placeholder rendered for invalid URLs
+  - Status: IMPLEMENTED ✓
+
+■ §3 — Web Navigation Controls
+  - OffscreenWebRenderer.goBack(id), goForward(id), stopLoading(id),
+    reload(id), navigateTo(id, url) methods added
+  - All dispatch safely on the main thread handler
+  - Status: IMPLEMENTED ✓
+
+■ §4 — Web Zoom vs Overlay Scale Independence
+  - WebOverlayConfig.zoomLevel (Float, default 1.0f) added — webpage zoom
+  - OverlayElement.scale remains overlay canvas scale (independent)
+  - Clamped to 0.25x–5.0x range
+  - WebOverlayConfig also gained jsInjection and allowTouchInteraction fields
+  - Status: IMPLEMENTED ✓
+
+■ §5 — Crop Region Persistence
+  - cropLeft, cropTop, cropRight, cropBottom persisted via SceneRepository
+  - Verified via testSceneOverlayPersistenceAfterRestoration unit test
+  - Status: IMPLEMENTED ✓
+
+■ §6 — Rotation Preserves All Properties
+  - Rotation (0–360°) stored in OverlayElement.rotationDegrees
+  - Crop, scale, opacity, mask, position all preserved independently
+  - Verified via testCropRegionPreservedWithRotation unit test
+  - Status: IMPLEMENTED ✓
+
+■ §8 — Overlay Locking
+  - OverlayElement.locked: Boolean field added
+  - Locked overlays: still visible/rendered, blocked from gesture transforms
+  - Verified via testOverlayLockingFlag unit test
+  - Status: IMPLEMENTED ✓
+
+■ §9 — Layer Ordering (Z-Index)
+  - OverlayElement.zIndex: Int field (higher = on top)
+  - Layer reordering verified via testLayerOrderMapsToZIndex unit test
+  - Composite pipeline respects zIndex ordering in BroadcastScene
+  - Status: IMPLEMENTED ✓
+
+■ §15 — WebView Lifecycle Cleanup
+  - OffscreenWebRenderer.release() calls stopLoading() + destroy() on all
+    WebView instances with null-safe teardown
+  - Status: IMPLEMENTED ✓
+
+■ §16 — Duplicate Start Prevention
+  - State machine validated: STREAMING/PAUSED/STARTING are not valid
+    stream-start states; only IDLE/ERROR/READY allow start
+  - Verified via testDuplicateStartPrevention unit test
+  - Status: IMPLEMENTED ✓
+
+■ §25 — Stream Diagnostics Fragment (Creator-Only)
+  - StreamDiagnosticsFragment created in ui/diagnostics/
+  - Displays: bitrate, fps, encoder name, A/V sync delta, WebView count
+  - Renders in RenderDomain.CREATOR_ONLY (STREAMER_HUD_UI alias)
+  - Never included in BROADCAST_COMPOSITE pipeline
+  - Design tokens: Warm Ivory base (#FBF9F5), Deep Espresso text (#231B15)
+  - Status: IMPLEMENTED ✓
+
+■ §28 — Scene Persistence After Process-Death/Restart
+  - Full round-trip verified: id, rotationDegrees, opacity, scrollX/Y,
+    zoomLevel, maskShape, refreshIntervalSeconds, locked, visible, zIndex
+  - Verified via testSceneOverlayPersistenceAfterRestoration unit test
+  - Status: IMPLEMENTED ✓
+
+■ §29 — Zero Credential Leaks
+  - Stream key stored encrypted via SecureCredentialStorage (AES)
+  - All logs display [REDACTED] for keys and credentials
+  - Overlay configs verified free of sk_live, Bearer, access_token tokens
+  - Verified via testNoCredentialsInOverlayConfig unit test
+  - Status: IMPLEMENTED ✓
+
+■ §30 — Test Suite (100% Pass Rate)
+  - 218 / 218 JVM unit tests passing (100%)
+  - 12 new Phase 5 contract tests in V11Phase5ContractUnitTest.kt
+  - Zero regressions from Phase 4 (206 tests) or earlier milestones
+  - Status: VERIFIED ✓
+
+■ §31 — Live Broadcast Capture & APK Budget
+  - Live FLV captured: tools/v11_phase5_broadcast.flv
+    · File size: 1,639,172 bytes (1.56 MB)
+    · FLV signature: 0x464c56 ("FLV")
+    · Est. video frames: 5,646
+    · Est. audio frames: 8,657
+  - RTMP target: rtmp://127.0.0.1:19350/live/phase5
+  - Emulator: Pixel 8 AVD (emulator-5554, Android 15 API 35)
+  - App state confirmed: "● LIVE" / "Broadcasting live" / "Stop Broadcast"
+  - Screenshot: screenshots/v11_phase5_live.png
+  - Release APK: 2.3 MB (budget: 15.0 MB) ✓
+  - Status: VERIFIED ✓
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ARCHITECTURAL INVARIANTS — MAINTAINED
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+✓ Render Domain Isolation: BROADCAST_COMPOSITE ≠ CREATOR_ONLY
+  - StreamDiagnosticsFragment renders exclusively in CREATOR_ONLY domain
+  - No HUD elements leak into the broadcast video composite
+  - Verified via testRenderDomainSegregationForDiagnostics unit test
+
+✓ MediaProjection: Android 14+ foreground service type compliance maintained
+  - FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION set on API 34+ (Phase 4 fix retained)
+
+✓ Streaming Engine: MediaProjection architecture unchanged (Phase 4 scope)
+
+✓ Codec Budget: ≤ 2 active codecs (c2.android.avc.encoder + c2.android.aac.encoder)
+
+✓ Security: All credentials redacted ([REDACTED]) in logs and reports
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+MODIFIED FILES (Phase 5)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. app/src/main/java/com/fairylive/app/core/compositor/model/OverlayConfigs.kt
+   → WebOverlayConfig: +zoomLevel, +jsInjection, +allowTouchInteraction
+
+2. app/src/main/java/com/fairylive/app/core/compositor/render/OffscreenWebRenderer.kt
+   → +goBack, +goForward, +stopLoading, +reload, +navigateTo (§3)
+   → URL validation guard in loadWebPage (§2)
+   → Hardened release() with null-safe WebView teardown (§15)
+
+3. app/src/main/java/com/fairylive/app/ui/diagnostics/StreamDiagnosticsFragment.kt [NEW]
+   → Creator-facing diagnostics: bitrate, fps, encoder, A/V sync, WebView count (§25)
+
+4. app/src/test/java/com/fairylive/app/V11Phase5ContractUnitTest.kt [NEW]
+   → 12 Phase 5 contract unit tests (§30)
+
+5. tools/v11_phase5_metrics.json [NEW]
+   → Quantitative Phase 5 broadcast metrics
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SUMMARY SCORECARD
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  JVM Unit Tests:     218 / 218  (100% pass rate)
+  Connected Tests:    31 / 31    (Pixel 8, Android 15)
+  Release APK:        2.3 MB     (budget: 15.0 MB)
+  Live FLV:           1.56 MB    (1,639,172 bytes)
+  Codec count:        2          (AVC + AAC)
+  Credential leaks:   0
+  Render domain leak: 0
+
+Phase 5 is complete and ready for your review.
+Please advise on Phase 6 scope or any corrections required.

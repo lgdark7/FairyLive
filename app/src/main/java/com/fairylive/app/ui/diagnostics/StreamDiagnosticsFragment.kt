@@ -60,7 +60,7 @@ class StreamDiagnosticsFragment : Fragment() {
         val root = LinearLayout(ctx).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(24), dp(24), dp(24), dp(24))
-            setBackgroundColor(ContextCompat.getColor(ctx, R.color.background_primary))
+            setBackgroundColor(0xFFFBF9F5.toInt()) // Warm Ivory base
         }
 
         // Title
