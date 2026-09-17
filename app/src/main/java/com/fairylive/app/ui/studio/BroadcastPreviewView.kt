@@ -58,12 +58,26 @@ class BroadcastPreviewView @JvmOverloads constructor(
     private var currentScene: BroadcastScene? = null
     private var selectedId: String? = null
 
-    // Transform touch tracking
-    private var touchMode = TouchMode.NONE
+    // Transform touch tracking via authoritative gesture state machine
+    enum class GestureState {
+        IDLE,
+        DRAG,
+        SCALE_ROTATE,
+        ROTATE,
+        RESIZE,
+        CROP_LEFT,
+        CROP_TOP,
+        CROP_RIGHT,
+        CROP_BOTTOM,
+        WEB_SCROLL
+    }
+
+    var gestureState: GestureState = GestureState.IDLE
+        private set
+
     private var lastTouchX = 0f
     private var lastTouchY = 0f
     private var activeCorner = -1 // 0: TL, 1: TR, 2: BR, 3: BL
-    private var activeCropEdge = -1 // 0: Left, 1: Top, 2: Right, 3: Bottom (Phase 7 §2)
 
     // Two-finger gesture tracking
     private var initialFingerDistance = 0f
@@ -143,9 +157,6 @@ class BroadcastPreviewView @JvmOverloads constructor(
         strokeWidth = 2f * resources.displayMetrics.density
     }
 
-    private enum class TouchMode {
-        NONE, DRAG, RESIZE, ROTATE, TWO_FINGER, WEB_SCROLL, CROP
-    }
 
     init {
         setWillNotDraw(false)
@@ -540,7 +551,7 @@ class BroadcastPreviewView @JvmOverloads constructor(
             canvas.drawCircle(topCenterX, rotHandleY, r * 1.2f, rotationHandlePaint)
             canvas.drawCircle(topCenterX, rotHandleY, r * 1.2f, handleStrokePaint)
 
-            // Phase 7 §2: Draw 4 Crop Edge Handles for Web overlays
+            // Distinct 4-Handle Visual Crop Editor
             if (elem?.type == OverlayType.WEB) {
                 val cropEdges = arrayOf(
                     Pair(rect.left, rect.centerY()),    // 0: Left
@@ -548,21 +559,43 @@ class BroadcastPreviewView @JvmOverloads constructor(
                     Pair(rect.right, rect.centerY()),   // 2: Right
                     Pair(rect.centerX(), rect.bottom)    // 3: Bottom
                 )
-                for ((ex, ey) in cropEdges) {
-                    canvas.drawCircle(ex, ey, r * 0.9f, cropHandlePaint)
-                    canvas.drawCircle(ex, ey, r * 0.9f, cropHandleStrokePaint)
+                val notchPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    color = Color.WHITE
+                    strokeWidth = 2f * resources.displayMetrics.density
+                    style = Paint.Style.STROKE
+                }
+                val nLen = r * 0.45f
+
+                for (i in cropEdges.indices) {
+                    val (ex, ey) = cropEdges[i]
+                    canvas.drawCircle(ex, ey, r * 0.95f, cropHandlePaint)
+                    canvas.drawCircle(ex, ey, r * 0.95f, cropHandleStrokePaint)
+
+                    // Draw directional notch on crop handle
+                    when (i) {
+                        0, 2 -> canvas.drawLine(ex, ey - nLen, ex, ey + nLen, notchPaint)
+                        1, 3 -> canvas.drawLine(ex - nLen, ey, ex + nLen, ey, notchPaint)
+                    }
                 }
             }
         }
 
-        // 4. Element type badge
+        // 4. Element type badge with live gesture indicator
         val label = if (selId == "facecam") {
             "Camera"
         } else {
             val baseName = elem?.type?.name?.lowercase()?.replaceFirstChar { it.uppercase() } ?: "Overlay"
             val rotSuffix = if (rotDegrees != 0f) " • ${rotDegrees.roundToInt()}°" else ""
-            val modeSuffix = if (elem?.type == OverlayType.WEB && webInteractionMode) " • 🖱️ Scroll" else ""
-            if (isLocked) "🔒 $baseName$rotSuffix" else "$baseName$rotSuffix$modeSuffix"
+            val gestureSuffix = when (gestureState) {
+                GestureState.DRAG -> " • ✋ Move"
+                GestureState.ROTATE -> " • 🔄 Rotate"
+                GestureState.RESIZE -> " • 📐 Resize"
+                GestureState.CROP_LEFT, GestureState.CROP_TOP, GestureState.CROP_RIGHT, GestureState.CROP_BOTTOM -> " • ✂️ Crop"
+                GestureState.SCALE_ROTATE -> " • 🤏 Pinch"
+                GestureState.WEB_SCROLL -> " • 🖱️ Scroll"
+                else -> if (elem?.type == OverlayType.WEB && webInteractionMode) " • 🖱️ Scroll" else ""
+            }
+            if (isLocked) "🔒 $baseName$rotSuffix" else "$baseName$rotSuffix$gestureSuffix"
         }
 
         val textWidth = labelPaint.measureText(label)
@@ -600,7 +633,7 @@ class BroadcastPreviewView @JvmOverloads constructor(
 
                     when (event.actionMasked) {
                         MotionEvent.ACTION_POINTER_DOWN -> {
-                            touchMode = TouchMode.TWO_FINGER
+                            gestureState = GestureState.SCALE_ROTATE
                             initialFingerDistance = hypot((p1x - p0x).toDouble(), (p1y - p0y).toDouble()).toFloat()
                             initialFingerAngle = Math.toDegrees(atan2((p1y - p0y).toDouble(), (p1x - p0x).toDouble())).toFloat()
                             initialElementScale = elem?.scale ?: 1f
@@ -609,7 +642,7 @@ class BroadcastPreviewView @JvmOverloads constructor(
                             return true
                         }
                         MotionEvent.ACTION_MOVE -> {
-                            if (touchMode == TouchMode.TWO_FINGER && initialFingerDistance > 10f) {
+                            if (gestureState == GestureState.SCALE_ROTATE && initialFingerDistance > 10f) {
                                 val currentDistance = hypot((p1x - p0x).toDouble(), (p1y - p0y).toDouble()).toFloat()
                                 val currentAngle = Math.toDegrees(atan2((p1y - p0y).toDouble(), (p1x - p0x).toDouble())).toFloat()
 
@@ -633,7 +666,7 @@ class BroadcastPreviewView @JvmOverloads constructor(
                             }
                         }
                         MotionEvent.ACTION_POINTER_UP -> {
-                            touchMode = TouchMode.NONE
+                            gestureState = GestureState.IDLE
                         }
                     }
                 }
@@ -661,7 +694,7 @@ class BroadcastPreviewView @JvmOverloads constructor(
 
                             // Check rotation handle hit in local element space
                             if (isHitRotationHandle(rect, unrotated.x, unrotated.y)) {
-                                touchMode = TouchMode.ROTATE
+                                gestureState = GestureState.ROTATE
                                 parent?.requestDisallowInterceptTouchEvent(true)
                                 return true
                             }
@@ -670,17 +703,21 @@ class BroadcastPreviewView @JvmOverloads constructor(
                             val hitHandle = getHitHandle(rect, unrotated.x, unrotated.y)
                             if (hitHandle >= 0) {
                                 activeCorner = hitHandle
-                                touchMode = TouchMode.RESIZE
+                                gestureState = GestureState.RESIZE
                                 parent?.requestDisallowInterceptTouchEvent(true)
                                 return true
                             }
 
-                            // Phase 7 §2: Check Crop Edge Handle hit for Web Overlays
+                            // Distinct Crop Edge Handle hits for Web Overlays
                             if (elem?.type == OverlayType.WEB) {
                                 val hitCrop = getHitCropHandle(rect, unrotated.x, unrotated.y)
                                 if (hitCrop >= 0) {
-                                    activeCropEdge = hitCrop
-                                    touchMode = TouchMode.CROP
+                                    gestureState = when (hitCrop) {
+                                        0 -> GestureState.CROP_LEFT
+                                        1 -> GestureState.CROP_TOP
+                                        2 -> GestureState.CROP_RIGHT
+                                        else -> GestureState.CROP_BOTTOM
+                                    }
                                     parent?.requestDisallowInterceptTouchEvent(true)
                                     return true
                                 }
@@ -688,7 +725,7 @@ class BroadcastPreviewView @JvmOverloads constructor(
 
                             // Check Web Overlay internal scroll hit only if webInteractionMode is enabled
                             if (elem?.type == OverlayType.WEB && webInteractionMode && rect.contains(unrotated.x, unrotated.y)) {
-                                touchMode = TouchMode.WEB_SCROLL
+                                gestureState = GestureState.WEB_SCROLL
                                 parent?.requestDisallowInterceptTouchEvent(true)
                                 return true
                             }
@@ -702,14 +739,14 @@ class BroadcastPreviewView @JvmOverloads constructor(
                     selectedId = hitElement
                     val hitElem = if (hitElement != "facecam") scene.overlayElements.firstOrNull { it.id == hitElement } else null
                     val isLocked = hitElem?.locked == true
-                    touchMode = if (isLocked) TouchMode.NONE else TouchMode.DRAG
+                    gestureState = if (isLocked) GestureState.IDLE else GestureState.DRAG
                     interactionListener?.onElementSelected(hitElement)
                     parent?.requestDisallowInterceptTouchEvent(true)
                     invalidate()
                     return true
                 } else {
                     selectedId = null
-                    touchMode = TouchMode.NONE
+                    gestureState = GestureState.IDLE
                     interactionListener?.onElementSelected(null)
                     invalidate()
                     return false
@@ -725,8 +762,8 @@ class BroadcastPreviewView @JvmOverloads constructor(
                 val deltaNormX = dx / w
                 val deltaNormY = dy / h
 
-                when (touchMode) {
-                    TouchMode.CROP -> {
+                when (gestureState) {
+                    GestureState.CROP_LEFT, GestureState.CROP_TOP, GestureState.CROP_RIGHT, GestureState.CROP_BOTTOM -> {
                         // Interactive Crop in local element coordinates honoring rotation
                         val rect = getElementTransformedBounds(scene, selId, w, h) ?: return false
                         val overlay = elem ?: return false
@@ -741,11 +778,12 @@ class BroadcastPreviewView @JvmOverloads constructor(
                         var cr = cfg.cropRight
                         var cb = cfg.cropBottom
 
-                        when (activeCropEdge) {
-                            0 -> cl = (cl + localDelta.x / rw).coerceIn(0f, cr - 0.05f) // Left
-                            1 -> ct = (ct + localDelta.y / rh).coerceIn(0f, cb - 0.05f) // Top
-                            2 -> cr = (cr + localDelta.x / rw).coerceIn(cl + 0.05f, 1f)  // Right
-                            3 -> cb = (cb + localDelta.y / rh).coerceIn(ct + 0.05f, 1f)  // Bottom
+                        when (gestureState) {
+                            GestureState.CROP_LEFT -> cl = (cl + localDelta.x / rw).coerceIn(0f, cr - 0.05f)
+                            GestureState.CROP_TOP -> ct = (ct + localDelta.y / rh).coerceIn(0f, cb - 0.05f)
+                            GestureState.CROP_RIGHT -> cr = (cr + localDelta.x / rw).coerceIn(cl + 0.05f, 1f)
+                            GestureState.CROP_BOTTOM -> cb = (cb + localDelta.y / rh).coerceIn(ct + 0.05f, 1f)
+                            else -> {}
                         }
 
                         val updatedCfg = cfg.copy(cropLeft = cl, cropTop = ct, cropRight = cr, cropBottom = cb)
@@ -761,7 +799,7 @@ class BroadcastPreviewView @JvmOverloads constructor(
                         return true
                     }
 
-                    TouchMode.ROTATE -> {
+                    GestureState.ROTATE -> {
                         val rect = getElementBounds(scene, selId, w, h) ?: return false
                         val centerX = rect.centerX()
                         val centerY = rect.centerY()
@@ -782,7 +820,7 @@ class BroadcastPreviewView @JvmOverloads constructor(
                         return true
                     }
 
-                    TouchMode.WEB_SCROLL -> {
+                    GestureState.WEB_SCROLL -> {
                         // P1 & P10: Single finger drag inside webpage scrolls document, NOT the overlay
                         val overlay = elem ?: return false
                         val cfg = overlay.webConfig ?: WebOverlayConfig()
@@ -804,7 +842,7 @@ class BroadcastPreviewView @JvmOverloads constructor(
                         return true
                     }
 
-                    TouchMode.DRAG -> {
+                    GestureState.DRAG -> {
                         snapGuideVerticalX = null
                         snapGuideHorizontalY = null
 
@@ -866,7 +904,7 @@ class BroadcastPreviewView @JvmOverloads constructor(
                         return true
                     }
 
-                    TouchMode.RESIZE -> {
+                    GestureState.RESIZE -> {
                         if (selId == "facecam") {
                             val fc = scene.facecamConfig
                             val newW = (fc.normalizedWidth + deltaNormX).coerceIn(0.08f, 0.8f)
@@ -889,7 +927,7 @@ class BroadcastPreviewView @JvmOverloads constructor(
             }
 
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                touchMode = TouchMode.NONE
+                gestureState = GestureState.IDLE
                 activeCorner = -1
                 snapGuideVerticalX = null
                 snapGuideHorizontalY = null
