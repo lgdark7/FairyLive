@@ -278,11 +278,18 @@ class StreamPipeline(
                         )
                     )
 
-                    val creatorError = com.fairylive.app.core.common.CreatorErrorNotifier.mapNetworkException(e)
+                    val creatorError = com.fairylive.app.core.common.CreatorErrorNotifier.mapNetworkException(
+                        e = e,
+                        host = endpoint.host,
+                        port = endpoint.port,
+                        appName = endpoint.appName,
+                        streamKey = endpoint.streamKey
+                    )
                     com.fairylive.app.core.common.CreatorErrorNotifier.postError(
-                        creatorError.title,
-                        creatorError.message,
-                        creatorError.resolution
+                        title = creatorError.title,
+                        message = creatorError.message,
+                        resolution = creatorError.resolution,
+                        diagnosticInfo = creatorError.diagnosticInfo
                     )
                     break
                 }

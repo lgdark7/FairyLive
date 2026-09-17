@@ -133,6 +133,7 @@ class CreatorStudioFragment : Fragment(),
         com.fairylive.app.core.video.EncoderStateNotifier.addMetricsListener(this)
         AudioStateNotifier.addMetricsListener(this)
         SceneStateNotifier.addListener(sceneListener)
+        com.fairylive.app.core.common.CreatorErrorNotifier.addListener(errorListener)
 
         val app = requireActivity().application as FairyLiveApplication
         val activeScene = app.sceneManager.activeScene
@@ -148,7 +149,24 @@ class CreatorStudioFragment : Fragment(),
         com.fairylive.app.core.video.EncoderStateNotifier.removeMetricsListener(this)
         AudioStateNotifier.removeMetricsListener(this)
         SceneStateNotifier.removeListener(sceneListener)
+        com.fairylive.app.core.common.CreatorErrorNotifier.removeListener(errorListener)
         _binding = null
+    }
+
+    private val errorListener = com.fairylive.app.core.common.CreatorErrorNotifier.ErrorListener { error ->
+        activity?.runOnUiThread {
+            if (_binding != null && isAdded) {
+                val diagStr = error.diagnosticInfo?.toSafeString()?.let { "\n\n$it" } ?: ""
+                AlertDialog.Builder(requireContext(), android.R.style.Theme_DeviceDefault_Dialog_Alert)
+                    .setTitle(error.title)
+                    .setMessage("${error.message}\n\n${error.resolution}$diagStr")
+                    .setPositiveButton("Open Settings") { _, _ ->
+                        (activity as? com.fairylive.app.MainActivity)?.navigateToSettings()
+                    }
+                    .setNegativeButton("Dismiss", null)
+                    .show()
+            }
+        }
     }
 
     private fun setupClickListeners() {

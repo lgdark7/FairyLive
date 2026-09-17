@@ -80,6 +80,46 @@
                     android:layout_marginTop="4dp"
                     android:textColor="@color/status_amber"
                     android:textSize="13sp" />
+
+                <TextView
+                    android:id="@+id/tv_error_diagnostic"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:background="@drawable/bg_hud_overlay"
+                    android:padding="8dp"
+                    android:textColor="@color/text_primary"
+                    android:textSize="11sp"
+                    android:fontFamily="monospace"
+                    android:visibility="gone" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:gravity="end|center_vertical"
+                    android:orientation="horizontal">
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btn_error_action_settings"
+                        style="@style/Widget.MaterialComponents.Button.TextButton"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Open Settings"
+                        android:textColor="@color/accent_primary"
+                        android:textSize="12sp"
+                        app:rippleColor="@color/accent_soft_lavender" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btn_error_action_dismiss"
+                        style="@style/Widget.MaterialComponents.Button.TextButton"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="8dp"
+                        android:text="Dismiss"
+                        android:textColor="@color/text_muted"
+                        android:textSize="12sp" />
+                </LinearLayout>
             </LinearLayout>
         </androidx.cardview.widget.CardView>
 

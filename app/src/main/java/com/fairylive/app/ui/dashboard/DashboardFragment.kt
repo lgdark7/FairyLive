@@ -264,6 +264,16 @@ class DashboardFragment : Fragment(),
             binding.cardCreatorError.visibility = View.GONE
             CreatorErrorNotifier.clear()
         }
+
+        binding.btnErrorActionDismiss.setOnClickListener {
+            binding.cardCreatorError.visibility = View.GONE
+            CreatorErrorNotifier.clear()
+        }
+
+        binding.btnErrorActionSettings.setOnClickListener {
+            binding.cardCreatorError.visibility = View.GONE
+            (activity as? MainActivity)?.navigateToSettings()
+        }
     }
 
     private fun updateSceneUI(scene: BroadcastScene) {
@@ -450,6 +460,14 @@ class DashboardFragment : Fragment(),
                 binding.tvErrorTitle.text = error.title
                 binding.tvErrorMessage.text = error.message
                 binding.tvErrorResolution.text = error.resolution
+
+                val diag = error.diagnosticInfo
+                if (diag != null) {
+                    binding.tvErrorDiagnostic.visibility = View.VISIBLE
+                    binding.tvErrorDiagnostic.text = diag.toSafeString()
+                } else {
+                    binding.tvErrorDiagnostic.visibility = View.GONE
+                }
             }
         }
     }
