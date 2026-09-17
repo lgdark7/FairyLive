@@ -41,7 +41,14 @@ class SettingsFragment : Fragment() {
         }
 
         binding.btnSave.setOnClickListener {
-            saveFields()
+            saveFields(showFeedback = true)
+        }
+    }
+
+    override fun onPause() {
+        super.onPause()
+        if (_binding != null) {
+            saveFields(showFeedback = false)
         }
     }
 
@@ -62,7 +69,7 @@ class SettingsFragment : Fragment() {
         }
     }
 
-    private fun saveFields() {
+    private fun saveFields(showFeedback: Boolean = true) {
         val app = requireActivity().application as FairyLiveApplication
         val repo = app.settingsRepository
 
@@ -77,11 +84,13 @@ class SettingsFragment : Fragment() {
         val streamKey = binding.etStreamKey.text?.toString()?.trim() ?: ""
 
         val validation = com.fairylive.app.core.settings.StreamConfigurationValidator.validate(serverUrl, streamKey)
-        if (!validation.isValid) {
-            val err = validation as com.fairylive.app.core.settings.StreamConfigurationValidator.ValidationResult.Error
-            Toast.makeText(requireContext(), err.userMessage, Toast.LENGTH_LONG).show()
-        } else {
-            Toast.makeText(requireContext(), "Stream configuration valid & saved", Toast.LENGTH_SHORT).show()
+        if (showFeedback) {
+            if (!validation.isValid) {
+                val err = validation as com.fairylive.app.core.settings.StreamConfigurationValidator.ValidationResult.Error
+                Toast.makeText(requireContext(), err.userMessage, Toast.LENGTH_LONG).show()
+            } else {
+                Toast.makeText(requireContext(), "Stream configuration valid & saved", Toast.LENGTH_SHORT).show()
+            }
         }
 
         val newSettings = StreamSettings.fromProfile(

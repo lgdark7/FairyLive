@@ -81,6 +81,13 @@ object CreatorErrorNotifier {
                     resolution = "Double-check your stream key in Settings."
                 )
             }
+            msg.contains("broken pipe", ignoreCase = true) || msg.contains("connection reset", ignoreCase = true) || msg.contains("connection abort", ignoreCase = true) -> {
+                CreatorError(
+                    title = "Server Closed Connection",
+                    message = "The streaming server disconnected immediately after publishing.",
+                    resolution = "This usually means your Stream Key is invalid or rejected by YouTube/Twitch, or the Server URL is incorrect. Double-check your Stream Key in Settings."
+                )
+            }
             else -> {
                 CreatorError(
                     title = "Streaming Interrupted",

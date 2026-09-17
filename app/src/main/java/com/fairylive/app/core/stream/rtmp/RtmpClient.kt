@@ -23,34 +23,41 @@ data class RtmpEndpoint(
 
     companion object {
         fun parse(url: String, fallbackStreamKey: String = ""): RtmpEndpoint {
-            val cleanUrl = url.trim()
-            val uri = URI(cleanUrl)
-            val host = uri.host ?: "127.0.0.1"
+            val raw = url.trim()
+            val cleanUrl = if (!raw.contains("://")) "rtmp://$raw" else raw
+            val uri = try {
+                URI(cleanUrl)
+            } catch (_: Exception) {
+                URI("rtmp://127.0.0.1:1935/live")
+            }
+            val host = uri.host?.takeIf { it.isNotBlank() } ?: "127.0.0.1"
             val port = if (uri.port > 0) uri.port else 1935
             val path = (uri.path ?: "").trimStart('/').trimEnd('/')
-            val segments = path.split('/')
+            val segments = if (path.isEmpty()) emptyList() else path.split('/')
+            val cleanFallbackKey = fallbackStreamKey.trim()
 
             return if (segments.size >= 2) {
                 // e.g. rtmp://host/live/my_key
+                val keyFromUrl = segments.subList(1, segments.size).joinToString("/")
                 RtmpEndpoint(
                     host = host,
                     port = port,
                     appName = segments[0],
-                    streamKey = segments[1]
+                    streamKey = if (cleanFallbackKey.isNotEmpty()) cleanFallbackKey else keyFromUrl
                 )
             } else if (segments.size == 1 && segments[0].isNotEmpty()) {
                 RtmpEndpoint(
                     host = host,
                     port = port,
                     appName = segments[0],
-                    streamKey = fallbackStreamKey
+                    streamKey = cleanFallbackKey
                 )
             } else {
                 RtmpEndpoint(
                     host = host,
                     port = port,
                     appName = "live",
-                    streamKey = fallbackStreamKey
+                    streamKey = cleanFallbackKey
                 )
             }
         }
