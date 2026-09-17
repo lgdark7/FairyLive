@@ -487,10 +487,10 @@ class GlesRenderer {
         }
 
         val t = layer.transform
-        val left = t.resolvedLeft(streamWidth)
-        val top = t.resolvedTop(streamHeight)
         val w = t.resolvedWidth(streamWidth)
         val h = t.resolvedHeight(streamWidth, streamHeight, layer.sourceAspect)
+        val left = t.resolvedLeft(streamWidth)
+        val top = t.resolvedTop(streamWidth, streamHeight, layer.sourceAspect)
 
         // normalized clip-space transform for this overlay
         val clipX = left * 2f / streamWidth - 1f

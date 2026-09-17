@@ -1,0 +1,105 @@
+# FAIRY LIVE — Milestone V1.2 Phase 2 Official ChatGPT Evaluation & Phase 3 Directive
+
+**Evaluation Date:** 2026-09-17 16:45:00 IST
+**Evaluator:** ChatGPT Desktop Engine
+**Status:** PHASE 2 APPROVED ✅ -> ADVANCED TO V1.2 PHASE 3
+
+---
+
+## 1. Official Phase 2 Verdict
+"Yep — this is the correct direction now. V1.2 Phase 2 is focused on the actual problem you complained about: overlay glitches, gesture conflicts, rotation, crop handles, scaling, and preview/broadcast mismatch.
+
+✅ V1.2 Phase 2 review
+The report shows the major interaction architecture is now in place:
+• Web overlay moves normally instead of hijacking drag gestures.
+• Web scrolling is explicitly separated into WEB_SCROLL mode.
+• Rotation uses inverse coordinate mapping for hit testing.
+• Crop handles account for rotation.
+• Scale is center-anchored consistently between preview and GLES.
+• Layer ordering now actually changes zIndex.
+• Locked overlays reject transformations.
+• Preview and broadcast use the same transform model.
+• Persistence covers the important transform properties.
+
+So I would approve Phase 2, but I would not call the overlay system production-perfect yet.
+The next phase should stop adding random features and concentrate on visual correctness + real-device interaction."
+
+---
+
+## 2. FAIRY LIVE V1.2 — PHASE 3 DIRECTIVE
+Mission: Eliminate the remaining visual/interaction glitches and make the Studio editor behave like a professional streaming compositor.
+Do not redesign the streaming engine.
+Do not add unrelated features.
+Do not change the RenderDomain architecture.
+
+### P0 — Real overlay transform correctness
+Test every overlay type:
+• Text, Image, GIF, Facecam, Alert, QR, Lower Third, Stream Goal, YouTube Subscriber, Web
+For each:
+Move → Scale → Rotate → Crop where applicable → Lock → Unlock → Move again → Save → Reload → Broadcast
+The exact same geometry must appear in:
+Creator Studio Preview → GLES compositor → RTMP output. No positional drift.
+
+### P1 — Fix gesture state machine
+Create a single authoritative gesture state machine.
+Required states:
+IDLE, DRAG, SCALE_ROTATE, ROTATE, RESIZE, CROP_LEFT, CROP_TOP, CROP_RIGHT, CROP_BOTTOM, WEB_SCROLL
+Transitions must be deterministic:
+• 1 finger drag
+• 2 finger scale
+• 2 finger rotation
+• Crop handle drag
+• Rotation handle drag
+• Web scroll mode
+• Locked overlay rejection
+• Touching outside overlay
+• Rapid switching between gestures
+No gesture should unexpectedly change modes.
+
+### P2 — Selection / bounding-box stability
+Fix all possible:
+• Jumping handles
+• Disappearing handles
+• Incorrect bounding boxes
+• Handles detached from rotated overlays
+• Selection changing unexpectedly
+• Overlay jumping after rotation or scaling
+• Crop handles moving when the body is dragged
+Selection rectangle must remain mathematically attached to the actual transformed element.
+
+### P3 — Rotation quality
+Test: 0°, 15°, 27°, 45°, 90°, 135°, 180°, 225°, 270°, 315°, 359°, 360°
+Rotation must:
+• Preserve center, scale, crop, opacity, position, z-index, lock state
+No snapping unless the user explicitly chooses a preset.
+
+### P4 — Crop editor
+The crop system needs a proper visual editor with 4 distinct handles:
+┌─────────────────────────┐
+│          ● TOP          │
+│                         │
+│ ● LEFT       RIGHT ●    │
+│                         │
+│       ● BOTTOM          │
+└─────────────────────────┘
+Handles follow local rotated coords. Prevent left >= right, top >= bottom, negative crop, crop > 100%.
+
+### P5 — Web overlay specifically
+Web overlay must behave like an actual browser source:
+• Page loads, scrolls, navigates, reloads, zooms
+• Transparent background works
+• HTTPS pages work, failed pages show error state
+• Webpage Zoom != Overlay Scale (Zoom enlarges web page content internally without expanding external bounds).
+
+### P6 — Layer system
+Verify: Layer ordering in Studio preview == GLES compositor == RTMP output.
+Synchronize visibility, locking, duplication, deletion.
+
+### P7 & P8 — Performance & Long-running stability test
+Measure Preview FPS, Compositor FPS, Encoder FPS, Actual RTMP FPS, Dropped frames, Memory usage.
+Run multi-minute broadcasts with Game + Web + YouTube Counter + Facecam + Text.
+Verify monotonic PTS, 0 leaks, <=2 active codecs, clean Stop Live.
+
+Phase 3 Definition of Done:
+Overlay manipulation feels physically stable, web overlay behaves like a genuine browser source, Studio preview geometry matches actual broadcast geometry.
+Keep YouTube/custom/local-test destination isolation intact.

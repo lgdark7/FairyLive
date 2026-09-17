@@ -5,6 +5,7 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
+import android.graphics.PointF
 import android.graphics.RectF
 import android.graphics.Typeface
 import android.util.AttributeSet
@@ -416,6 +417,68 @@ class BroadcastPreviewView @JvmOverloads constructor(
         }
     }
 
+    var webInteractionMode: Boolean = false
+        private set
+
+    fun setWebInteractionMode(enabled: Boolean) {
+        webInteractionMode = enabled
+        invalidate()
+    }
+
+    fun getElementBaseBounds(scene: BroadcastScene, id: String, viewW: Float, viewH: Float): RectF? {
+        if (id == "facecam") {
+            val fc = scene.facecamConfig
+            if (!fc.enabled) return null
+            val l = fc.normalizedX * viewW
+            val t = fc.normalizedY * viewH
+            val r = l + (fc.normalizedWidth * viewW)
+            val b = t + (fc.normalizedHeight * viewH)
+            return RectF(l, t, r, b)
+        }
+
+        val elem = scene.overlayElements.firstOrNull { it.id == id } ?: return null
+        val l = elem.normalizedX * viewW
+        val t = elem.normalizedY * viewH
+        val elemW = elem.normalizedWidth * viewW
+        val elemH = if (elem.normalizedHeight > 0f) {
+            elem.normalizedHeight * viewH
+        } else {
+            elem.normalizedWidth * 0.4f * viewH
+        }
+        return RectF(l, t, l + elemW, t + elemH)
+    }
+
+    fun getElementTransformedBounds(scene: BroadcastScene, id: String, viewW: Float, viewH: Float): RectF? {
+        if (id == "facecam") {
+            return getElementBaseBounds(scene, id, viewW, viewH)
+        }
+        val elem = scene.overlayElements.firstOrNull { it.id == id } ?: return null
+        val base = getElementBaseBounds(scene, id, viewW, viewH) ?: return null
+        val cx = base.centerX()
+        val cy = base.centerY()
+        val scaledW = base.width() * elem.scale
+        val scaledH = base.height() * elem.scale
+        return RectF(cx - scaledW / 2f, cy - scaledH / 2f, cx + scaledW / 2f, cy + scaledH / 2f)
+    }
+
+    private fun unrotatePoint(x: Float, y: Float, cx: Float, cy: Float, deg: Float): PointF {
+        if (deg == 0f) return PointF(x, y)
+        val rad = Math.toRadians(-deg.toDouble())
+        val cos = Math.cos(rad).toFloat()
+        val sin = Math.sin(rad).toFloat()
+        val dx = x - cx
+        val dy = y - cy
+        return PointF(cx + (dx * cos - dy * sin), cy + (dx * sin + dy * cos))
+    }
+
+    private fun unrotateDelta(dx: Float, dy: Float, deg: Float): PointF {
+        if (deg == 0f) return PointF(dx, dy)
+        val rad = Math.toRadians(-deg.toDouble())
+        val cos = Math.cos(rad).toFloat()
+        val sin = Math.sin(rad).toFloat()
+        return PointF(dx * cos - dy * sin, dx * sin + dy * cos)
+    }
+
     override fun dispatchDraw(canvas: Canvas) {
         super.dispatchDraw(canvas)
         drawGuidelines(canvas)
@@ -440,7 +503,7 @@ class BroadcastPreviewView @JvmOverloads constructor(
         val h = height.toFloat()
         if (w <= 0f || h <= 0f) return
 
-        val rect = getElementBounds(scene, selId, w, h) ?: return
+        val rect = getElementTransformedBounds(scene, selId, w, h) ?: return
         val elem = if (selId != "facecam") scene.overlayElements.firstOrNull { it.id == selId } else null
         val isLocked = elem?.locked == true
         val rotDegrees = elem?.rotationDegrees ?: (if (selId == "facecam") scene.facecamConfig.rotationDegrees else 0f)
@@ -498,7 +561,8 @@ class BroadcastPreviewView @JvmOverloads constructor(
         } else {
             val baseName = elem?.type?.name?.lowercase()?.replaceFirstChar { it.uppercase() } ?: "Overlay"
             val rotSuffix = if (rotDegrees != 0f) " • ${rotDegrees.roundToInt()}°" else ""
-            if (isLocked) "🔒 $baseName$rotSuffix" else "$baseName$rotSuffix"
+            val modeSuffix = if (elem?.type == OverlayType.WEB && webInteractionMode) " • 🖱️ Scroll" else ""
+            if (isLocked) "🔒 $baseName$rotSuffix" else "$baseName$rotSuffix$modeSuffix"
         }
 
         val textWidth = labelPaint.measureText(label)
@@ -512,28 +576,8 @@ class BroadcastPreviewView @JvmOverloads constructor(
         canvas.restore()
     }
 
-    private fun getElementBounds(scene: BroadcastScene, id: String, viewW: Float, viewH: Float): RectF? {
-        if (id == "facecam") {
-            val fc = scene.facecamConfig
-            if (!fc.enabled) return null
-            val l = fc.normalizedX * viewW
-            val t = fc.normalizedY * viewH
-            val r = l + (fc.normalizedWidth * viewW)
-            val b = t + (fc.normalizedHeight * viewH)
-            return RectF(l, t, r, b)
-        }
-
-        val elem = scene.overlayElements.firstOrNull { it.id == id } ?: return null
-        val l = elem.normalizedX * viewW
-        val t = elem.normalizedY * viewH
-        val elemW = elem.normalizedWidth * viewW
-        val elemH = if (elem.normalizedHeight > 0f) {
-            elem.normalizedHeight * viewH
-        } else {
-            elem.normalizedWidth * 0.4f * viewH
-        }
-        return RectF(l, t, l + elemW, t + elemH)
-    }
+    private fun getElementBounds(scene: BroadcastScene, id: String, viewW: Float, viewH: Float): RectF? =
+        getElementTransformedBounds(scene, id, viewW, viewH)
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
         val scene = currentScene ?: return super.onTouchEvent(event)
@@ -610,17 +654,20 @@ class BroadcastPreviewView @JvmOverloads constructor(
                     val elem = if (selId != "facecam") scene.overlayElements.firstOrNull { it.id == selId } else null
                     val isLocked = elem?.locked == true
                     if (!isLocked) {
-                        val rect = getElementBounds(scene, selId, w, h)
+                        val rect = getElementTransformedBounds(scene, selId, w, h)
                         if (rect != null) {
-                            // Check rotation handle hit
-                            if (isHitRotationHandle(rect, touchX, touchY)) {
+                            val rot = elem?.rotationDegrees ?: (if (selId == "facecam") scene.facecamConfig.rotationDegrees else 0f)
+                            val unrotated = unrotatePoint(touchX, touchY, rect.centerX(), rect.centerY(), rot)
+
+                            // Check rotation handle hit in local element space
+                            if (isHitRotationHandle(rect, unrotated.x, unrotated.y)) {
                                 touchMode = TouchMode.ROTATE
                                 parent?.requestDisallowInterceptTouchEvent(true)
                                 return true
                             }
 
-                            // Check resize handle hit
-                            val hitHandle = getHitHandle(rect, touchX, touchY)
+                            // Check resize handle hit in local element space
+                            val hitHandle = getHitHandle(rect, unrotated.x, unrotated.y)
                             if (hitHandle >= 0) {
                                 activeCorner = hitHandle
                                 touchMode = TouchMode.RESIZE
@@ -630,7 +677,7 @@ class BroadcastPreviewView @JvmOverloads constructor(
 
                             // Phase 7 §2: Check Crop Edge Handle hit for Web Overlays
                             if (elem?.type == OverlayType.WEB) {
-                                val hitCrop = getHitCropHandle(rect, touchX, touchY)
+                                val hitCrop = getHitCropHandle(rect, unrotated.x, unrotated.y)
                                 if (hitCrop >= 0) {
                                     activeCropEdge = hitCrop
                                     touchMode = TouchMode.CROP
@@ -639,8 +686,8 @@ class BroadcastPreviewView @JvmOverloads constructor(
                                 }
                             }
 
-                            // Check Web Overlay internal scroll hit (P1 & P10)
-                            if (elem?.type == OverlayType.WEB && rect.contains(touchX, touchY)) {
+                            // Check Web Overlay internal scroll hit only if webInteractionMode is enabled
+                            if (elem?.type == OverlayType.WEB && webInteractionMode && rect.contains(unrotated.x, unrotated.y)) {
                                 touchMode = TouchMode.WEB_SCROLL
                                 parent?.requestDisallowInterceptTouchEvent(true)
                                 return true
@@ -680,11 +727,12 @@ class BroadcastPreviewView @JvmOverloads constructor(
 
                 when (touchMode) {
                     TouchMode.CROP -> {
-                        // Phase 7 §2 & §3: Interactive Crop in local element coordinates
-                        val rect = getElementBounds(scene, selId, w, h) ?: return false
+                        // Interactive Crop in local element coordinates honoring rotation
+                        val rect = getElementTransformedBounds(scene, selId, w, h) ?: return false
                         val overlay = elem ?: return false
                         val cfg = overlay.webConfig ?: return false
 
+                        val localDelta = unrotateDelta(dx, dy, overlay.rotationDegrees)
                         val rw = rect.width().coerceAtLeast(10f)
                         val rh = rect.height().coerceAtLeast(10f)
 
@@ -694,10 +742,10 @@ class BroadcastPreviewView @JvmOverloads constructor(
                         var cb = cfg.cropBottom
 
                         when (activeCropEdge) {
-                            0 -> cl = (cl + dx / rw).coerceIn(0f, 0.45f) // Left
-                            1 -> ct = (ct + dy / rh).coerceIn(0f, 0.45f) // Top
-                            2 -> cr = (cr - dx / rw).coerceIn(0f, 0.45f) // Right
-                            3 -> cb = (cb - dy / rh).coerceIn(0f, 0.45f) // Bottom
+                            0 -> cl = (cl + localDelta.x / rw).coerceIn(0f, cr - 0.05f) // Left
+                            1 -> ct = (ct + localDelta.y / rh).coerceIn(0f, cb - 0.05f) // Top
+                            2 -> cr = (cr + localDelta.x / rw).coerceIn(cl + 0.05f, 1f)  // Right
+                            3 -> cb = (cb + localDelta.y / rh).coerceIn(ct + 0.05f, 1f)  // Bottom
                         }
 
                         val updatedCfg = cfg.copy(cropLeft = cl, cropTop = ct, cropRight = cr, cropBottom = cb)
@@ -906,16 +954,20 @@ class BroadcastPreviewView @JvmOverloads constructor(
         val sortedDesc = scene.overlayElements.sortedByDescending { it.zIndex }
         for (elem in sortedDesc) {
             if (!elem.visible) continue
-            val rect = getElementBounds(scene, elem.id, viewW, viewH) ?: continue
-            if (rect.contains(x, y)) {
+            val rect = getElementTransformedBounds(scene, elem.id, viewW, viewH) ?: continue
+            val unrotated = unrotatePoint(x, y, rect.centerX(), rect.centerY(), elem.rotationDegrees)
+            if (rect.contains(unrotated.x, unrotated.y)) {
                 return elem.id
             }
         }
 
         if (scene.facecamConfig.enabled) {
-            val fcRect = getElementBounds(scene, "facecam", viewW, viewH)
-            if (fcRect != null && fcRect.contains(x, y)) {
-                return "facecam"
+            val fcRect = getElementTransformedBounds(scene, "facecam", viewW, viewH)
+            if (fcRect != null) {
+                val unrotated = unrotatePoint(x, y, fcRect.centerX(), fcRect.centerY(), scene.facecamConfig.rotationDegrees)
+                if (fcRect.contains(unrotated.x, unrotated.y)) {
+                    return "facecam"
+                }
             }
         }
 

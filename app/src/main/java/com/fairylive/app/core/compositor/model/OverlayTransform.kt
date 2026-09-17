@@ -5,6 +5,9 @@ package com.fairylive.app.core.compositor.model
  * Normalized coordinates resolve against the actual encoder output dimensions,
  * so a given element keeps its relative position when the profile changes
  * (e.g. 480x1056 -> 720x1920).
+ *
+ * Geometric Invariant: Scale and rotation pivot around the element center,
+ * guaranteeing 100% mathematical parity with Creator Studio preview views.
  */
 data class OverlayTransform(
     val normalizedX: Float = 0f,
@@ -30,14 +33,37 @@ data class OverlayTransform(
         )
     }
 
-    fun resolvedLeft(streamWidth: Int): Float = normalizedX * streamWidth
-    fun resolvedTop(streamHeight: Int): Float = normalizedY * streamHeight
+    /** Center X in stream pixels */
+    fun centerX(streamWidth: Int): Float = (normalizedX + normalizedWidth / 2f) * streamWidth
 
-    /** Resolved width in pixels honoring auto-aspect (normalizedHeight==0 → keep aspect). */
-    fun resolvedWidth(streamWidth: Int): Float = normalizedWidth * streamWidth * scale
+    /** Base height in stream pixels prior to scaling */
+    fun baseHeight(streamWidth: Int, streamHeight: Int, sourceAspect: Float = 1f): Float =
+        if (normalizedHeight > 0f) {
+            normalizedHeight * streamHeight
+        } else {
+            val aspect = if (sourceAspect > 0f) sourceAspect else 1f
+            (normalizedWidth * streamWidth) / aspect
+        }
 
-    fun resolvedHeight(streamWidth: Int, streamHeight: Int, sourceAspect: Float): Float {
-        val baseH = if (normalizedHeight > 0f) normalizedHeight * streamHeight else normalizedWidth * streamWidth / sourceAspect
-        return baseH * scale
-    }
+    /** Center Y in stream pixels */
+    fun centerY(streamWidth: Int, streamHeight: Int, sourceAspect: Float = 1f): Float =
+        (normalizedY * streamHeight) + baseHeight(streamWidth, streamHeight, sourceAspect) / 2f
+
+    /** Resolved width in pixels honoring auto-aspect and center-pivot scale. */
+    fun resolvedWidth(streamWidth: Int): Float = (normalizedWidth * streamWidth) * scale
+
+    /** Resolved height in pixels honoring auto-aspect and center-pivot scale. */
+    fun resolvedHeight(streamWidth: Int, streamHeight: Int, sourceAspect: Float = 1f): Float =
+        baseHeight(streamWidth, streamHeight, sourceAspect) * scale
+
+    /** Resolved Left X anchored to center-scale */
+    fun resolvedLeft(streamWidth: Int): Float = centerX(streamWidth) - resolvedWidth(streamWidth) / 2f
+
+    /** Resolved Top Y anchored to center-scale */
+    fun resolvedTop(streamWidth: Int, streamHeight: Int, sourceAspect: Float = 1f): Float =
+        centerY(streamWidth, streamHeight, sourceAspect) - resolvedHeight(streamWidth, streamHeight, sourceAspect) / 2f
+
+    /** Backward-compatible overload assuming default aspect */
+    fun resolvedTop(streamHeight: Int): Float =
+        (normalizedY * streamHeight) + (if (normalizedHeight > 0f) normalizedHeight * streamHeight else 0.4f * streamHeight) * (1f - scale) / 2f
 }

@@ -195,8 +195,14 @@ class BroadcastSceneManager(
             if (fromIndex in list.indices && toIndex in list.indices && fromIndex != toIndex) {
                 val item = list.removeAt(fromIndex)
                 list.add(toIndex, item)
+                // Invariant: zIndex must strictly track list index so both Preview and GLES Compositor update in sync
+                val updatedList = list.mapIndexed { idx, elem ->
+                    elem.copy(zIndex = (idx + 1) * 5)
+                }
+                current.copy(overlayElements = updatedList)
+            } else {
+                current
             }
-            current.copy(overlayElements = list)
         }
     }
 

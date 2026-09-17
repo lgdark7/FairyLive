@@ -319,6 +319,55 @@ class CreatorStudioFragment : Fragment(),
             val elem = app.sceneManager.activeScene.overlayElements.firstOrNull { it.id == selId } ?: return@setOnClickListener
             showInspectorBottomSheet(elem)
         }
+
+        binding.btnLayersToggle.setOnClickListener {
+            val app = requireActivity().application as FairyLiveApplication
+            val panel = LayerPanelFragment.newInstance()
+            panel.updateLayers(app.sceneManager.activeScene.overlayElements, binding.broadcastPreviewView.getSelectedElementId())
+            panel.setActionListener(object : LayerPanelFragment.LayerActionListener {
+                override fun onLayerSelected(id: String) {
+                    binding.broadcastPreviewView.setSelectedElement(id)
+                }
+                override fun onLayerVisibilityToggled(id: String, visible: Boolean) {
+                    val scene = app.sceneManager.activeScene
+                    val updated = scene.copy(overlayElements = scene.overlayElements.map {
+                        if (it.id == id) it.copy(visible = visible) else it
+                    })
+                    persistAndSyncScene(updated)
+                }
+                override fun onLayerLockToggled(id: String, locked: Boolean) {
+                    val scene = app.sceneManager.activeScene
+                    val updated = scene.copy(overlayElements = scene.overlayElements.map {
+                        if (it.id == id) it.copy(locked = locked) else it
+                    })
+                    persistAndSyncScene(updated)
+                }
+                override fun onLayersReordered(newOrder: List<com.fairylive.app.core.compositor.model.OverlayElement>) {
+                    val scene = app.sceneManager.activeScene
+                    val updated = scene.copy(overlayElements = newOrder)
+                    persistAndSyncScene(updated)
+                }
+                override fun onLayerDuplicated(id: String) {
+                    val scene = app.sceneManager.activeScene
+                    val target = scene.overlayElements.firstOrNull { it.id == id } ?: return
+                    val duplicate = target.copy(
+                        id = java.util.UUID.randomUUID().toString(),
+                        normalizedX = (target.normalizedX + 0.04f).coerceAtMost(0.9f),
+                        normalizedY = (target.normalizedY + 0.04f).coerceAtMost(0.9f)
+                    )
+                    val newScene = app.sceneManager.addOverlayToActiveScene(duplicate)
+                    persistAndSyncScene(newScene)
+                }
+                override fun onLayerDeleted(id: String) {
+                    val newScene = app.sceneManager.removeOverlayFromActiveScene(id)
+                    persistAndSyncScene(newScene)
+                }
+            })
+            parentFragmentManager.beginTransaction()
+                .add(android.R.id.content, panel, LayerPanelFragment.TAG)
+                .addToBackStack(null)
+                .commit()
+        }
     }
 
     private fun updateCameraIcon(enabled: Boolean) {
