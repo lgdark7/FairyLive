@@ -1,0 +1,49 @@
+# CHATGPT OFFICIAL EVALUATION — FAIRY LIVE V1.1 STREAM-KEY INVESTIGATION
+Date: 2026-09-17
+Evaluator: ChatGPT Desktop App (Automated UIAutomation Interface)
+Baseline Commit: d3b40ef
+
+------------------------------------------------------------------------------
+CHATGPT VERDICT & ANALYSIS:
+------------------------------------------------------------------------------
+"Yep, I reviewed the Stream-Key Failure Investigation & Resolution Report.
+
+The important finding:
+The report says the app is successfully reaching YouTube's RTMP server. The failure is happening specifically at the publish stage, not during basic networking:
+HANDSHAKING → CONNECTED → CREATING_STREAM → PUBLISHING → FAILED
+The reported exception is:
+java.net.SocketException: Connection reset / Broken pipe
+and the server closes the connection immediately after the publish(streamKey, "live") command.
+So the red Streaming Interrupted screen is actually hiding a more specific condition: STREAM_KEY_REJECTED.
+
+What Hermes actually verified:
+The RTMP protocol itself is working:
+• YouTube handshake succeeds.
+• Chunk size negotiation succeeds.
+• NetConnection.Connect.Success succeeds.
+• CreateStream succeeds and returns stream ID 1.0.
+• Failure occurs when publishing with the key.
+And the local RTMP pipeline still works end-to-end for 32.65 seconds, with 207 video tags and 1,291 audio tags.
+
+One important distinction:
+Hermes did not prove that your actual YouTube stream key works.
+It verified the external YouTube RTMP protocol and deliberately simulated key rejection. The report explicitly says the physical Pixel 6a failure was reproduced with an unconfigured/invalid key.
+So before declaring FAIRY LIVE's YouTube streaming fixed, you need to put your actual current YouTube stream key into Settings and test it.
+
+What I would do next:
+Don't change the RTMP engine again yet. First:
+1. Open YouTube Studio.
+2. Go to Live Control Room.
+3. Copy the current Stream URL and Stream Key.
+4. In FAIRY LIVE Settings, enter:
+   • Server URL: rtmp://a.rtmp.youtube.com/live2
+   • Stream Key: your current key
+5. Save it.
+6. Start Live.
+7. Check whether the state progresses from:
+   READY → CONNECTING → LIVE
+8. Check YouTube Studio to see whether the incoming stream appears.
+The report already confirms that settings are encrypted and that the key isn't being logged in plaintext.
+
+If your real key is still rejected, then we have a much more interesting bug to investigate—likely in the exact publish/authentication handling rather than generic networking.
+If it works, then the original screenshot was simply caused by an invalid/stale/unconfigured key, and the new diagnostic handling is doing exactly what it should."
