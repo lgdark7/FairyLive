@@ -1884,7 +1884,7 @@ class CreatorStudioFragment : Fragment(),
         }
 
         val projMgr = ctx.getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
-        val intent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+        val intent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE && settings.captureSource == com.fairylive.app.core.settings.CaptureSource.ENTIRE_SCREEN) {
             val config = MediaProjectionConfig.createConfigForDefaultDisplay()
             projMgr.createScreenCaptureIntent(config)
         } else {

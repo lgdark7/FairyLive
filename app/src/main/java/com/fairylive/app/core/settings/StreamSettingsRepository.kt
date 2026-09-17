@@ -72,8 +72,16 @@ class StreamSettingsRepository(
             }
         }
 
+        val captureSourceName = prefs.getString(KEY_CAPTURE_SOURCE, null)
+        val captureSource = if (captureSourceName != null) {
+            try { CaptureSource.valueOf(captureSourceName) } catch (_: Exception) { CaptureSource.SINGLE_APP }
+        } else {
+            CaptureSource.SINGLE_APP
+        }
+
         return StreamSettings(
             destination = destination,
+            captureSource = captureSource,
             serverUrl = resolvedUrl,
             streamKey = streamKey ?: "",
             profile = profile,
@@ -95,6 +103,7 @@ class StreamSettingsRepository(
         // 2. Persist non-sensitive operational parameters, explicitly purging any legacy plaintext stream key
         prefs.edit()
             .putString(KEY_DESTINATION, clamped.destination.name)
+            .putString(KEY_CAPTURE_SOURCE, clamped.captureSource.name)
             .putString(KEY_SERVER_URL, clamped.serverUrl)
             .remove(KEY_LEGACY_STREAM_KEY)
             .putString(KEY_PROFILE, clamped.profile.name)
@@ -116,6 +125,7 @@ class StreamSettingsRepository(
         private const val TAG = "StreamSettingsRepository"
         private const val PREFS_NAME = "fairy_live_settings"
         private const val KEY_DESTINATION = "stream_destination"
+        private const val KEY_CAPTURE_SOURCE = "capture_source"
         private const val KEY_SERVER_URL = "server_url"
         private const val KEY_LEGACY_STREAM_KEY = "stream_key"
         private const val KEY_PROFILE = "profile"

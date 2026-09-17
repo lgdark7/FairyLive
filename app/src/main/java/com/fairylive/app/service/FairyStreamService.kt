@@ -370,12 +370,13 @@ class FairyStreamService : Service() {
             if (enableCompositor) {
                 try {
                     captureSurface = overlayCompositor.start(encoderSurface, encW, encH, fps)
-                    val singleOverlayOnly = intent.getBooleanExtra(EXTRA_SINGLE_OVERLAY, false)
-                    if (singleOverlayOnly) {
-                        overlayCompositor.addSampleSingleOverlayScene()
+                    val app = applicationContext as? com.fairylive.app.FairyLiveApplication
+                    val activeScene = app?.sceneManager?.activeScene
+                    if (activeScene != null) {
+                        overlayCompositor.applyScene(activeScene)
+                        Log.i("FairyStreamService", "Loaded active creator scene: ${activeScene.name} (${activeScene.overlayElements.size} overlays)")
                     } else {
-                        // Seed realistic broadcast multi-overlay scene (M8: PNG logo + Text banner + Goal + Stats widget + Animated GIF)
-                        overlayCompositor.addSampleMultiOverlayScene()
+                        overlayCompositor.clearOverlays()
                     }
                 } catch (e: Exception) {
                     Log.e("FairyStreamService", "Compositor start failed: ${e.message}")

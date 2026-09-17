@@ -451,10 +451,17 @@ class BroadcastPreviewView @JvmOverloads constructor(
         val l = elem.normalizedX * viewW
         val t = elem.normalizedY * viewH
         val elemW = elem.normalizedWidth * viewW
+        val aspect = when (elem.type) {
+            OverlayType.TEXT, OverlayType.LOWER_THIRD -> 4.0f
+            OverlayType.ALERT -> 2.5f
+            OverlayType.GOAL -> 3.5f
+            OverlayType.WIDGET -> 3.0f
+            else -> 16f / 9f
+        }
         val elemH = if (elem.normalizedHeight > 0f) {
             elem.normalizedHeight * viewH
         } else {
-            elem.normalizedWidth * 0.4f * viewH
+            elemW / aspect
         }
         return RectF(l, t, l + elemW, t + elemH)
     }

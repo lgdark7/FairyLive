@@ -8,6 +8,7 @@ import com.fairylive.app.core.capability.model.StreamProfile
  */
 data class StreamSettings(
     val destination: StreamDestination = StreamDestination.YOUTUBE,
+    val captureSource: CaptureSource = CaptureSource.SINGLE_APP,
     val serverUrl: String = StreamDestination.YOUTUBE.defaultUrl,
     val streamKey: String = "",
     val profile: StreamProfile = StreamProfile.LOW,

@@ -14,16 +14,18 @@ import java.net.URI
 
 data class RtmpEndpoint(
     val host: String,
-    val port: Int = 1935,
-    val appName: String = "live",
-    val streamKey: String = ""
+    val port: Int,
+    val appName: String,
+    val streamKey: String,
+    val isSsl: Boolean = false
 ) {
     val tcUrl: String
-        get() = "rtmp://$host:$port/$appName"
+        get() = "${if (isSsl) "rtmps" else "rtmp"}://$host:$port/$appName"
 
     companion object {
         fun parse(url: String, fallbackStreamKey: String = ""): RtmpEndpoint {
             val raw = url.trim()
+            val isSsl = raw.startsWith("rtmps://", ignoreCase = true)
             val cleanUrl = if (!raw.contains("://")) "rtmp://$raw" else raw
             val uri = try {
                 URI(cleanUrl)
@@ -32,7 +34,8 @@ data class RtmpEndpoint(
             }
             val host = uri.host?.takeIf { it.isNotBlank() }
                 ?: throw IllegalArgumentException("Invalid RTMP URL: Host cannot be empty in '$raw'")
-            val port = if (uri.port > 0) uri.port else 1935
+            val defaultPort = if (isSsl) 443 else 1935
+            val port = if (uri.port > 0) uri.port else defaultPort
             val path = (uri.path ?: "").trimStart('/').trimEnd('/')
             val segments = if (path.isEmpty()) emptyList() else path.split('/')
             val cleanFallbackKey = fallbackStreamKey.trim()
@@ -44,21 +47,24 @@ data class RtmpEndpoint(
                     host = host,
                     port = port,
                     appName = segments[0],
-                    streamKey = if (cleanFallbackKey.isNotEmpty()) cleanFallbackKey else keyFromUrl
+                    streamKey = if (cleanFallbackKey.isNotEmpty()) cleanFallbackKey else keyFromUrl,
+                    isSsl = isSsl
                 )
             } else if (segments.size == 1 && segments[0].isNotEmpty()) {
                 RtmpEndpoint(
                     host = host,
                     port = port,
                     appName = segments[0],
-                    streamKey = cleanFallbackKey
+                    streamKey = cleanFallbackKey,
+                    isSsl = isSsl
                 )
             } else {
                 RtmpEndpoint(
                     host = host,
                     port = port,
                     appName = "live",
-                    streamKey = cleanFallbackKey
+                    streamKey = cleanFallbackKey,
+                    isSsl = isSsl
                 )
             }
         }
@@ -94,10 +100,20 @@ class RtmpClient(
         onStateChangedListener?.invoke(RtmpConnectionState.CONNECTING)
         Log.i(TAG, "Connecting to RTMP: ${endpoint.host}:${endpoint.port}/${endpoint.appName}")
 
-        val sock = Socket()
-        sock.tcpNoDelay = true
-        sock.soTimeout = timeoutMs * 2
-        sock.connect(InetSocketAddress(endpoint.host, endpoint.port), timeoutMs)
+        val rawSocket = Socket()
+        rawSocket.tcpNoDelay = true
+        rawSocket.sendBufferSize = 512 * 1024
+        rawSocket.soTimeout = timeoutMs * 2
+        rawSocket.connect(InetSocketAddress(endpoint.host, endpoint.port), timeoutMs)
+
+        val sock: Socket = if (endpoint.isSsl) {
+            val sslFactory = javax.net.ssl.SSLSocketFactory.getDefault() as javax.net.ssl.SSLSocketFactory
+            val sslSocket = sslFactory.createSocket(rawSocket, endpoint.host, endpoint.port, true) as javax.net.ssl.SSLSocket
+            sslSocket.startHandshake()
+            sslSocket
+        } else {
+            rawSocket
+        }
         this.socket = sock
         Log.i(TAG, "STAGE-TRACE: TCP_CONNECTED [${endpoint.host}:${endpoint.port}]")
 

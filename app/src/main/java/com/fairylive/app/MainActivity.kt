@@ -64,6 +64,9 @@ class MainActivity : AppCompatActivity(), StreamStateNotifier.Listener {
         if (supportFragmentManager.backStackEntryCount > 0) {
             supportFragmentManager.popBackStack(null, androidx.fragment.app.FragmentManager.POP_BACK_STACK_INCLUSIVE)
         }
+        if (fragment is com.fairylive.app.ui.studio.CreatorStudioFragment) {
+            hudManager?.dismiss()
+        }
         supportFragmentManager.beginTransaction()
             .setCustomAnimations(R.anim.fade_in_subtle, R.anim.fade_out_subtle)
             .replace(R.id.fragment_container, fragment)
@@ -108,7 +111,12 @@ class MainActivity : AppCompatActivity(), StreamStateNotifier.Listener {
                 binding.headerStatusBadge.text = "● LIVE"
                 binding.headerStatusBadge.setTextColor(ContextCompat.getColor(this, R.color.status_green))
                 binding.headerStatusBadge.setBackgroundResource(R.drawable.bg_scene_chip)
-                hudManager?.show()
+                val currentFrag = supportFragmentManager.findFragmentById(R.id.fragment_container)
+                if (currentFrag !is com.fairylive.app.ui.studio.CreatorStudioFragment) {
+                    hudManager?.show()
+                } else {
+                    hudManager?.dismiss()
+                }
             }
             StreamState.PAUSED -> {
                 binding.headerStatusBadge.text = "PAUSED"

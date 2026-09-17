@@ -217,7 +217,7 @@ class DashboardFragment : Fragment(),
 
             CaptureStateNotifier.updateState(CaptureState.AUTHORIZING)
             val projectionManager = ctx.getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
-            val captureIntent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            val captureIntent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE && settings.captureSource == com.fairylive.app.core.settings.CaptureSource.ENTIRE_SCREEN) {
                 val config = MediaProjectionConfig.createConfigForDefaultDisplay()
                 projectionManager.createScreenCaptureIntent(config)
             } else {
