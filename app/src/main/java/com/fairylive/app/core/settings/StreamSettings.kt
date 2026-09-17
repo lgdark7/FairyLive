@@ -3,11 +3,12 @@ package com.fairylive.app.core.settings
 import com.fairylive.app.core.capability.model.StreamProfile
 
 /**
- * Encapsulates streamer configuration and encoder parameters.
+ * Encapsulates streamer configuration, destination provider, and encoder parameters.
  * Clamps dimensions to valid encoder boundaries (multiples of 2 or 16).
  */
 data class StreamSettings(
-    val serverUrl: String = "rtmp://live.fairylive.tv/live",
+    val destination: StreamDestination = StreamDestination.YOUTUBE,
+    val serverUrl: String = StreamDestination.YOUTUBE.defaultUrl,
     val streamKey: String = "",
     val profile: StreamProfile = StreamProfile.LOW,
     val width: Int = 854,
@@ -18,7 +19,8 @@ data class StreamSettings(
     val micEnabled: Boolean = true
 ) {
     /**
-     * Sanitizes settings to enforce hardware encoder alignment rules.
+     * Sanitizes settings to enforce hardware encoder alignment rules and
+     * guarantees production destinations never point to localhost.
      */
     fun clamped(): StreamSettings {
         val safeWidth = (width.coerceIn(320, 1920) / 2) * 2
@@ -27,7 +29,27 @@ data class StreamSettings(
         val safeVideoBitrate = videoBitrateKbps.coerceIn(500, 8000)
         val safeAudioBitrate = audioBitrateKbps.coerceIn(64, 320)
 
+        val resolvedUrl = when (destination) {
+            StreamDestination.YOUTUBE -> {
+                // Production invariant: YouTube destination must resolve to official YouTube ingest
+                if (serverUrl.isBlank() || serverUrl.contains("127.0.0.1") || serverUrl.contains("localhost") || serverUrl.contains("10.0.2.2")) {
+                    StreamDestination.YOUTUBE.defaultUrl
+                } else {
+                    serverUrl
+                }
+            }
+            StreamDestination.LOCAL_TEST -> {
+                if (serverUrl.isBlank() || serverUrl == StreamDestination.YOUTUBE.defaultUrl) {
+                    StreamDestination.LOCAL_TEST.defaultUrl
+                } else {
+                    serverUrl
+                }
+            }
+            StreamDestination.CUSTOM_RTMP -> serverUrl
+        }
+
         return copy(
+            serverUrl = resolvedUrl,
             width = safeWidth,
             height = safeHeight,
             fps = safeFps,
@@ -37,9 +59,21 @@ data class StreamSettings(
     }
 
     companion object {
-        fun fromProfile(profile: StreamProfile, serverUrl: String = "", streamKey: String = ""): StreamSettings {
+        fun fromProfile(
+            profile: StreamProfile,
+            destination: StreamDestination = StreamDestination.YOUTUBE,
+            serverUrl: String = "",
+            streamKey: String = ""
+        ): StreamSettings {
+            val effectiveUrl = if (serverUrl.isNotBlank()) {
+                serverUrl
+            } else {
+                destination.defaultUrl
+            }
+
             return StreamSettings(
-                serverUrl = serverUrl.ifEmpty { "rtmp://live.fairylive.tv/live" },
+                destination = destination,
+                serverUrl = effectiveUrl,
                 streamKey = streamKey,
                 profile = profile,
                 width = profile.width,

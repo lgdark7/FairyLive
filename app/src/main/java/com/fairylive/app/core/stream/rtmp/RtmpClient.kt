@@ -27,10 +27,11 @@ data class RtmpEndpoint(
             val cleanUrl = if (!raw.contains("://")) "rtmp://$raw" else raw
             val uri = try {
                 URI(cleanUrl)
-            } catch (_: Exception) {
-                URI("rtmp://127.0.0.1:1935/live")
+            } catch (e: Exception) {
+                throw IllegalArgumentException("Malformed RTMP URL: '$raw'", e)
             }
-            val host = uri.host?.takeIf { it.isNotBlank() } ?: "127.0.0.1"
+            val host = uri.host?.takeIf { it.isNotBlank() }
+                ?: throw IllegalArgumentException("Invalid RTMP URL: Host cannot be empty in '$raw'")
             val port = if (uri.port > 0) uri.port else 1935
             val path = (uri.path ?: "").trimStart('/').trimEnd('/')
             val segments = if (path.isEmpty()) emptyList() else path.split('/')
@@ -98,13 +99,16 @@ class RtmpClient(
         sock.soTimeout = timeoutMs * 2
         sock.connect(InetSocketAddress(endpoint.host, endpoint.port), timeoutMs)
         this.socket = sock
+        Log.i(TAG, "STAGE-TRACE: TCP_CONNECTED [${endpoint.host}:${endpoint.port}]")
 
         val inStream = BufferedInputStream(sock.getInputStream(), 8192)
         val outStream = BufferedOutputStream(sock.getOutputStream(), 8192)
 
         // 1. Handshake
         onStateChangedListener?.invoke(RtmpConnectionState.HANDSHAKING)
+        Log.i(TAG, "STAGE-TRACE: RTMP_HANDSHAKE_STARTED")
         RtmpHandshake.execute(inStream, outStream)
+        Log.i(TAG, "STAGE-TRACE: RTMP_HANDSHAKE_COMPLETE")
 
         val writer = RtmpChunkWriter(outStream, chunkSize = 128)
         val reader = RtmpChunkReader(inStream, inChunkSize = 128)
@@ -116,10 +120,12 @@ class RtmpClient(
 
         // 3. Connect Command
         onStateChangedListener?.invoke(RtmpConnectionState.CONNECTED)
+        Log.i(TAG, "STAGE-TRACE: RTMP_CONNECT_SENT [app=${endpoint.appName}]")
         sendConnectCommand(writer, endpoint)
 
         // Wait for connect result
         waitForConnectResult(reader)
+        Log.i(TAG, "STAGE-TRACE: RTMP_CONNECT_ACCEPTED")
 
         // 4. CreateStream Command
         onStateChangedListener?.invoke(RtmpConnectionState.CREATING_STREAM)
@@ -128,13 +134,15 @@ class RtmpClient(
 
         val assignedStreamId = waitForCreateStreamResult(reader)
         this.publishStreamId = assignedStreamId
+        Log.i(TAG, "STAGE-TRACE: RTMP_CREATE_STREAM [assignedStreamId=$assignedStreamId]")
 
         // 5. Publish Command
+        Log.i(TAG, "STAGE-TRACE: RTMP_PUBLISH [streamKeyLength=${endpoint.streamKey.length}]")
         sendPublishCommand(writer, assignedStreamId, endpoint.streamKey)
         this.isConnected = true
         this.isPublishing = true
         onStateChangedListener?.invoke(RtmpConnectionState.PUBLISHING)
-        Log.i(TAG, "Successfully published RTMP stream with Stream ID: $assignedStreamId")
+        Log.i(TAG, "STAGE-TRACE: YOUTUBE_STREAM_RECEIVING [Stream ID: $assignedStreamId]")
     }
 
     private fun sendConnectCommand(writer: RtmpChunkWriter, endpoint: RtmpEndpoint) {

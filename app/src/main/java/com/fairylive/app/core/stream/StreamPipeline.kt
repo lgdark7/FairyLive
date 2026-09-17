@@ -414,6 +414,8 @@ class StreamPipeline(
                 "sentVfps=${"%.1f".format(videoFramesSent / elapsedSec)} sentAfps=${"%.1f".format(audioFramesSent / elapsedSec)} " +
                 "abr=${abrController.currentBitrateKbps}kbps health=${networkMonitor.currentHealth}"
         )
+        Log.i(TAG, "STAGE-TRACE: VIDEO_PACKETS_SENT [count=$videoFramesSent]")
+        Log.i(TAG, "STAGE-TRACE: AUDIO_PACKETS_SENT [count=$audioFramesSent]")
     }
 
     fun stop() {

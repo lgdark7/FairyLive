@@ -58,6 +58,52 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
+                    android:text="Stream Destination"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="12sp" />
+
+                <RadioGroup
+                    android:id="@+id/rg_destination"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:layout_marginBottom="12dp">
+
+                    <RadioButton
+                        android:id="@+id/rb_dest_youtube"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:buttonTint="@color/accent_primary"
+                        android:checked="true"
+                        android:text="YouTube Live (a.rtmp.youtube.com:1935/live2)"
+                        android:textColor="@color/text_primary"
+                        android:textSize="13sp" />
+
+                    <RadioButton
+                        android:id="@+id/rb_dest_custom"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:buttonTint="@color/accent_primary"
+                        android:text="Custom RTMP Destination"
+                        android:textColor="@color/text_primary"
+                        android:textSize="13sp" />
+
+                    <RadioButton
+                        android:id="@+id/rb_dest_local_test"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:buttonTint="@color/accent_primary"
+                        android:text="Local Test Server (127.0.0.1:19350 - Dev Only)"
+                        android:textColor="@color/text_muted"
+                        android:textSize="12sp" />
+                </RadioGroup>
+
+                <TextView
+                    android:id="@+id/tv_label_server_url"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
                     android:text="Destination URL"
                     android:textColor="@color/text_secondary"
                     android:textSize="12sp" />
@@ -68,7 +114,7 @@
                     android:layout_height="44dp"
                     android:layout_marginTop="4dp"
                     android:background="@drawable/bg_control_icon_button"
-                    android:hint="rtmp://127.0.0.1:19350/live"
+                    android:hint="rtmp://a.rtmp.youtube.com:1935/live2"
                     android:inputType="textUri"
                     android:paddingHorizontal="12dp"
                     android:textColor="@color/text_primary"
@@ -89,7 +135,7 @@
                     android:layout_height="44dp"
                     android:layout_marginTop="4dp"
                     android:background="@drawable/bg_control_icon_button"
-                    android:hint="Optional stream key"
+                    android:hint="Paste stream key (required)"
                     android:inputType="textPassword"
                     android:paddingHorizontal="12dp"
                     android:textColor="@color/text_primary"

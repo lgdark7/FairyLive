@@ -10,6 +10,7 @@ import com.fairylive.app.FairyLiveApplication
 import com.fairylive.app.MainActivity
 import com.fairylive.app.R
 import com.fairylive.app.core.capability.model.StreamProfile
+import com.fairylive.app.core.settings.StreamDestination
 import com.fairylive.app.core.settings.StreamSettings
 import com.fairylive.app.databinding.FragmentSettingsBinding
 
@@ -36,6 +37,27 @@ class SettingsFragment : Fragment() {
 
         populateFields(currentSettings)
 
+        binding.rgDestination.setOnCheckedChangeListener { _, checkedId ->
+            when (checkedId) {
+                R.id.rb_dest_youtube -> {
+                    binding.etServerUrl.setText(StreamDestination.YOUTUBE.defaultUrl)
+                    binding.etServerUrl.isEnabled = false
+                }
+                R.id.rb_dest_custom -> {
+                    binding.etServerUrl.isEnabled = true
+                    if (binding.etServerUrl.text.toString() == StreamDestination.YOUTUBE.defaultUrl ||
+                        binding.etServerUrl.text.toString() == StreamDestination.LOCAL_TEST.defaultUrl
+                    ) {
+                        binding.etServerUrl.setText("")
+                    }
+                }
+                R.id.rb_dest_local_test -> {
+                    binding.etServerUrl.setText(StreamDestination.LOCAL_TEST.defaultUrl)
+                    binding.etServerUrl.isEnabled = true
+                }
+            }
+        }
+
         binding.rowAdvancedDiagnostics.setOnClickListener {
             (activity as? MainActivity)?.openDiagnostics()
         }
@@ -58,7 +80,24 @@ class SettingsFragment : Fragment() {
     }
 
     private fun populateFields(settings: StreamSettings) {
-        binding.etServerUrl.setText(settings.serverUrl)
+        when (settings.destination) {
+            StreamDestination.YOUTUBE -> {
+                binding.rbDestYoutube.isChecked = true
+                binding.etServerUrl.setText(StreamDestination.YOUTUBE.defaultUrl)
+                binding.etServerUrl.isEnabled = false
+            }
+            StreamDestination.CUSTOM_RTMP -> {
+                binding.rbDestCustom.isChecked = true
+                binding.etServerUrl.setText(settings.serverUrl)
+                binding.etServerUrl.isEnabled = true
+            }
+            StreamDestination.LOCAL_TEST -> {
+                binding.rbDestLocalTest.isChecked = true
+                binding.etServerUrl.setText(settings.serverUrl)
+                binding.etServerUrl.isEnabled = true
+            }
+        }
+
         binding.etStreamKey.setText(settings.streamKey)
 
         when (settings.profile) {
@@ -73,6 +112,13 @@ class SettingsFragment : Fragment() {
         val app = requireActivity().application as FairyLiveApplication
         val repo = app.settingsRepository
 
+        val selectedDestination = when (binding.rgDestination.checkedRadioButtonId) {
+            R.id.rb_dest_youtube -> StreamDestination.YOUTUBE
+            R.id.rb_dest_custom -> StreamDestination.CUSTOM_RTMP
+            R.id.rb_dest_local_test -> StreamDestination.LOCAL_TEST
+            else -> StreamDestination.YOUTUBE
+        }
+
         val selectedProfile = when (binding.rgProfiles.checkedRadioButtonId) {
             R.id.rb_profile_low -> StreamProfile.LOW
             R.id.rb_profile_balanced -> StreamProfile.BALANCED
@@ -80,10 +126,21 @@ class SettingsFragment : Fragment() {
             else -> StreamProfile.LOW
         }
 
-        val serverUrl = binding.etServerUrl.text?.toString()?.trim() ?: ""
+        val rawServerUrl = binding.etServerUrl.text?.toString()?.trim() ?: ""
+        val serverUrl = if (selectedDestination == StreamDestination.YOUTUBE) {
+            StreamDestination.YOUTUBE.defaultUrl
+        } else {
+            rawServerUrl
+        }
+
         val streamKey = binding.etStreamKey.text?.toString()?.trim() ?: ""
 
-        val validation = com.fairylive.app.core.settings.StreamConfigurationValidator.validate(serverUrl, streamKey)
+        val validation = com.fairylive.app.core.settings.StreamConfigurationValidator.validate(
+            serverUrl = serverUrl,
+            streamKey = streamKey,
+            destination = selectedDestination
+        )
+
         if (showFeedback) {
             if (!validation.isValid) {
                 val err = validation as com.fairylive.app.core.settings.StreamConfigurationValidator.ValidationResult.Error
@@ -95,6 +152,7 @@ class SettingsFragment : Fragment() {
 
         val newSettings = StreamSettings.fromProfile(
             profile = selectedProfile,
+            destination = selectedDestination,
             serverUrl = serverUrl,
             streamKey = streamKey
         )

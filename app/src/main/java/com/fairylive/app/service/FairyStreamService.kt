@@ -427,26 +427,29 @@ class FairyStreamService : Service() {
             val streamKey = intent.getStringExtra(EXTRA_STREAM_KEY) ?: settings?.streamKey ?: ""
 
             if (enableRtmp) {
-                val validation = com.fairylive.app.core.settings.StreamConfigurationValidator.validate(rtmpUrl, streamKey)
+                val destination = settings?.destination ?: com.fairylive.app.core.settings.StreamDestination.YOUTUBE
+                val validation = com.fairylive.app.core.settings.StreamConfigurationValidator.validate(rtmpUrl, streamKey, destination)
                 if (!validation.isValid) {
                     val err = validation as com.fairylive.app.core.settings.StreamConfigurationValidator.ValidationResult.Error
                     val parsedHost = try { java.net.URI(rtmpUrl.trim()).host } catch (_: Exception) { null }
-                    val errType = if (streamKey.isNullOrBlank()) {
-                        com.fairylive.app.core.stream.model.StreamErrorType.EMPTY_STREAM_KEY
-                    } else if (err.technicalReason.contains("protocol", ignoreCase = true)) {
-                        com.fairylive.app.core.stream.model.StreamErrorType.INVALID_URL_SCHEME
-                    } else {
-                        com.fairylive.app.core.stream.model.StreamErrorType.MALFORMED_URL
+                    val isDestError = err.technicalReason.contains("Localhost", ignoreCase = true)
+                    val errType = when {
+                        streamKey.isNullOrBlank() -> com.fairylive.app.core.stream.model.StreamErrorType.EMPTY_STREAM_KEY
+                        err.technicalReason.contains("protocol", ignoreCase = true) -> com.fairylive.app.core.stream.model.StreamErrorType.INVALID_URL_SCHEME
+                        isDestError -> com.fairylive.app.core.stream.model.StreamErrorType.MALFORMED_URL
+                        else -> com.fairylive.app.core.stream.model.StreamErrorType.MALFORMED_URL
                     }
                     val diag = com.fairylive.app.core.stream.model.StreamDiagnosticInfo.create(
                         errorType = errType,
                         host = parsedHost,
                         streamKey = streamKey
                     )
+                    val title = if (isDestError) "Invalid Streaming Destination" else "Invalid Stream Configuration"
+                    val resolution = if (isDestError) "Open Settings and ensure YouTube Live destination is selected." else "Configure a valid RTMP URL and stream key in Settings."
                     com.fairylive.app.core.common.CreatorErrorNotifier.postError(
-                        title = "Invalid Stream Configuration",
+                        title = title,
                         message = err.userMessage,
-                        resolution = "Configure a valid RTMP URL and stream key in Settings.",
+                        resolution = resolution,
                         diagnosticInfo = diag
                     )
                     stopStreamService()

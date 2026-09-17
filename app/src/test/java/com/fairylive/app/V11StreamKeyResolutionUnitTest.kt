@@ -248,4 +248,115 @@ class V11StreamKeyResolutionUnitTest {
         val totalActiveCodecs = activeVideoCodecs + activeAudioCodecs
         assertTrue("Total active encoders must be <= 2", totalActiveCodecs <= 2)
     }
+
+    // 16. YouTube destination resolves to: a.rtmp.youtube.com:1935/live2
+    @Test
+    fun test16_youtubeDestination_resolvesToOfficialEndpoint() {
+        assertEquals("rtmp://a.rtmp.youtube.com:1935/live2", com.fairylive.app.core.settings.StreamDestination.YOUTUBE.defaultUrl)
+        val settings = StreamSettings(destination = com.fairylive.app.core.settings.StreamDestination.YOUTUBE).clamped()
+        assertEquals("rtmp://a.rtmp.youtube.com:1935/live2", settings.serverUrl)
+    }
+
+    // 17. LOCAL_TEST resolves to: 127.0.0.1:19350/live
+    @Test
+    fun test17_localTestDestination_resolvesToLocalhostEndpoint() {
+        assertEquals("rtmp://127.0.0.1:19350/live", com.fairylive.app.core.settings.StreamDestination.LOCAL_TEST.defaultUrl)
+        val settings = StreamSettings(destination = com.fairylive.app.core.settings.StreamDestination.LOCAL_TEST).clamped()
+        assertEquals("rtmp://127.0.0.1:19350/live", settings.serverUrl)
+    }
+
+    // 18. YouTube provider NEVER falls back to localhost
+    @Test
+    fun test18_youtubeProvider_neverFallsBackToLocalhost() {
+        val corruptedSettings = StreamSettings(
+            destination = com.fairylive.app.core.settings.StreamDestination.YOUTUBE,
+            serverUrl = "rtmp://127.0.0.1:19350/live"
+        ).clamped()
+
+        assertEquals("Production YouTube settings must NEVER point to localhost",
+            "rtmp://a.rtmp.youtube.com:1935/live2", corruptedSettings.serverUrl)
+    }
+
+    // 19. Stale persisted localhost configuration cannot override YouTube selection
+    @Test
+    fun test19_stalePersistedLocalhost_purgedOnLoad() {
+        val rawPrefs = fakeContext.getSharedPreferences("fairy_live_settings", Context.MODE_PRIVATE)
+        rawPrefs.edit().putString("server_url", "rtmp://127.0.0.1:19350/live/phase7").apply()
+
+        val loaded = settingsRepo.loadSettings()
+        assertEquals("Destination must default to YOUTUBE", com.fairylive.app.core.settings.StreamDestination.YOUTUBE, loaded.destination)
+        assertEquals("Stale localhost must be purged and replaced with official YouTube ingest",
+            "rtmp://a.rtmp.youtube.com:1935/live2", loaded.serverUrl)
+    }
+
+    // 20. Missing YouTube stream key fails before socket connection
+    @Test
+    fun test20_missingYouTubeStreamKey_failsValidationBeforeSocket() {
+        val validation = StreamConfigurationValidator.validate(
+            serverUrl = "rtmp://a.rtmp.youtube.com:1935/live2",
+            streamKey = "",
+            destination = com.fairylive.app.core.settings.StreamDestination.YOUTUBE
+        )
+        assertFalse("Missing stream key must fail before socket connection", validation.isValid)
+        val err = validation as StreamConfigurationValidator.ValidationResult.Error
+        assertEquals("Empty stream key", err.technicalReason)
+    }
+
+    // 21. Valid YouTube key is passed unchanged to publish()
+    @Test
+    fun test21_validYouTubeKey_passedUnchangedToPublish() {
+        val validKey = "abcd-1234-wxyz-9988"
+        val endpoint = RtmpEndpoint.parse("rtmp://a.rtmp.youtube.com:1935/live2", validKey)
+        assertEquals(validKey, endpoint.streamKey)
+    }
+
+    // 22. Stream key never appears in diagnostic output
+    @Test
+    fun test22_streamKey_neverAppearsInDiagnosticOutput() {
+        val secretKey = "super_secret_youtube_key_9999"
+        val safeEndpoint = StreamConfigurationValidator.formatSafeEndpoint("rtmp://a.rtmp.youtube.com:1935/live2", secretKey)
+        assertFalse("Safe endpoint must NEVER contain full secret key", safeEndpoint.contains(secretKey))
+        assertTrue("Safe endpoint must contain masked bullets", safeEndpoint.contains("••••"))
+    }
+
+    // 23. Production Start Live cannot accidentally select LOCAL_TEST
+    @Test
+    fun test23_productionStartLive_cannotAccidentallySelectLocalTest() {
+        val validation = StreamConfigurationValidator.validate(
+            serverUrl = "rtmp://127.0.0.1:19350/live",
+            streamKey = "test-key",
+            destination = com.fairylive.app.core.settings.StreamDestination.YOUTUBE
+        )
+        assertFalse("Localhost URL with YouTube destination MUST be rejected", validation.isValid)
+        val err = validation as StreamConfigurationValidator.ValidationResult.Error
+        assertTrue("Error must explain localhost is invalid for YouTube Live",
+            err.userMessage.contains("configured for a local test server instead of YouTube Live"))
+    }
+
+    // 24. Settings save/restore preserves the selected provider
+    @Test
+    fun test24_settingsSaveRestore_preservesSelectedProvider() {
+        val customSettings = StreamSettings(
+            destination = com.fairylive.app.core.settings.StreamDestination.CUSTOM_RTMP,
+            serverUrl = "rtmp://my.streaming.server:1935/custom",
+            streamKey = "my_custom_key"
+        )
+        settingsRepo.saveSettings(customSettings)
+
+        val restored = settingsRepo.loadSettings()
+        assertEquals(com.fairylive.app.core.settings.StreamDestination.CUSTOM_RTMP, restored.destination)
+        assertEquals("rtmp://my.streaming.server:1935/custom", restored.serverUrl)
+        assertEquals("my_custom_key", restored.streamKey)
+    }
+
+    // 25. RTMP endpoint parsing preserves host, port, app, and stream key
+    @Test
+    fun test25_rtmpEndpointParsing_preservesAllParameters() {
+        val endpoint = RtmpEndpoint.parse("rtmp://a.rtmp.youtube.com:1935/live2", "verbatim-key-4321")
+        assertEquals("a.rtmp.youtube.com", endpoint.host)
+        assertEquals(1935, endpoint.port)
+        assertEquals("live2", endpoint.appName)
+        assertEquals("verbatim-key-4321", endpoint.streamKey)
+        assertEquals("rtmp://a.rtmp.youtube.com:1935/live2", endpoint.tcUrl)
+    }
 }

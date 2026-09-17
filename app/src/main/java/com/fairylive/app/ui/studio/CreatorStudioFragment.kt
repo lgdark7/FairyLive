@@ -1806,7 +1806,35 @@ class CreatorStudioFragment : Fragment(),
     }
 
     private fun requestStartBroadcast() {
-        val projMgr = requireContext().getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
+        val ctx = requireContext()
+        val app = ctx.applicationContext as FairyLiveApplication
+        val settings = app.settingsRepository.loadSettings(app.deviceCapability.recommendedProfile)
+
+        val validation = com.fairylive.app.core.settings.StreamConfigurationValidator.validate(
+            settings.serverUrl,
+            settings.streamKey,
+            settings.destination
+        )
+        if (!validation.isValid) {
+            val err = validation as com.fairylive.app.core.settings.StreamConfigurationValidator.ValidationResult.Error
+            val title = if (err.technicalReason.contains("Localhost", ignoreCase = true)) {
+                "Invalid Streaming Destination"
+            } else {
+                "Stream Setup Required"
+            }
+            androidx.appcompat.app.AlertDialog.Builder(ctx)
+                .setTitle(title)
+                .setMessage(err.userMessage)
+                .setPositiveButton("Open Settings") { _, _ ->
+                    val bottomNav = requireActivity().findViewById<com.google.android.material.bottomnavigation.BottomNavigationView>(R.id.bottom_navigation)
+                    bottomNav?.selectedItemId = R.id.nav_settings
+                }
+                .setNegativeButton("Dismiss", null)
+                .show()
+            return
+        }
+
+        val projMgr = ctx.getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
         val intent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
             val config = MediaProjectionConfig.createConfigForDefaultDisplay()
             projMgr.createScreenCaptureIntent(config)

@@ -23,10 +23,11 @@ os.makedirs("screenshots/phase7", exist_ok=True)
 print("1. Reverse port...")
 run(f"adb -s {DEVICE} reverse tcp:{PORT} tcp:{PORT}")
 
-# Inject settings
+# Inject settings for LOCAL_TEST
 settings_xml = """<?xml version='1.0' encoding='utf-8' standalone='yes' ?>
 <map>
-    <string name="server_url">rtmp://127.0.0.1:19350/live/phase7</string>
+    <string name="stream_destination">LOCAL_TEST</string>
+    <string name="server_url">rtmp://127.0.0.1:19350/live</string>
     <string name="stream_key">test-phase7-key</string>
     <string name="resolution">1080p</string>
     <int name="target_bitrate_kbps" value="4500" />
@@ -208,3 +209,20 @@ if os.path.exists(FLV):
         print(json.dumps(metrics, indent=2))
 else:
     print(f"\nResult: {FLV} NOT CREATED")
+
+# Cleanup: Restore YouTube production destination so device is never left poisoned with localhost
+restore_xml = """<?xml version='1.0' encoding='utf-8' standalone='yes' ?>
+<map>
+    <string name="stream_destination">YOUTUBE</string>
+    <string name="server_url">rtmp://a.rtmp.youtube.com:1935/live2</string>
+    <string name="resolution">1080p</string>
+    <int name="target_bitrate_kbps" value="4500" />
+    <int name="target_fps" value="30" />
+    <boolean name="audio_enabled" value="true" />
+    <boolean name="adaptive_bitrate" value="true" />
+</map>"""
+with open("tools/restore_settings_temp.xml", "w") as f:
+    f.write(restore_xml)
+run(f"adb -s {DEVICE} push tools/restore_settings_temp.xml /data/local/tmp/fairy_live_settings.xml")
+run(f"adb -s {DEVICE} shell run-as com.fairylive.app cp /data/local/tmp/fairy_live_settings.xml /data/data/com.fairylive.app/shared_prefs/fairy_live_settings.xml")
+print("Cleaned up: Restored StreamDestination.YOUTUBE to device preferences.")

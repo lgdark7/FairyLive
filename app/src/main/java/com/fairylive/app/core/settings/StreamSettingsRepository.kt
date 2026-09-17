@@ -40,8 +40,41 @@ class StreamSettingsRepository(
             }
         }
 
+        // 2. Resolve destination and sanitize stale development artifacts
+        val destinationName = prefs.getString(KEY_DESTINATION, null)
+        val rawServerUrl = prefs.getString(KEY_SERVER_URL, null)
+
+        val destination = if (destinationName != null) {
+            StreamDestination.fromName(destinationName)
+        } else {
+            // Unset destination: check if an old test endpoint was injected
+            if (rawServerUrl != null && (rawServerUrl.contains("127.0.0.1") || rawServerUrl.contains("10.0.2.2") || rawServerUrl.contains("19350"))) {
+                Log.w(TAG, "Sanitizing legacy/test localhost endpoint from stored preferences. Resetting to YouTube Live.")
+                prefs.edit().putString(KEY_SERVER_URL, StreamDestination.YOUTUBE.defaultUrl).apply()
+            }
+            StreamDestination.YOUTUBE
+        }
+
+        val resolvedUrl = when (destination) {
+            StreamDestination.YOUTUBE -> {
+                // If YouTube is selected, guarantee it never points to localhost or empty
+                if (rawServerUrl.isNullOrBlank() || rawServerUrl.contains("127.0.0.1") || rawServerUrl.contains("10.0.2.2") || rawServerUrl.contains("19350")) {
+                    StreamDestination.YOUTUBE.defaultUrl
+                } else {
+                    rawServerUrl
+                }
+            }
+            StreamDestination.LOCAL_TEST -> {
+                rawServerUrl ?: StreamDestination.LOCAL_TEST.defaultUrl
+            }
+            StreamDestination.CUSTOM_RTMP -> {
+                rawServerUrl ?: ""
+            }
+        }
+
         return StreamSettings(
-            serverUrl = prefs.getString(KEY_SERVER_URL, "rtmp://live.fairylive.tv/live") ?: "rtmp://live.fairylive.tv/live",
+            destination = destination,
+            serverUrl = resolvedUrl,
             streamKey = streamKey ?: "",
             profile = profile,
             width = prefs.getInt(KEY_WIDTH, profile.width),
@@ -61,6 +94,7 @@ class StreamSettingsRepository(
 
         // 2. Persist non-sensitive operational parameters, explicitly purging any legacy plaintext stream key
         prefs.edit()
+            .putString(KEY_DESTINATION, clamped.destination.name)
             .putString(KEY_SERVER_URL, clamped.serverUrl)
             .remove(KEY_LEGACY_STREAM_KEY)
             .putString(KEY_PROFILE, clamped.profile.name)
@@ -81,6 +115,7 @@ class StreamSettingsRepository(
     companion object {
         private const val TAG = "StreamSettingsRepository"
         private const val PREFS_NAME = "fairy_live_settings"
+        private const val KEY_DESTINATION = "stream_destination"
         private const val KEY_SERVER_URL = "server_url"
         private const val KEY_LEGACY_STREAM_KEY = "stream_key"
         private const val KEY_PROFILE = "profile"

@@ -186,17 +186,33 @@ class DashboardFragment : Fragment(),
             val app = ctx.applicationContext as FairyLiveApplication
             val settings = app.settingsRepository.loadSettings(app.deviceCapability.recommendedProfile)
 
-            if (settings.serverUrl.isNotEmpty()) {
-                val validation = StreamConfigurationValidator.validate(settings.serverUrl, settings.streamKey)
-                if (!validation.isValid) {
-                    val err = validation as StreamConfigurationValidator.ValidationResult.Error
-                    CreatorErrorNotifier.postError(
-                        title = "Invalid Stream Destination",
-                        message = err.userMessage,
-                        resolution = "Tap 'Configure Destination' below to configure a valid RTMP URL."
-                    )
-                    return@setOnClickListener
+            val validation = StreamConfigurationValidator.validate(
+                settings.serverUrl,
+                settings.streamKey,
+                settings.destination
+            )
+            if (!validation.isValid) {
+                val err = validation as StreamConfigurationValidator.ValidationResult.Error
+                val title = if (err.technicalReason.contains("Localhost", ignoreCase = true)) {
+                    "Invalid Streaming Destination"
+                } else {
+                    "Stream Setup Required"
                 }
+                CreatorErrorNotifier.postError(
+                    title = title,
+                    message = err.userMessage,
+                    resolution = "Tap 'Broadcast Target' below or open Settings to configure."
+                )
+                androidx.appcompat.app.AlertDialog.Builder(ctx)
+                    .setTitle(title)
+                    .setMessage(err.userMessage)
+                    .setPositiveButton("Open Settings") { _, _ ->
+                        val bottomNav = requireActivity().findViewById<com.google.android.material.bottomnavigation.BottomNavigationView>(R.id.bottom_navigation)
+                        bottomNav?.selectedItemId = R.id.nav_settings
+                    }
+                    .setNegativeButton("Dismiss", null)
+                    .show()
+                return@setOnClickListener
             }
 
             CaptureStateNotifier.updateState(CaptureState.AUTHORIZING)

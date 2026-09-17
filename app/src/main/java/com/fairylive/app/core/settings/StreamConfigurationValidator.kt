@@ -23,9 +23,13 @@ object StreamConfigurationValidator {
     }
 
     /**
-     * Validates an RTMP URL and stream key with comprehensive security and boundary checks.
+     * Validates an RTMP URL, stream key, and destination provider.
      */
-    fun validate(serverUrl: String?, streamKey: String?): ValidationResult {
+    fun validate(
+        serverUrl: String?,
+        streamKey: String?,
+        destination: StreamDestination = StreamDestination.YOUTUBE
+    ): ValidationResult {
         if (serverUrl.isNullOrBlank()) {
             return ValidationResult.Error(
                 userMessage = "RTMP Server URL cannot be empty. Please enter a valid stream destination.",
@@ -105,9 +109,28 @@ object StreamConfigurationValidator {
             )
         }
 
+        // Destination Invariants: Production destinations must never resolve to localhost/test servers
+        val isLocalhost = host.equals("127.0.0.1", ignoreCase = true) ||
+                host.equals("localhost", ignoreCase = true) ||
+                host.equals("10.0.2.2", ignoreCase = true)
+
+        if (destination == StreamDestination.YOUTUBE && isLocalhost) {
+            return ValidationResult.Error(
+                userMessage = "FAIRY LIVE is configured for a local test server instead of YouTube Live. Please update your destination or Server URL in Settings.",
+                technicalReason = "Localhost destination configured while YouTube Live provider selected"
+            )
+        }
+
+        if (destination == StreamDestination.CUSTOM_RTMP && isLocalhost) {
+            return ValidationResult.Error(
+                userMessage = "Custom RTMP destination cannot point to localhost. Use Local Test destination for local development.",
+                technicalReason = "Localhost destination configured under Custom RTMP"
+            )
+        }
+
         if (streamKey.isNullOrBlank()) {
             return ValidationResult.Error(
-                userMessage = "Stream key cannot be empty.",
+                userMessage = "Stream key cannot be empty. Please enter your stream key in Settings.",
                 technicalReason = "Empty stream key"
             )
         }
