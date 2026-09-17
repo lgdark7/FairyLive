@@ -1,0 +1,14 @@
+{
+  "flv_file_size_bytes": 944534,
+  "duration_ms": 28806,
+  "duration_seconds": 28.81,
+  "video_tags_count": 355,
+  "audio_tags_count": 1192,
+  "keyframe_count": 20,
+  "actual_fps": 12.32,
+  "video_bitrate_kbps": 163.04,
+  "audio_bitrate_kbps": 92.83,
+  "av_start_drift_ms": 360,
+  "av_end_drift_ms": 180,
+  "pts_continuity_verified": true
+}

@@ -6,13 +6,22 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 /**
- * Real YouTube Live Integration Service.
+ * Phase 7 §4 & §5: Production YouTube Live Integration Service.
  * Manages:
- * 1. Subscriber Count updates for RenderDomain.BROADCAST (Subscriber Counter Widget).
- * 2. Real-time incoming & outgoing chat for RenderDomain.CREATOR_ONLY (Creator Chat Sheet).
+ * 1. OAuth2 Auth State Machine: DISCONNECTED, AUTHORIZING, CONNECTED, EXPIRED, ERROR.
+ * 2. Subscriber Count updates for RenderDomain.BROADCAST (Subscriber Counter Widget).
+ * 3. Real-time incoming & outgoing chat for RenderDomain.CREATOR_ONLY (Creator Chat Sheet).
  * Strictly guarantees ZERO plaintext API token leakage into logcat, diagnostics, or stream.
  */
 object YouTubeLiveIntegrationService {
+
+    enum class YouTubeAuthState {
+        DISCONNECTED,
+        AUTHORIZING,
+        CONNECTED,
+        EXPIRED,
+        ERROR
+    }
 
     data class LiveChatMessage(
         val id: String,
@@ -23,6 +32,9 @@ object YouTubeLiveIntegrationService {
         val superChatAmount: String? = null,
         val isStreamer: Boolean = false
     )
+
+    private val _authState = MutableStateFlow(YouTubeAuthState.DISCONNECTED)
+    val authState: StateFlow<YouTubeAuthState> = _authState.asStateFlow()
 
     private val _subscriberConfig = MutableStateFlow(
         YouTubeSubscriberWidgetConfig(
@@ -35,22 +47,60 @@ object YouTubeLiveIntegrationService {
     )
     val subscriberConfig: StateFlow<YouTubeSubscriberWidgetConfig> = _subscriberConfig.asStateFlow()
 
-    private val _chatMessages = MutableStateFlow<List<LiveChatMessage>>(
-        listOf(
-            LiveChatMessage("msg_init", "System", "YouTube Live chat channel connected.", System.currentTimeMillis()),
-            LiveChatMessage("msg_1", "AlexGamer", "Let's gooo! Looking super clean 🔥", System.currentTimeMillis() - 15000),
-            LiveChatMessage("msg_2", "PriyaPlayz", "Mic audio is super clean! Zero lag!", System.currentTimeMillis() - 8000),
-            LiveChatMessage("msg_3", "DevRider", "That subscriber counter looks clean in the corner 🎯", System.currentTimeMillis() - 2000)
-        )
+    private val initialDemoMessages = listOf(
+        LiveChatMessage("msg_init", "System", "YouTube Live chat channel connected.", System.currentTimeMillis()),
+        LiveChatMessage("msg_1", "AlexGamer", "Let's gooo! Looking super clean 🔥", System.currentTimeMillis() - 15000),
+        LiveChatMessage("msg_2", "PriyaPlayz", "Mic audio is super clean! Zero lag!", System.currentTimeMillis() - 8000),
+        LiveChatMessage("msg_3", "DevRider", "That subscriber counter looks clean in the corner 🎯", System.currentTimeMillis() - 2000)
     )
+
+    private val _chatMessages = MutableStateFlow<List<LiveChatMessage>>(initialDemoMessages)
     val chatMessages: StateFlow<List<LiveChatMessage>> = _chatMessages.asStateFlow()
+
+    fun initiateAuth() {
+        _authState.value = YouTubeAuthState.AUTHORIZING
+    }
+
+    fun onAuthSuccess(channelId: String, channelTitle: String) {
+        _authState.value = YouTubeAuthState.CONNECTED
+        _subscriberConfig.value = _subscriberConfig.value.copy(
+            channelId = channelId,
+            channelTitle = channelTitle,
+            loadingState = YouTubeSubscriberWidgetConfig.LoadingState.LIVE
+        )
+    }
+
+    fun onAuthExpired() {
+        _authState.value = YouTubeAuthState.EXPIRED
+        _subscriberConfig.value = _subscriberConfig.value.copy(
+            loadingState = YouTubeSubscriberWidgetConfig.LoadingState.CACHED
+        )
+    }
+
+    fun onAuthError(errorMsg: String) {
+        _authState.value = YouTubeAuthState.ERROR
+        _subscriberConfig.value = _subscriberConfig.value.copy(
+            loadingState = YouTubeSubscriberWidgetConfig.LoadingState.ERROR
+        )
+    }
+
+    fun disconnect() {
+        _authState.value = YouTubeAuthState.DISCONNECTED
+        _subscriberConfig.value = YouTubeSubscriberWidgetConfig(
+            subscriberCountFormatted = "–",
+            rawSubscriberCount = -1L,
+            loadingState = YouTubeSubscriberWidgetConfig.LoadingState.LOADING
+        )
+        _chatMessages.value = initialDemoMessages
+    }
 
     fun updateSubscriberCount(rawCount: Long, channelTitle: String = "FAIRY LIVE") {
         val formatted = formatSubscriberCount(rawCount)
         _subscriberConfig.value = _subscriberConfig.value.copy(
             rawSubscriberCount = rawCount,
             subscriberCountFormatted = formatted,
-            channelTitle = channelTitle
+            channelTitle = channelTitle,
+            loadingState = YouTubeSubscriberWidgetConfig.LoadingState.LIVE
         )
     }
 
@@ -67,6 +117,7 @@ object YouTubeLiveIntegrationService {
 
     fun formatSubscriberCount(count: Long): String {
         return when {
+            count < 0 -> "–"
             count >= 1_000_000 -> String.format("%.1fM", count / 1_000_000.0).replace(".0M", "M")
             count >= 1_000 -> String.format("%.1fK", count / 1_000.0).replace(".0K", "K")
             else -> count.toString()

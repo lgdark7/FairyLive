@@ -62,6 +62,7 @@ class BroadcastPreviewView @JvmOverloads constructor(
     private var lastTouchX = 0f
     private var lastTouchY = 0f
     private var activeCorner = -1 // 0: TL, 1: TR, 2: BR, 3: BL
+    private var activeCropEdge = -1 // 0: Left, 1: Top, 2: Right, 3: Bottom (Phase 7 §2)
 
     // Two-finger gesture tracking
     private var initialFingerDistance = 0f
@@ -131,8 +132,18 @@ class BroadcastPreviewView @JvmOverloads constructor(
     private val rotationStemHeightPx: Float
         get() = 28f * resources.displayMetrics.density
 
+    private val cropHandlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.parseColor("#C27D48") // Warm Caramel for Crop Handles
+        style = Paint.Style.FILL
+    }
+    private val cropHandleStrokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.WHITE
+        style = Paint.Style.STROKE
+        strokeWidth = 2f * resources.displayMetrics.density
+    }
+
     private enum class TouchMode {
-        NONE, DRAG, RESIZE, ROTATE, TWO_FINGER, WEB_SCROLL
+        NONE, DRAG, RESIZE, ROTATE, TWO_FINGER, WEB_SCROLL, CROP
     }
 
     init {
@@ -465,6 +476,20 @@ class BroadcastPreviewView @JvmOverloads constructor(
             canvas.drawLine(topCenterX, topCenterY, topCenterX, rotHandleY, rotationStemPaint)
             canvas.drawCircle(topCenterX, rotHandleY, r * 1.2f, rotationHandlePaint)
             canvas.drawCircle(topCenterX, rotHandleY, r * 1.2f, handleStrokePaint)
+
+            // Phase 7 §2: Draw 4 Crop Edge Handles for Web overlays
+            if (elem?.type == OverlayType.WEB) {
+                val cropEdges = arrayOf(
+                    Pair(rect.left, rect.centerY()),    // 0: Left
+                    Pair(rect.centerX(), rect.top),       // 1: Top
+                    Pair(rect.right, rect.centerY()),   // 2: Right
+                    Pair(rect.centerX(), rect.bottom)    // 3: Bottom
+                )
+                for ((ex, ey) in cropEdges) {
+                    canvas.drawCircle(ex, ey, r * 0.9f, cropHandlePaint)
+                    canvas.drawCircle(ex, ey, r * 0.9f, cropHandleStrokePaint)
+                }
+            }
         }
 
         // 4. Element type badge
@@ -603,6 +628,17 @@ class BroadcastPreviewView @JvmOverloads constructor(
                                 return true
                             }
 
+                            // Phase 7 §2: Check Crop Edge Handle hit for Web Overlays
+                            if (elem?.type == OverlayType.WEB) {
+                                val hitCrop = getHitCropHandle(rect, touchX, touchY)
+                                if (hitCrop >= 0) {
+                                    activeCropEdge = hitCrop
+                                    touchMode = TouchMode.CROP
+                                    parent?.requestDisallowInterceptTouchEvent(true)
+                                    return true
+                                }
+                            }
+
                             // Check Web Overlay internal scroll hit (P1 & P10)
                             if (elem?.type == OverlayType.WEB && rect.contains(touchX, touchY)) {
                                 touchMode = TouchMode.WEB_SCROLL
@@ -643,6 +679,40 @@ class BroadcastPreviewView @JvmOverloads constructor(
                 val deltaNormY = dy / h
 
                 when (touchMode) {
+                    TouchMode.CROP -> {
+                        // Phase 7 §2 & §3: Interactive Crop in local element coordinates
+                        val rect = getElementBounds(scene, selId, w, h) ?: return false
+                        val overlay = elem ?: return false
+                        val cfg = overlay.webConfig ?: return false
+
+                        val rw = rect.width().coerceAtLeast(10f)
+                        val rh = rect.height().coerceAtLeast(10f)
+
+                        var cl = cfg.cropLeft
+                        var ct = cfg.cropTop
+                        var cr = cfg.cropRight
+                        var cb = cfg.cropBottom
+
+                        when (activeCropEdge) {
+                            0 -> cl = (cl + dx / rw).coerceIn(0f, 0.45f) // Left
+                            1 -> ct = (ct + dy / rh).coerceIn(0f, 0.45f) // Top
+                            2 -> cr = (cr - dx / rw).coerceIn(0f, 0.45f) // Right
+                            3 -> cb = (cb - dy / rh).coerceIn(0f, 0.45f) // Bottom
+                        }
+
+                        val updatedCfg = cfg.copy(cropLeft = cl, cropTop = ct, cropRight = cr, cropBottom = cb)
+                        val updatedElem = overlay.copy(webConfig = updatedCfg)
+                        val updatedScene = scene.copy(
+                            overlayElements = scene.overlayElements.map { if (it.id == selId) updatedElem else it }
+                        )
+                        setScene(updatedScene)
+                        interactionListener?.onCropUpdated(selId, cl, ct, cr, cb)
+                        lastTouchX = touchX
+                        lastTouchY = touchY
+                        invalidate()
+                        return true
+                    }
+
                     TouchMode.ROTATE -> {
                         val rect = getElementBounds(scene, selId, w, h) ?: return false
                         val centerX = rect.centerX()
@@ -802,6 +872,28 @@ class BroadcastPreviewView @JvmOverloads constructor(
         )
         for (i in corners.indices) {
             val (cx, cy) = corners[i]
+            val distSq = (x - cx) * (x - cx) + (y - cy) * (y - cy)
+            if (distSq <= radius * radius) {
+                return i
+            }
+        }
+        return -1
+    }
+
+    /**
+     * Phase 7 §2: Interactive Crop Edge Handles.
+     * 0: Left Edge, 1: Top Edge, 2: Right Edge, 3: Bottom Edge
+     */
+    private fun getHitCropHandle(rect: RectF, x: Float, y: Float): Int {
+        val radius = handleTouchRadiusPx * 1.1f
+        val edges = arrayOf(
+            Pair(rect.left, rect.centerY()),    // 0: Left
+            Pair(rect.centerX(), rect.top),       // 1: Top
+            Pair(rect.right, rect.centerY()),   // 2: Right
+            Pair(rect.centerX(), rect.bottom)    // 3: Bottom
+        )
+        for (i in edges.indices) {
+            val (cx, cy) = edges[i]
             val distSq = (x - cx) * (x - cx) + (y - cy) * (y - cy)
             if (distSq <= radius * radius) {
                 return i
