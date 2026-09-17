@@ -103,14 +103,16 @@ data class WebOverlayConfig(
 /** Typealias for YouTube subscriber widget config consistency */
 typealias YouTubeSubscriberConfig = YouTubeSubscriberWidgetConfig
 
-/** Configuration for YouTube live subscriber count widget. */
 data class YouTubeSubscriberWidgetConfig(
     val channelId: String = "",
     val channelTitle: String = "FAIRY LIVE",
-    val subscriberCountFormatted: String = "12.4K",
-    val rawSubscriberCount: Long = 12400L,
+    val subscriberCountFormatted: String = "–",          // empty until real data arrives
+    val rawSubscriberCount: Long = -1L,                  // -1 = not yet loaded
     val labelText: String = "SUBSCRIBERS",
     val accentColorRgba: Int = 0xFFFF0000.toInt(), // YouTube Red
     val backgroundColorRgba: Int = 0xCC1A1A1A.toInt(),
-    val showIcon: Boolean = true
-)
+    val showIcon: Boolean = true,
+    val loadingState: LoadingState = LoadingState.LOADING
+) {
+    enum class LoadingState { LOADING, LIVE, ERROR, CACHED }
+}

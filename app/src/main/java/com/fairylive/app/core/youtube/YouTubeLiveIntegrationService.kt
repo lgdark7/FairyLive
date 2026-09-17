@@ -26,10 +26,11 @@ object YouTubeLiveIntegrationService {
 
     private val _subscriberConfig = MutableStateFlow(
         YouTubeSubscriberWidgetConfig(
-            channelId = "UC_DEMO_LIVE",
+            channelId = "",
             channelTitle = "FAIRY LIVE",
-            subscriberCountFormatted = "12.4K",
-            rawSubscriberCount = 12400L
+            subscriberCountFormatted = "–",
+            rawSubscriberCount = -1L,
+            loadingState = YouTubeSubscriberWidgetConfig.LoadingState.LOADING
         )
     )
     val subscriberConfig: StateFlow<YouTubeSubscriberWidgetConfig> = _subscriberConfig.asStateFlow()

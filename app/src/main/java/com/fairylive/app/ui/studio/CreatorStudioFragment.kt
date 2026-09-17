@@ -1522,8 +1522,8 @@ class CreatorStudioFragment : Fragment(),
             config = com.fairylive.app.core.compositor.model.YouTubeSubscriberWidgetConfig(
                 channelId = "UC_DEMO",
                 channelTitle = "FAIRY LIVE",
-                subscriberCountFormatted = "12.4K",
-                rawSubscriberCount = 12400L
+                subscriberCountFormatted = "–",
+                rawSubscriberCount = -1L,
             ),
             x = 0.05f,
             y = 0.05f,

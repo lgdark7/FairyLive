@@ -383,8 +383,8 @@ class SceneRepository(context: Context) {
                         ytSubCfg = YouTubeSubscriberWidgetConfig(
                             channelId = yt.optString("channelId", ""),
                             channelTitle = yt.optString("channelTitle", "FAIRY LIVE"),
-                            subscriberCountFormatted = yt.optString("subscriberCountFormatted", "12.4K"),
-                            rawSubscriberCount = yt.optLong("rawSubscriberCount", 12400L),
+                            subscriberCountFormatted = yt.optString("subscriberCountFormatted", "–"),
+                            rawSubscriberCount = yt.optLong("rawSubscriberCount", -1L),
                             accentColorRgba = yt.optInt("accentColorRgba", 0xFFFF0000.toInt())
                         )
                     }

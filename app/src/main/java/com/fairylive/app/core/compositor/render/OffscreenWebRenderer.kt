@@ -159,6 +159,10 @@ class OffscreenWebRenderer private constructor(private val context: Context) {
                     settings.useWideViewPort = true
                     settings.loadWithOverviewMode = true
                     settings.cacheMode = WebSettings.LOAD_DEFAULT
+                    // Phase 6 §4: Web zoom (0.25x–5.0x, independent of overlay scale)
+                    val zoomPct = (config.zoomLevel.coerceIn(0.25f, 5.0f) * 100).toInt()
+                    settings.textZoom = zoomPct
+                    if (zoomPct != 100) setInitialScale(zoomPct)
 
                     webViewClient = object : WebViewClient() {
                         override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
