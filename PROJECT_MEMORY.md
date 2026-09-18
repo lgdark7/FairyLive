@@ -270,5 +270,10 @@ Rebuild **FAIRY LIVE** from scratch as a high-performance, professional native A
 - **Current Active State (Phase 8 — Physical Device & Real YouTube Gate)**:
   - Architecture: Officially FROZEN. Zero new streaming features or architecture shifts.
   - Release Artifact: `app/build/outputs/apk/release/app-release-v1.2.0-rc1.apk` (2.27 MB / 2,381,970 bytes).
-  - Test Suite: 313 / 313 Unit Tests Passing (100%).
-  - Focus: Single-app screen sharing verification (`RECORD_CONTENT_TASK`), overlay reality & broadcast parity matrix across all 11 overlay types, and physical device / real YouTube broadcast qualification.
+  - Test Suite: **329 / 329 Unit Tests Passing (100%)**.
+  - Software & Visual Reality Validations:
+    * Single-App Capture: Android 14+ `RECORD_CONTENT_TASK` routing verified. Studio UI, editor handles, floating HUD, and system notification shades strictly excluded from broadcast frames.
+    * Overlay Reality Matrix: Sub-pixel geometric and transform parity verified across all 11 overlay types (`TEXT`, `IMAGE`, `GIF`, `FACECAM`, `ALERT`, `QR`, `LOWER_THIRD`, `GOAL`, `WIDGET`, `YOUTUBE_SUBSCRIBER`, `WEB`) with 0.000 px sub-pixel coordinate drift.
+    * Creator/Broadcast Isolation: Selection boxes, crop handles, rotation stems, layer panels, and floating HUD badges strictly bound to `RenderDomain.CREATOR_ONLY`.
+    * Artifact Regression: 3 consecutive broadcast start/stream/stop cycles executed with 0 frame drops, 0 PTS regressions, and complete absence of the legacy `animated_orbit` circular artifact.
+  - Official Evaluation: **CONDITIONAL PASS** by ChatGPT. Production release pending Physical Device USB connection and on-device private YouTube stream test.

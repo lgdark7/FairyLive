@@ -1,0 +1,10 @@
+{
+  "test": "Phase 8 Single-App Capture & Isolation Acceptance",
+  "target_os": "Android 15 (API 35)",
+  "task_isolation_mechanism": "MediaProjection RECORD_CONTENT_TASK routing",
+  "creator_ui_segregated": true,
+  "floating_hud_segregated": true,
+  "notifications_segregated": true,
+  "security_exceptions": 0,
+  "pass": true
+}

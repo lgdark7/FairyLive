@@ -1,0 +1,8 @@
+{
+  "test": "Artifact Regression & Lifecycle Repeatability",
+  "total_cycles": 3,
+  "cycles_passed": 3,
+  "zero_fatal_crashes": true,
+  "circle_artifact_detected": false,
+  "pass": true
+}

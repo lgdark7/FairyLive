@@ -304,4 +304,4 @@ if __name__ == "__main__":
     dur = int(sys.argv[1]) if len(sys.argv) > 1 else 35
     flv = sys.argv[2] if len(sys.argv) > 2 else "tools/m15c_fresh_broadcast.flv"
     metrics = sys.argv[3] if len(sys.argv) > 3 else "tools/m15c_broadcast_metrics.json"
-    run_server(max_duration_s=dur, flv_path=flv, metrics_path=metrics)
+    run_server(port=19350, flv_path=flv, metrics_path=metrics, max_duration_s=dur)
