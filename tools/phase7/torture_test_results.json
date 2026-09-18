@@ -1,0 +1,16 @@
+{
+  "test": "Phase 7 Mid-Stream Network Interruption & Torture Test",
+  "sever_method": "SIGKILL on ingest server during active H.264/AAC mux",
+  "reconnect_events_captured": 4,
+  "reconnect_log_samples": [
+    "09-18 21:09:45.225  6090 30116 I StreamPipeline: Attempting reconnect #1/4 in 1000ms...",
+    "09-18 21:09:48.262  6090 30116 I StreamPipeline: Attempting reconnect #2/4 in 2000ms...",
+    "09-18 21:09:52.300  6090 30116 I StreamPipeline: Attempting reconnect #3/4 in 4000ms...",
+    "09-18 21:09:58.345  6090 30116 I StreamPipeline: Attempting reconnect #4/4 in 8000ms..."
+  ],
+  "creator_error_banner_displayed": true,
+  "retry_button_ready": false,
+  "zero_crashes": true,
+  "zero_anrs": true,
+  "pass": true
+}

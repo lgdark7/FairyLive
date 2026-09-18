@@ -1,0 +1,11 @@
+{
+  "uninstall": true,
+  "fresh_install": true,
+  "cold_start_ms": 1478,
+  "cold_start_pass": true,
+  "dashboard_rendered": true,
+  "studio_tab_loaded": true,
+  "settings_tab_loaded": true,
+  "scene_persisted_after_reload": true,
+  "zero_crashes": true
+}

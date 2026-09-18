@@ -30,6 +30,7 @@ import com.fairylive.app.core.audio.model.AudioSourceType
 import com.fairylive.app.core.capture.CaptureStateNotifier
 import com.fairylive.app.core.capture.ScreenCaptureEngine
 import com.fairylive.app.core.capture.model.CaptureState
+import com.fairylive.app.core.common.CreatorErrorNotifier
 import com.fairylive.app.core.common.MediaClock
 import com.fairylive.app.core.lifecycle.StreamState
 import com.fairylive.app.core.lifecycle.StreamStateNotifier
@@ -758,6 +759,7 @@ class FairyStreamService : Service() {
     }
 
     companion object {
+        private const val TAG = "FairyStreamService"
         @Volatile
         var activeService: FairyStreamService? = null
             private set
@@ -871,10 +873,19 @@ class FairyStreamService : Service() {
                 putExtra(EXTRA_BITRATE_KBPS, bitrateKbps)
                 putExtra(EXTRA_FPS, fps)
             }
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                context.startForegroundService(intent)
-            } else {
-                context.startService(intent)
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    context.startForegroundService(intent)
+                } else {
+                    context.startService(intent)
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to start capture foreground service", e)
+                CreatorErrorNotifier.postError(
+                    title = "Broadcast Startup Error",
+                    message = "Could not start stream service: ${e.message}",
+                    resolution = "Return Fairy Live to the foreground and tap Start Live again."
+                )
             }
         }
 

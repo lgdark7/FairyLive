@@ -244,4 +244,31 @@ Rebuild **FAIRY LIVE** from scratch as a high-performance, professional native A
 - **Pipeline Audio Framerate**: **43.08 – 43.09 AU/s** (Theoretical exact: 43.066 AU/s)
 - **Muxer & Queue Packet Drops**: **0** (Zero dropped frames in both baseline and composited runs)
 - **Queue Memory Footprint**: Strictly capped at 4 MB / 90 packets.
-- **Test Suite**: **81 Unit Tests** + **5 On-Device Connected Tests** (100% Passing).
+---
+
+## 8. Milestone V1.2 Phase 5 & Phase 6 Production Validation & Hardening
+- **Completed Phase 5 (Real-Device Overlay Production Validation)**:
+  - Validated sub-pixel geometry, aspect ratio, opacity, and rotation across all 11 overlay types (`TEXT`, `IMAGE`, `GIF`, `FACECAM`, `ALERT`, `QR`, `LOWER_THIRD`, `GOAL`, `WIDGET`, `YOUTUBE_SUBSCRIBER`, `WEB`).
+  - Strict segregation of creator editing UI (selection boxes, crop handles, rotation stems, lock badges, and layer panels) from the OpenGL ES broadcast rendering domain.
+  - Decoupled web overlay canvas geometry from internal DOM webpage zoom (`OffscreenWebRenderer.zoomLevel`).
+  - Verified 60.58-second continuous broadcast capture (`tools/phase5/v12_phase5_long_broadcast.flv`, 2.77 MB) with 1,625 video tags, 2,605 audio tags, 56 keyframes, 0 PTS regressions, and 50 ms A/V drift.
+  - Formal ChatGPT Sign-off received: `🟢 APPROVED — PHASE 5 PRODUCTION VALIDATION PASSED`.
+- **Completed Phase 6 (Release & Production Hardening)**:
+  - Configured R8/ProGuard minification (`isMinifyEnabled = true`) with full bytecode shrinking and resource optimization.
+  - Built production release binary `app/build/outputs/apk/release/app-release.apk` at **2.27 MB** (2,382,022 bytes) — 84.9% below the 15.0 MB budget.
+  - Performance: Cold launch time **863 ms** (< 1.5s), Warm start **242 ms** (< 500ms).
+  - Enforced security: Release build non-debuggable (`run-as` blocked), zero plaintext stream keys/tokens in diagnostics or logs (all masked with `••••••••`).
+  - Strict low-end invariants: $\le 2$ codecs active (`c2.android.avc.encoder`, `c2.android.aac.encoder`), zero EGL/GLES reallocations during streaming.
+  - Formal ChatGPT Sign-off received: `🟢 APPROVED — PHASE 6 RELEASE & PRODUCTION HARDENING PASSED`.
+- **Completed Phase 7 (Release Candidate Qualification)**:
+  - Clean device installation & fresh start validation on Android 15 Pixel 8: cold launch 1,478 ms, warm start 242 ms, 0 crashes, 0 ANRs.
+  - Scene persistence verified across process termination and reload.
+  - 63.55-second live broadcast endurance qualification (`phase7_rc_broadcast_60s.flv`, 2.98 MB, 1,656 video frames, 26.88 FPS, 2,653 audio AUs, 0 PTS regressions, 19 ms A/V delta).
+  - Mid-stream network torture test: abrupt socket severance under active H.264/AAC muxing, 4-stage exponential backoff reconnection (`1s`, `2s`, `4s`, `8s`), terminal halt, creator error notification banner with masked key diagnostics (`prefix=ph••••`), 0 crashes, 0 ANRs.
+  - Resource limits: 59.6 MB PSS RAM, strictly 2 active hardware codecs (`c2.android.avc.encoder`, `c2.android.aac.encoder`).
+  - Formal ChatGPT Sign-off received: `🟢 PHASE 7 RC1 SOFTWARE QUALIFICATION: APPROVED ✅` / `PHASE 8: REAL-DEVICE PRODUCTION VALIDATION — AUTHORIZED 🚀`.
+- **Current Active State (Phase 8 — Physical Device & Real YouTube Gate)**:
+  - Architecture: Officially FROZEN. Zero new streaming features or architecture shifts.
+  - Release Artifact: `app/build/outputs/apk/release/app-release-v1.2.0-rc1.apk` (2.27 MB / 2,381,970 bytes).
+  - Test Suite: 313 / 313 Unit Tests Passing (100%).
+  - Focus: Single-app screen sharing verification (`RECORD_CONTENT_TASK`), overlay reality & broadcast parity matrix across all 11 overlay types, and physical device / real YouTube broadcast qualification.

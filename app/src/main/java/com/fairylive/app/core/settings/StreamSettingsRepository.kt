@@ -74,9 +74,9 @@ class StreamSettingsRepository(
 
         val captureSourceName = prefs.getString(KEY_CAPTURE_SOURCE, null)
         val captureSource = if (captureSourceName != null) {
-            try { CaptureSource.valueOf(captureSourceName) } catch (_: Exception) { CaptureSource.SINGLE_APP }
+            try { CaptureSource.valueOf(captureSourceName) } catch (_: Exception) { CaptureSource.ENTIRE_SCREEN }
         } else {
-            CaptureSource.SINGLE_APP
+            CaptureSource.ENTIRE_SCREEN
         }
 
         return StreamSettings(

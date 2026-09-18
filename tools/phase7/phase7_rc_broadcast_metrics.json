@@ -1,0 +1,31 @@
+{
+  "timestamp": "2026-09-18 21:06:49",
+  "duration_seconds": 63.55,
+  "total_bytes_received": 2977592,
+  "average_bitrate_kbps": 374.85,
+  "video": {
+    "total_frames": 1656,
+    "first_pts_ms": 204,
+    "last_pts_ms": 61822,
+    "pts_span_ms": 61618,
+    "fps": 26.88,
+    "total_bytes": 2232654
+  },
+  "audio": {
+    "total_access_units": 2653,
+    "first_pts_ms": 285,
+    "last_pts_ms": 61841,
+    "pts_span_ms": 61556,
+    "sample_derived_duration_ms": 61602.54,
+    "span_vs_sample_discrepancy_ms": 46.54,
+    "max_consecutive_pts_gap_ms": 24,
+    "gaps_over_40ms": 0,
+    "avg_pts_delta_ms": 23.22,
+    "total_bytes": 744260
+  },
+  "av_sync": {
+    "final_delta_ms": 19,
+    "status": "IN_SYNC"
+  },
+  "flv_file": "tools/phase7/phase7_rc_broadcast_60s.flv"
+}
