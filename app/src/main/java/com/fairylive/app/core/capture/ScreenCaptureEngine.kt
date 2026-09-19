@@ -87,7 +87,8 @@ class ScreenCaptureEngine {
         width: Int,
         height: Int,
         dpi: Int,
-        customSurface: Surface? = null
+        customSurface: Surface? = null,
+        captureSource: com.fairylive.app.core.settings.CaptureSource = com.fairylive.app.core.settings.CaptureSource.SINGLE_APP
     ) {
         if (isCapturing) {
             stop()
@@ -97,6 +98,15 @@ class ScreenCaptureEngine {
         val alignedHeight = (height / 2) * 2
 
         CaptureStateNotifier.updateState(CaptureState.STARTING)
+
+        Log.i("FairyCapture", "CaptureMode=$captureSource")
+        val targetDesc = if (captureSource == com.fairylive.app.core.settings.CaptureSource.SINGLE_APP) {
+            "SelectedTaskWindow (API 34+ RECORD_CONTENT_TASK)"
+        } else {
+            "EntireDisplay (DefaultDisplay)"
+        }
+        Log.i("FairyCapture", "CaptureTarget=$targetDesc")
+        Log.i("FairyCapture", "ProjectionStarted=true")
 
         this.mediaProjection = projection
         this.currentWidth = alignedWidth
@@ -307,6 +317,8 @@ class ScreenCaptureEngine {
         CaptureStateNotifier.updateState(CaptureState.STOPPING)
         isCapturing = false
         isPaused = false
+
+        Log.i("FairyCapture", "ProjectionStopped=true")
 
         try {
             virtualDisplay?.release()

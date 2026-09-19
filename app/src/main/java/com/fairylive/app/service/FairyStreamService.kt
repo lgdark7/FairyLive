@@ -398,7 +398,14 @@ class FairyStreamService : Service() {
                 captureSurface = encoderSurface
             }
 
-            captureEngine.start(projection, encW, encH, dpi, customSurface = captureSurface)
+            captureEngine.start(
+                projection,
+                encW,
+                encH,
+                dpi,
+                customSurface = captureSurface,
+                captureSource = settings?.captureSource ?: com.fairylive.app.core.settings.CaptureSource.SINGLE_APP
+            )
 
             if (!captureEngine.isCapturing || CaptureStateNotifier.currentState == CaptureState.ERROR) {
                 // VirtualDisplay creation failed — do not publish a video-less stream.
@@ -558,11 +565,18 @@ class FairyStreamService : Service() {
             val notification = buildForegroundNotification(statusText)
 
             if (Build.VERSION.SDK_INT >= 34) { // Android 14+ (UPSIDE_DOWN_CAKE)
-                var serviceType = ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION
-                if (withMediaProjection) {
-                    serviceType = serviceType or ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
+                val baseType = ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION
+                val fullType = if (PermissionManager.hasAudioPermission(this)) {
+                    baseType or ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
+                } else {
+                    baseType
                 }
-                startForeground(NOTIFICATION_ID, notification, serviceType)
+                try {
+                    startForeground(NOTIFICATION_ID, notification, fullType)
+                } catch (se: SecurityException) {
+                    Log.w("FairyStreamService", "startForeground with microphone failed, falling back to MEDIA_PROJECTION only: ${se.message}")
+                    startForeground(NOTIFICATION_ID, notification, baseType)
+                }
             } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 var serviceType = ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
                 if (withMediaProjection) {

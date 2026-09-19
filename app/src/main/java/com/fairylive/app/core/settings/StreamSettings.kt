@@ -8,7 +8,7 @@ import com.fairylive.app.core.capability.model.StreamProfile
  */
 data class StreamSettings(
     val destination: StreamDestination = StreamDestination.YOUTUBE,
-    val captureSource: CaptureSource = CaptureSource.ENTIRE_SCREEN,
+    val captureSource: CaptureSource = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) CaptureSource.SINGLE_APP else CaptureSource.ENTIRE_SCREEN,
     val serverUrl: String = StreamDestination.YOUTUBE.defaultUrl,
     val streamKey: String = "",
     val profile: StreamProfile = StreamProfile.LOW,
@@ -63,6 +63,7 @@ data class StreamSettings(
         fun fromProfile(
             profile: StreamProfile,
             destination: StreamDestination = StreamDestination.YOUTUBE,
+            captureSource: CaptureSource = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) CaptureSource.SINGLE_APP else CaptureSource.ENTIRE_SCREEN,
             serverUrl: String = "",
             streamKey: String = ""
         ): StreamSettings {
@@ -74,6 +75,7 @@ data class StreamSettings(
 
             return StreamSettings(
                 destination = destination,
+                captureSource = captureSource,
                 serverUrl = effectiveUrl,
                 streamKey = streamKey,
                 profile = profile,

@@ -106,6 +106,12 @@ class SettingsFragment : Fragment() {
             StreamProfile.HIGH -> binding.rbProfileHigh.isChecked = true
             else -> binding.rbProfileLow.isChecked = true
         }
+
+        if (settings.captureSource == com.fairylive.app.core.settings.CaptureSource.SINGLE_APP) {
+            binding.rbCaptureSingleApp.isChecked = true
+        } else {
+            binding.rbCaptureEntireScreen.isChecked = true
+        }
     }
 
     private fun saveFields(showFeedback: Boolean = true) {
@@ -124,6 +130,21 @@ class SettingsFragment : Fragment() {
             R.id.rb_profile_balanced -> StreamProfile.BALANCED
             R.id.rb_profile_high -> StreamProfile.HIGH
             else -> StreamProfile.LOW
+        }
+
+        val selectedCaptureSource = when (binding.rgCaptureSource.checkedRadioButtonId) {
+            R.id.rb_capture_single_app -> {
+                if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                    if (showFeedback) {
+                        Toast.makeText(requireContext(), "Single-App capture requires Android 14+ (API 34). Falling back to Entire Screen.", Toast.LENGTH_LONG).show()
+                    }
+                    com.fairylive.app.core.settings.CaptureSource.ENTIRE_SCREEN
+                } else {
+                    com.fairylive.app.core.settings.CaptureSource.SINGLE_APP
+                }
+            }
+            R.id.rb_capture_entire_screen -> com.fairylive.app.core.settings.CaptureSource.ENTIRE_SCREEN
+            else -> if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) com.fairylive.app.core.settings.CaptureSource.SINGLE_APP else com.fairylive.app.core.settings.CaptureSource.ENTIRE_SCREEN
         }
 
         val rawServerUrl = binding.etServerUrl.text?.toString()?.trim() ?: ""
@@ -153,6 +174,7 @@ class SettingsFragment : Fragment() {
         val newSettings = StreamSettings.fromProfile(
             profile = selectedProfile,
             destination = selectedDestination,
+            captureSource = selectedCaptureSource,
             serverUrl = serverUrl,
             streamKey = streamKey
         )

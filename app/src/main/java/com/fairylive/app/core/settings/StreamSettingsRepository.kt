@@ -2,6 +2,7 @@ package com.fairylive.app.core.settings
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.os.Build
 import android.util.Log
 import com.fairylive.app.core.capability.model.StreamProfile
 import com.fairylive.app.core.security.SecureCredentialStorage
@@ -72,11 +73,16 @@ class StreamSettingsRepository(
             }
         }
 
-        val captureSourceName = prefs.getString(KEY_CAPTURE_SOURCE, null)
-        val captureSource = if (captureSourceName != null) {
-            try { CaptureSource.valueOf(captureSourceName) } catch (_: Exception) { CaptureSource.ENTIRE_SCREEN }
+        val defaultCaptureSource = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            CaptureSource.SINGLE_APP
         } else {
             CaptureSource.ENTIRE_SCREEN
+        }
+        val captureSourceName = prefs.getString(KEY_CAPTURE_SOURCE, null)
+        val captureSource = if (captureSourceName != null) {
+            try { CaptureSource.valueOf(captureSourceName) } catch (_: Exception) { defaultCaptureSource }
+        } else {
+            defaultCaptureSource
         }
 
         return StreamSettings(

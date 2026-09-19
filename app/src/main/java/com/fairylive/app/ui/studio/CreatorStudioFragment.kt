@@ -172,7 +172,7 @@ class CreatorStudioFragment : Fragment(),
     private fun setupClickListeners() {
         binding.btnGoLive.setOnClickListener {
             val currentState = StreamStateNotifier.currentState
-            if (currentState == StreamState.STREAMING || currentState == StreamState.STARTING) {
+            if (currentState.isActive) {
                 FairyStreamService.stopCapture(requireContext())
             } else {
                 requestStartBroadcast()
@@ -1884,8 +1884,21 @@ class CreatorStudioFragment : Fragment(),
         }
 
         val projMgr = ctx.getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
-        val intent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE && settings.captureSource == com.fairylive.app.core.settings.CaptureSource.ENTIRE_SCREEN) {
-            val config = MediaProjectionConfig.createConfigForDefaultDisplay()
+        if (settings.captureSource == com.fairylive.app.core.settings.CaptureSource.SINGLE_APP && Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            com.fairylive.app.core.common.CreatorErrorNotifier.postError(
+                title = "Single-App Capture Unsupported",
+                message = "Single-App capture requires Android 14+ (API 34). Your device is running Android ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT}).",
+                resolution = "Switch Capture Source to 'Entire Screen' in Settings."
+            )
+            return
+        }
+
+        val intent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            val config = if (settings.captureSource == com.fairylive.app.core.settings.CaptureSource.SINGLE_APP) {
+                MediaProjectionConfig.createConfigForUserChoice()
+            } else {
+                MediaProjectionConfig.createConfigForDefaultDisplay()
+            }
             projMgr.createScreenCaptureIntent(config)
         } else {
             @Suppress("DEPRECATION")
