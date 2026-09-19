@@ -3,11 +3,13 @@ package com.fairylive.app
 import com.fairylive.app.ui.hud.StreamerFloatingHudManager
 
 import android.os.Bundle
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import com.fairylive.app.core.lifecycle.StreamState
 import com.fairylive.app.core.lifecycle.StreamStateNotifier
+import com.fairylive.app.core.permission.PermissionManager
 import com.fairylive.app.databinding.ActivityMainBinding
 import com.fairylive.app.ui.dashboard.DashboardFragment
 import com.fairylive.app.ui.diagnostics.DiagnosticsFragment
@@ -18,6 +20,12 @@ class MainActivity : AppCompatActivity(), StreamStateNotifier.Listener {
     private lateinit var binding: ActivityMainBinding
     private var hudManager: StreamerFloatingHudManager? = null
 
+    private val permissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { _ ->
+        // Core permissions handled on app start
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
@@ -25,6 +33,11 @@ class MainActivity : AppCompatActivity(), StreamStateNotifier.Listener {
         hudManager = StreamerFloatingHudManager(this)
 
         StreamStateNotifier.addListener(this)
+
+        val missing = PermissionManager.getMissingPermissions(this)
+        if (missing.isNotEmpty()) {
+            permissionLauncher.launch(missing.toTypedArray())
+        }
 
         setupNavigation()
         updateHeaderStatusBadge(StreamStateNotifier.currentState)
