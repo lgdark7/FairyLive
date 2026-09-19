@@ -64,6 +64,18 @@ class GlesRenderer {
     @Volatile
     var onCameraFrameAvailable: (() -> Unit)? = null
 
+    // Pause video input (OES) for stream pause BRB animation
+    private var pauseVideoTextureId: Int = 0
+    private var pauseVideoSurfaceTexture: SurfaceTexture? = null
+    var pauseVideoSurface: Surface? = null
+        private set
+    private val pauseVideoTexMatrix = FloatArray(16)
+    private val newPauseAvailable = java.util.concurrent.atomic.AtomicBoolean(false)
+    @Volatile
+    var onPauseFrameAvailable: (() -> Unit)? = null
+    @Volatile
+    var isPauseActive: Boolean = false
+
     private var encoderSurface: Surface? = null
     private var streamWidth: Int = 0
     private var streamHeight: Int = 0
@@ -228,6 +240,18 @@ class GlesRenderer {
         android.opengl.Matrix.setIdentityM(cameraTexMatrix, 0)
         facecamProgram = createProgram(FACECAM_VERTEX_SHADER, FACECAM_FRAGMENT)
 
+        // Pause video input texture (OES) + SurfaceTexture for BRB screen
+        pauseVideoTextureId = createOesTexture()
+        pauseVideoSurfaceTexture = SurfaceTexture(pauseVideoTextureId).apply {
+            setDefaultBufferSize(width, height)
+            setOnFrameAvailableListener({
+                newPauseAvailable.set(true)
+                onPauseFrameAvailable?.invoke()
+            }, renderHandler)
+        }
+        pauseVideoSurface = Surface(pauseVideoSurfaceTexture)
+        android.opengl.Matrix.setIdentityM(pauseVideoTexMatrix, 0)
+
         GLES20.glClearColor(0f, 0f, 0f, 1f)
         initialized = true
         this.captureSourceWidth = width
@@ -374,6 +398,23 @@ class GlesRenderer {
     }
 
     /**
+     * Consumes a new pause video frame if one is pending.
+     * Returns true when a new buffer was latched.
+     */
+    fun consumeNewPauseFrame(): Boolean {
+        val st = pauseVideoSurfaceTexture ?: return false
+        if (!initialized) return false
+        return try {
+            st.updateTexImage()
+            st.getTransformMatrix(pauseVideoTexMatrix)
+            true
+        } catch (e: Exception) {
+            Log.w(TAG, "consumeNewPauseFrame skipped: ${e.message}")
+            false
+        }
+    }
+
+    /**
      * Returns the timestamp of the most recently latched capture texture, in nanoseconds.
      */
     val currentCaptureTimestampNanos: Long
@@ -437,13 +478,17 @@ class GlesRenderer {
         GLES20.glClearColor(r, g, b, a)
         GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT)
 
-        if (backgroundMode == SceneBackgroundMode.SCREEN_CAPTURE) {
-            drawCapture()
+        if (isPauseActive) {
+            drawPauseVideo()
+        } else {
+            if (backgroundMode == SceneBackgroundMode.SCREEN_CAPTURE) {
+                drawCapture()
+            }
+            if (facecamConfig != null && facecamConfig.enabled) {
+                drawFacecam(facecamConfig)
+            }
+            scene.orderedLayers.forEach { layer -> drawOverlay(layer, resources) }
         }
-        if (facecamConfig != null && facecamConfig.enabled) {
-            drawFacecam(facecamConfig)
-        }
-        scene.orderedLayers.forEach { layer -> drawOverlay(layer, resources) }
     }
 
     /** Overload for backwards compatibility. */
@@ -538,6 +583,32 @@ class GlesRenderer {
         GLES20.glUniform1i(GLES20.glGetUniformLocation(captureProgram, "uTexture"), 0)
         if (uTexMatrixLoc >= 0) {
             GLES20.glUniformMatrix4fv(uTexMatrixLoc, 1, false, captureTexMatrix, 0)
+        }
+
+        GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4)
+
+        GLES20.glDisableVertexAttribArray(posLoc)
+        GLES20.glDisableVertexAttribArray(uvLoc)
+        GLES20.glBindTexture(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, 0)
+    }
+
+    private fun drawPauseVideo() {
+        if (pauseVideoTextureId == 0 || captureProgram == 0) return
+        GLES20.glUseProgram(captureProgram)
+        GLES20.glActiveTexture(GLES20.GL_TEXTURE0)
+        GLES20.glBindTexture(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, pauseVideoTextureId)
+
+        val posLoc = GLES20.glGetAttribLocation(captureProgram, "aPosition")
+        val uvLoc = GLES20.glGetAttribLocation(captureProgram, "aTexCoord")
+        val uTexMatrixLoc = GLES20.glGetUniformLocation(captureProgram, "uTexMatrix")
+
+        GLES20.glEnableVertexAttribArray(posLoc)
+        GLES20.glEnableVertexAttribArray(uvLoc)
+        GLES20.glVertexAttribPointer(posLoc, 2, GLES20.GL_FLOAT, false, 0, quadVerts)
+        GLES20.glVertexAttribPointer(uvLoc, 2, GLES20.GL_FLOAT, false, 0, captureQuadUvs)
+        GLES20.glUniform1i(GLES20.glGetUniformLocation(captureProgram, "uTexture"), 0)
+        if (uTexMatrixLoc >= 0) {
+            GLES20.glUniformMatrix4fv(uTexMatrixLoc, 1, false, pauseVideoTexMatrix, 0)
         }
 
         GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4)
@@ -740,6 +811,11 @@ class GlesRenderer {
             cameraTextureId = 0
         }
 
+        if (pauseVideoTextureId != 0) {
+            GLES20.glDeleteTextures(1, intArrayOf(pauseVideoTextureId), 0)
+            pauseVideoTextureId = 0
+        }
+
         if (captureProgram != 0) GLES20.glDeleteProgram(captureProgram)
         if (overlayProgram != 0) GLES20.glDeleteProgram(overlayProgram)
         if (facecamProgram != 0) GLES20.glDeleteProgram(facecamProgram)
@@ -756,6 +832,11 @@ class GlesRenderer {
         cameraSurface = null
         cameraSurfaceTexture?.release()
         cameraSurfaceTexture = null
+
+        pauseVideoSurface?.release()
+        pauseVideoSurface = null
+        pauseVideoSurfaceTexture?.release()
+        pauseVideoSurfaceTexture = null
 
         if (eglDisplay != EGL14.EGL_NO_DISPLAY) {
             EGL14.eglMakeCurrent(eglDisplay, EGL14.EGL_NO_SURFACE, EGL14.EGL_NO_SURFACE, EGL14.EGL_NO_CONTEXT)

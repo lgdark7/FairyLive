@@ -8,6 +8,7 @@ import android.util.Log
 import android.view.Surface
 import com.fairylive.app.core.camera.model.FacecamConfig
 import com.fairylive.app.core.compositor.model.OverlayElement
+import com.fairylive.app.core.compositor.player.StreamPausePlayer
 import com.fairylive.app.core.compositor.render.GlesRenderer
 import com.fairylive.app.core.compositor.resource.OverlayResourceManager
 import com.fairylive.app.core.scene.BroadcastSceneManager
@@ -46,6 +47,8 @@ class OverlayCompositor(
 
     private val isRunning = AtomicBoolean(false)
     private val isPaused = AtomicBoolean(false)
+    val isPauseActive = AtomicBoolean(false)
+    private var pausePlayer: StreamPausePlayer? = null
 
     private var enabled: Boolean = true
 
@@ -158,6 +161,9 @@ class OverlayCompositor(
                 renderer.onCameraFrameAvailable = {
                     onCameraFrameAvailable()
                 }
+                renderer.onPauseFrameAvailable = {
+                    onPauseFrameAvailable()
+                }
                 isRunning.set(true)
                 available = true
                 applySceneImmediate(sceneManager.activeScene)
@@ -245,15 +251,25 @@ class OverlayCompositor(
         }
     }
 
+    /** Queues a frame to be composed + presented from pause video player. */
+    fun onPauseFrameAvailable() {
+        if (!isRunning.get() || !available || !isPauseActive.get()) return
+        renderHandler?.post {
+            renderFrame(fromCallback = true)
+        }
+    }
+
     /**
      * Render-loop body — invoked on the render thread by the SurfaceTexture
      * frame-available callback ([fromCallback] = true) or the poll fallback ([fromCallback] = false).
      */
     private fun renderFrame(fromCallback: Boolean = false) {
-        if (!isRunning.get() || !available || isPaused.get()) return
+        if (!isRunning.get() || !available) return
+        val paused = isPauseActive.get()
+        if (isPaused.get() && !paused) return
 
-        // Do not render until at least one frame has arrived from capture or camera
-        if (captureFramesReceived.get() == 0L && cameraFramesReceived.get() == 0L) {
+        // Do not render until at least one frame has arrived from capture, camera, or pause mode active
+        if (!paused && captureFramesReceived.get() == 0L && cameraFramesReceived.get() == 0L) {
             return
         }
 
@@ -275,9 +291,10 @@ class OverlayCompositor(
             }
         }
 
-        val isCaptureNew = renderer.consumeNewFrame(force = fromCallback)
-        val isCameraNew = if (facecamConfig.enabled) renderer.consumeNewCameraFrame(force = fromCallback) else false
-        if (isCaptureNew || isCameraNew) {
+        val isCaptureNew = if (!paused) renderer.consumeNewFrame(force = fromCallback) else false
+        val isCameraNew = if (!paused && facecamConfig.enabled) renderer.consumeNewCameraFrame(force = fromCallback) else false
+        val isPauseNew = if (paused) renderer.consumeNewPauseFrame() else false
+        if (isCaptureNew || isCameraNew || isPauseNew) {
             surfaceTextureUpdates.incrementAndGet()
         }
         if (isTransitionActive) {
@@ -306,7 +323,9 @@ class OverlayCompositor(
             }
         }
         val renderStartNs = System.nanoTime()
-        if (enabled) {
+        if (paused) {
+            renderer.drawFrame(scene, resources, null, presentationTimeNs = nowNs)
+        } else if (enabled) {
             renderer.drawFrame(scene, resources, facecamConfig, presentationTimeNs = nowNs)
         } else {
             // Disabled: forward capture to the encoder unchanged (pass-through)
@@ -412,7 +431,10 @@ class OverlayCompositor(
         pollRunnable?.let { renderHandler?.removeCallbacks(it) }
         pollRunnable = null
 
+        isPauseActive.set(false)
         renderHandler?.post {
+            pausePlayer?.stop()
+            pausePlayer = null
             renderer.release()
         }
         renderThread?.quitSafely()
@@ -427,6 +449,30 @@ class OverlayCompositor(
         CompositorStateNotifier.updateState(CompositorState.IDLE)
         CompositorStateNotifier.updateMetrics(CompositorMetrics())
         Log.i(TAG, "Compositor stopped")
+    }
+
+    /**
+     * Toggles Stream Paused state. When active, screen capture and facecam are hidden,
+     * and the looping BRB pause video animation is presented to the encoder.
+     */
+    fun setStreamPaused(paused: Boolean) {
+        if (isPauseActive.get() == paused) return
+        isPauseActive.set(paused)
+        renderHandler?.post {
+            renderer.isPauseActive = paused
+            if (paused) {
+                val surface = renderer.pauseVideoSurface
+                if (surface != null && surface.isValid) {
+                    if (pausePlayer == null) {
+                        pausePlayer = StreamPausePlayer(appContext)
+                    }
+                    pausePlayer?.start(surface)
+                }
+            } else {
+                pausePlayer?.stop()
+            }
+        }
+        CompositorStateNotifier.updateState(if (paused) CompositorState.PAUSED else CompositorState.RUNNING)
     }
 
     @Synchronized

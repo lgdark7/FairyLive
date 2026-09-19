@@ -130,23 +130,27 @@ class FairyStreamService : Service() {
             }
             ACTION_PAUSE_CAPTURE -> {
                 captureEngine.pause()
-                videoEncoder.pause()
+                overlayCompositor.setStreamPaused(true)
+                audioPipeline.mute()
+                Log.i("FairyStreamService", "Stream paused: Screen capture paused, pause video active, audio muted")
             }
             ACTION_RESUME_CAPTURE -> {
+                overlayCompositor.setStreamPaused(false)
                 captureEngine.resume()
-                videoEncoder.resume()
+                audioPipeline.unmute()
+                Log.i("FairyStreamService", "Stream resumed: Normal broadcast restored")
             }
             ACTION_MUTE_MIC -> {
-                audioPipeline?.mute()
+                audioPipeline.mute()
             }
             ACTION_UNMUTE_MIC -> {
-                audioPipeline?.unmute()
+                audioPipeline.unmute()
             }
             ACTION_TOGGLE_MIC -> {
-                if (audioPipeline?.isMuted() == true) {
-                    audioPipeline?.unmute()
+                if (audioPipeline.isMuted()) {
+                    audioPipeline.unmute()
                 } else {
-                    audioPipeline?.mute()
+                    audioPipeline.mute()
                 }
             }
             ACTION_STOP_CAPTURE -> {
