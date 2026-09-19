@@ -57,10 +57,7 @@ class ScreenCaptureEngine {
 
     private val projectionCallback = object : MediaProjection.Callback() {
         override fun onStop() {
-            com.fairylive.app.core.lifecycle.StreamLifecycleDiagnostics.streamStopRequested(
-                com.fairylive.app.core.lifecycle.StreamStopReason.STOP_REASON_PROJECTION_REVOKED,
-                "MediaProjection.Callback.onStop"
-            )
+            Log.i("ScreenCaptureEngine", "MediaProjection.Callback.onStop: Capture session ended; cleaning up virtual display while stream continues in BRB mode")
             stop()
         }
 

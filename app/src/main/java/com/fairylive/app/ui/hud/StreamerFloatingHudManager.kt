@@ -330,12 +330,15 @@ class StreamerFloatingHudManager(private val context: Context) {
      * Overlays ONLY the sender name and their message text temporarily on the screen.
      * The message bubble smoothly fades in and automatically vanishes after 5 seconds.
      */
-    private fun displayEphemeralMessage(
+    fun displayEphemeralMessage(
         author: String,
         text: String,
         isSuperChat: Boolean = false,
         isSystem: Boolean = false
     ) {
+        if (chatOverlayView == null) {
+            showChatOverlay()
+        }
         val container = chatContainer ?: return
 
         val sb = SpannableStringBuilder()

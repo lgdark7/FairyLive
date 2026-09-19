@@ -406,11 +406,15 @@ class FairyStreamService : Service() {
             // is registered — this is what causes the null VirtualDisplay on API 35.
             projection.registerCallback(object : android.media.projection.MediaProjection.Callback() {
                 override fun onStop() {
-                    Log.w("FairyStreamService", "MediaProjection stopped by system — tearing down capture")
+                    Log.i("FairyStreamService", "MediaProjection stopped (game closed/swiped from recents) -> Automatically showing Be Right Back banner")
                     mainHandler.post {
-                        stopStream(
-                            com.fairylive.app.core.lifecycle.StreamStopReason.STOP_REASON_PROJECTION_REVOKED,
-                            "MediaProjection revoked by system"
+                        overlayCompositor.setStreamPaused(true)
+                        audioPipeline.mute()
+                        CaptureStateNotifier.updateState(CaptureState.PAUSED)
+                        floatingHudManager?.displayEphemeralMessage(
+                            "FairyLive",
+                            "Game closed — Be Right Back banner is active on stream",
+                            isSystem = true
                         )
                     }
                 }
@@ -419,6 +423,17 @@ class FairyStreamService : Service() {
                 }
                 override fun onCapturedContentVisibilityChanged(visible: Boolean) {
                     Log.i("FairyStreamService", "[CAPTURE-CHAIN] Projection visibility changed: $visible")
+                    mainHandler.post {
+                        if (!visible) {
+                            Log.i("FairyStreamService", "Game hidden/minimized -> Automatically showing Be Right Back")
+                            overlayCompositor.setStreamPaused(true)
+                            audioPipeline.mute()
+                        } else {
+                            Log.i("FairyStreamService", "Game returned to foreground -> Automatically resuming stream")
+                            overlayCompositor.setStreamPaused(false)
+                            audioPipeline.unmute()
+                        }
+                    }
                 }
             }, mainHandler)
 
@@ -462,6 +477,17 @@ class FairyStreamService : Service() {
             }
             captureEngine.onVisibilityChanged = { visible ->
                 overlayCompositor.onVisibilityChanged(visible)
+                mainHandler.post {
+                    if (!visible) {
+                        Log.i("FairyStreamService", "captureEngine visibility = false -> Showing Be Right Back banner")
+                        overlayCompositor.setStreamPaused(true)
+                        audioPipeline.mute()
+                    } else {
+                        Log.i("FairyStreamService", "captureEngine visibility = true -> Resuming broadcast")
+                        overlayCompositor.setStreamPaused(false)
+                        audioPipeline.unmute()
+                    }
+                }
             }
 
             captureEngine.start(
@@ -770,13 +796,15 @@ class FairyStreamService : Service() {
 
     override fun onTaskRemoved(rootIntent: Intent?) {
         super.onTaskRemoved(rootIntent)
-        Log.i("FairyStreamService", "onTaskRemoved: User closed/swiped app from recents")
+        Log.i("FairyStreamService", "onTaskRemoved: FairyLive application removed from recents by user -> Stopping stream completely")
         mainHandler.post {
             floatingHudManager?.dismiss()
             floatingHudManager = null
             com.fairylive.app.ui.hud.StreamerFloatingHudManager.dismissAll()
-        }
-        if (!videoEncoder.isEncoding && !captureEngine.isCapturing) {
+            stopStream(
+                com.fairylive.app.core.lifecycle.StreamStopReason.STOP_REASON_USER,
+                "FairyLive application removed from recents"
+            )
             stopStreamService()
         }
     }
