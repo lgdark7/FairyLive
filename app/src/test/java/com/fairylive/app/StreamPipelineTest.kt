@@ -208,14 +208,14 @@ class StreamPipelineTest {
         val seqHeader = packets[0]
         assertTrue(seqHeader.isSequenceHeader)
         assertEquals(FlvPacket.TYPE_AUDIO, seqHeader.packetType)
-        // Tag Header: 0xAE (AAC + 44kHz + 16-bit + mono), AACPacketType = 0
-        assertEquals(0xAE, seqHeader.payload[0].toInt() and 0xFF)
+        // Tag Header: 0xAF (Per FLV spec, AAC is always 0xAF: AAC + 44kHz + 16-bit + stereo flag), AACPacketType = 0
+        assertEquals(0xAF, seqHeader.payload[0].toInt() and 0xFF)
         assertEquals(0x00, seqHeader.payload[1].toInt() and 0xFF)
 
         val rawPacket = packets[1]
         assertFalse(rawPacket.isSequenceHeader)
         assertEquals(50L, rawPacket.timestampMs)
-        assertEquals(0xAE, rawPacket.payload[0].toInt() and 0xFF)
+        assertEquals(0xAF, rawPacket.payload[0].toInt() and 0xFF)
         assertEquals(0x01, rawPacket.payload[1].toInt() and 0xFF) // AACPacketType = 1
     }
 
@@ -368,6 +368,15 @@ class StreamPipelineTest {
                             outStream.flush()
                         } else if (cmd == "publish") {
                             publishReceivedLatch.countDown()
+                            // Send onStatus NetStream.Publish.Start
+                            val out = ByteArrayOutputStream()
+                            Amf0Codec.writeString(out, "onStatus")
+                            Amf0Codec.writeNumber(out, 0.0)
+                            Amf0Codec.writeNull(out)
+                            val info = mapOf("level" to "status", "code" to "NetStream.Publish.Start")
+                            Amf0Codec.writeObject(out, info)
+                            writer.writeMessage(3, 20, 1, 0L, out.toByteArray())
+                            outStream.flush()
                         }
                     } else if (msg.messageTypeId == 8 || msg.messageTypeId == 9 || msg.messageTypeId == 18) {
                         // Media packets

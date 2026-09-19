@@ -13,6 +13,12 @@ class AudioPipeline {
     val captureEngine = AudioCaptureEngine()
     val audioEncoder = AacMediaCodecEncoder()
 
+    var onAudioSpecificConfigAvailable: ((ByteArray) -> Unit)? = null
+        set(value) {
+            field = value
+            audioEncoder.onAudioSpecificConfigAvailable = value
+        }
+
     private var config: AudioCaptureConfig = AudioCaptureConfig()
 
     fun setEncodedAudioFrameListener(listener: AacMediaCodecEncoder.EncodedAudioFrameListener?) {
@@ -39,6 +45,7 @@ class AudioPipeline {
 
         // 3. Start AudioRecord capture
         captureEngine.start(config, mediaProjection)
+        com.fairylive.app.core.lifecycle.StreamLifecycleDiagnostics.audioStarted(config.sampleRate, config.channelCount)
     }
 
     fun mute() {

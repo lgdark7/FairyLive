@@ -9,9 +9,12 @@ import java.io.ByteArrayOutputStream
  */
 class H264FlvPacketizer {
 
-    private var cachedSps: ByteArray? = null
-    private var cachedPps: ByteArray? = null
-    private var isHeaderGenerated = false
+    var cachedSps: ByteArray? = null
+        private set
+    var cachedPps: ByteArray? = null
+        private set
+    var isHeaderGenerated: Boolean = false
+        private set
 
     /**
      * Updates SPS/PPS cache if provided by MediaFormat csd-0 / csd-1.
@@ -19,6 +22,12 @@ class H264FlvPacketizer {
     fun setSpsPps(sps: ByteArray, pps: ByteArray) {
         this.cachedSps = stripStartCode(sps)
         this.cachedPps = stripStartCode(pps)
+    }
+
+    fun reset() {
+        cachedSps = null
+        cachedPps = null
+        isHeaderGenerated = false
     }
 
     /**
@@ -47,12 +56,12 @@ class H264FlvPacketizer {
 
         val isKeyFrame = containsIdr || isKeyFrameHint
 
-        // Emit AVC sequence header (AVCDecoderConfigurationRecord) on first keyframe or when SPS/PPS changes
-        if (isKeyFrame && (!isHeaderGenerated || cachedSps != null && cachedPps != null)) {
+        // Emit AVC sequence header (AVCDecoderConfigurationRecord) on first keyframe
+        if (isKeyFrame && !isHeaderGenerated) {
             val sps = cachedSps
             val pps = cachedPps
             if (sps != null && pps != null) {
-                val headerTag = buildAvcSequenceHeader(sps, pps, ptsMs)
+                val headerTag = buildAvcSequenceHeader(sps, pps, 0L)
                 outputPackets.add(headerTag)
                 isHeaderGenerated = true
             }
@@ -99,46 +108,45 @@ class H264FlvPacketizer {
 
     /**
      * Constructs the AVCDecoderConfigurationRecord FLV video tag.
+     * Enforces timestamp 0 per FLV/RTMP specifications.
      */
-    fun buildAvcSequenceHeader(sps: ByteArray, pps: ByteArray, ptsMs: Long): FlvPacket {
+    fun buildAvcSequenceHeader(sps: ByteArray, pps: ByteArray, ptsMs: Long = 0L): FlvPacket {
+        val cleanSps = stripStartCode(sps)
+        val cleanPps = stripStartCode(pps)
         val out = ByteArrayOutputStream()
         // Video Tag Header
         out.write(0x17) // 1=Keyframe, 7=AVC
         out.write(0)    // AVCPacketType = 0 (Sequence Header)
-        out.write(0)    // CompositionTime = 0
+        out.write(0)    // CompositionTime = 0 (3 bytes)
         out.write(0)
         out.write(0)
 
         // AVCDecoderConfigurationRecord
         out.write(1) // configurationVersion = 1
-        out.write(if (sps.size > 1) sps[1].toInt() else 0x42) // AVCProfileIndication (Baseline = 66 / 0x42)
-        out.write(if (sps.size > 2) sps[2].toInt() else 0x00) // profile_compatibility
-        out.write(if (sps.size > 3) sps[3].toInt() else 0x1E) // AVCLevelIndication (e.g. 3.0 = 30 / 0x1E)
+        out.write(if (cleanSps.size > 1) cleanSps[1].toInt() else 0x42) // AVCProfileIndication (Baseline = 66 / 0x42)
+        out.write(if (cleanSps.size > 2) cleanSps[2].toInt() else 0x00) // profile_compatibility
+        out.write(if (cleanSps.size > 3) cleanSps[3].toInt() else 0x1E) // AVCLevelIndication (e.g. 3.0 = 30 / 0x1E)
         out.write(0xFF) // 11111100 | lengthSizeMinusOne(3) -> 4-byte NALU length
         out.write(0xE1) // 11100000 | numOfSequenceParameterSets(1)
 
         // SPS length & data
-        out.write((sps.size shr 8) and 0xFF)
-        out.write(sps.size and 0xFF)
-        out.write(sps)
+        out.write((cleanSps.size shr 8) and 0xFF)
+        out.write(cleanSps.size and 0xFF)
+        out.write(cleanSps)
 
         // PPS count, length & data
         out.write(1) // numOfPictureParameterSets = 1
-        out.write((pps.size shr 8) and 0xFF)
-        out.write(pps.size and 0xFF)
-        out.write(pps)
+        out.write((cleanPps.size shr 8) and 0xFF)
+        out.write(cleanPps.size and 0xFF)
+        out.write(cleanPps)
 
         return FlvPacket(
             packetType = FlvPacket.TYPE_VIDEO,
-            timestampMs = ptsMs,
+            timestampMs = 0L,
             payload = out.toByteArray(),
             isKeyFrame = true,
             isSequenceHeader = true
         )
-    }
-
-    fun reset() {
-        isHeaderGenerated = false
     }
 
     companion object {

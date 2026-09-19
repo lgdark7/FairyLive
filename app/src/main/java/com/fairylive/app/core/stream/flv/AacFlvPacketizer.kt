@@ -16,12 +16,11 @@ class AacFlvPacketizer(
 
     private val audioTagHeaderByte: Int
         get() {
-            // SoundFormat = 10 (AAC, 0xA0)
-            // SoundRate = 3 (44kHz, 0x0C) - for AAC this is always 3 in FLV
-            // SoundSize = 1 (16-bit, 0x02)
-            // SoundType = 1 for stereo, 0 for mono
-            val soundType = if (channelCount == 2) 1 else 0
-            return 0xAE or soundType
+            // Per Adobe FLV Specification v10.1 (p. 76):
+            // If SoundFormat == 10 (AAC), SoundType MUST be 1 (stereo) and SoundRate MUST be 3 (44kHz),
+            // regardless of the actual audio stream parameters (which are defined in AudioSpecificConfig).
+            // SoundFormat=10 (0xA0) | SoundRate=3 (0x0C) | SoundSize=1 (0x02) | SoundType=1 (0x01) = 0xAF.
+            return 0xAF
         }
 
     fun setAudioSpecificConfig(config: ByteArray) {
@@ -30,8 +29,9 @@ class AacFlvPacketizer(
 
     /**
      * Builds the AAC sequence header tag containing the AudioSpecificConfig (2 bytes).
+     * Enforces timestamp 0 per FLV/RTMP specifications.
      */
-    fun buildAacSequenceHeader(ptsMs: Long): FlvPacket {
+    fun buildAacSequenceHeader(ptsMs: Long = 0L): FlvPacket {
         val config = cachedAudioSpecificConfig ?: generateAudioSpecificConfig(sampleRate, channelCount)
 
         val out = ByteArrayOutputStream()
@@ -43,7 +43,7 @@ class AacFlvPacketizer(
 
         return FlvPacket(
             packetType = FlvPacket.TYPE_AUDIO,
-            timestampMs = ptsMs,
+            timestampMs = 0L, // MUST ALWAYS BE 0 for Sequence Header in RTMP/FLV
             payload = out.toByteArray(),
             isKeyFrame = true,
             isSequenceHeader = true
@@ -57,7 +57,7 @@ class AacFlvPacketizer(
         val list = mutableListOf<FlvPacket>()
 
         if (!isHeaderGenerated) {
-            list.add(buildAacSequenceHeader(ptsMs))
+            list.add(buildAacSequenceHeader(0L))
         }
 
         val out = ByteArrayOutputStream()

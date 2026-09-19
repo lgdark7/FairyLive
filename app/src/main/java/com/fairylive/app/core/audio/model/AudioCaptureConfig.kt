@@ -12,7 +12,7 @@ data class AudioCaptureConfig(
     val sampleRate: Int = 44100,
     val channelConfig: Int = AudioFormat.CHANNEL_IN_MONO,
     val audioFormat: Int = AudioFormat.ENCODING_PCM_16BIT,
-    val bitrateKbps: Int = 96,
+    val bitrateKbps: Int = 128,
     val sourceType: AudioSourceType = AudioSourceType.MIC
 ) {
     val channelCount: Int

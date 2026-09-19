@@ -1,5 +1,6 @@
 package com.fairylive.app.core.capture
 
+import android.content.Context
 import android.graphics.PixelFormat
 import android.hardware.display.DisplayManager
 import android.hardware.display.VirtualDisplay
@@ -10,6 +11,7 @@ import android.os.Handler
 import android.os.HandlerThread
 import android.os.SystemClock
 import android.util.Log
+import android.view.Display
 import android.view.Surface
 import com.fairylive.app.core.capture.model.CaptureMetrics
 import com.fairylive.app.core.capture.model.CaptureState
@@ -32,6 +34,9 @@ class ScreenCaptureEngine {
     private var currentHeight: Int = 0
     private var currentDpi: Int = 0
 
+    private var displayManager: DisplayManager? = null
+    private var displayListener: DisplayManager.DisplayListener? = null
+
     @Volatile
     var isCapturing: Boolean = false
         private set
@@ -45,19 +50,77 @@ class ScreenCaptureEngine {
     private var lastFrameCount: Long = 0L
     private var currentFps: Double = 0.0
 
+    var onResolutionChanged: ((Int, Int) -> Unit)? = null
+    var onVisibilityChanged: ((Boolean) -> Unit)? = null
+    private var captureSourceMode: com.fairylive.app.core.settings.CaptureSource =
+        com.fairylive.app.core.settings.CaptureSource.SINGLE_APP
+
     private val projectionCallback = object : MediaProjection.Callback() {
         override fun onStop() {
+            com.fairylive.app.core.lifecycle.StreamLifecycleDiagnostics.streamStopRequested(
+                com.fairylive.app.core.lifecycle.StreamStopReason.STOP_REASON_PROJECTION_REVOKED,
+                "MediaProjection.Callback.onStop"
+            )
             stop()
         }
 
         override fun onCapturedContentResize(width: Int, height: Int) {
-            if (width > 0 && height > 0 && (width != currentWidth || height != currentHeight)) {
-                updateResolution(width, height, currentDpi)
+            Log.i("ScreenCaptureEngine", "[CAPTURE-CHAIN] onCapturedContentResize: reported=${width}x${height}, current=${currentWidth}x${currentHeight}")
+            if (width <= 0 || height <= 0) return
+
+            val dm = displayManager
+            val display = dm?.getDisplay(Display.DEFAULT_DISPLAY)
+            val rotation = display?.rotation ?: Surface.ROTATION_0
+            val isLandscape = (rotation == Surface.ROTATION_90 || rotation == Surface.ROTATION_270)
+
+            // If the physical device is in landscape orientation, or capturing a single app (game),
+            // ensure dimensions are oriented to landscape (e.g. 2400x1080)
+            val adjustedW = if ((isLandscape || captureSourceMode == com.fairylive.app.core.settings.CaptureSource.SINGLE_APP) && width < height) height else width
+            val adjustedH = if ((isLandscape || captureSourceMode == com.fairylive.app.core.settings.CaptureSource.SINGLE_APP) && width < height) width else height
+
+            Log.i("ScreenCaptureEngine", "[CAPTURE-CHAIN] onCapturedContentResize: adjusted=${adjustedW}x${adjustedH}, rotation=$rotation")
+            if (adjustedW != currentWidth || adjustedH != currentHeight) {
+                updateResolution(adjustedW, adjustedH, currentDpi)
+            } else {
+                onResolutionChanged?.invoke(adjustedW, adjustedH)
             }
         }
 
         override fun onCapturedContentVisibilityChanged(isVisible: Boolean) {
-            // Informative callback on Android 14+
+            Log.i("ScreenCaptureEngine", "[CAPTURE-CHAIN] onCapturedContentVisibilityChanged: isVisible=$isVisible")
+            onVisibilityChanged?.invoke(isVisible)
+
+            if (isVisible) {
+                // When returning from app switch, re-query display geometry and ensure landscape orientation
+                // is immediately restored for gaming sessions without relying on stale matrices.
+                val dm = displayManager
+                val display = dm?.getDisplay(Display.DEFAULT_DISPLAY)
+                val rotation = display?.rotation ?: Surface.ROTATION_0
+                val isLandscape = (rotation == Surface.ROTATION_90 || rotation == Surface.ROTATION_270)
+
+                val metrics = android.util.DisplayMetrics()
+                @Suppress("DEPRECATION")
+                display?.getRealMetrics(metrics)
+                val realW = metrics.widthPixels
+                val realH = metrics.heightPixels
+
+                val targetW: Int
+                val targetH: Int
+                if (isLandscape || captureSourceMode == com.fairylive.app.core.settings.CaptureSource.SINGLE_APP) {
+                    targetW = maxOf(realW, realH)
+                    targetH = minOf(realW, realH)
+                } else {
+                    targetW = minOf(realW, realH)
+                    targetH = maxOf(realW, realH)
+                }
+
+                Log.i("ScreenCaptureEngine", "[CAPTURE-CHAIN] Restoring visibility geometry: target=${targetW}x${targetH} (current=${currentWidth}x${currentHeight})")
+                if (targetW > 0 && targetH > 0 && (targetW != currentWidth || targetH != currentHeight)) {
+                    updateResolution(targetW, targetH, currentDpi)
+                } else {
+                    onResolutionChanged?.invoke(currentWidth, currentHeight)
+                }
+            }
         }
     }
 
@@ -88,7 +151,8 @@ class ScreenCaptureEngine {
         height: Int,
         dpi: Int,
         customSurface: Surface? = null,
-        captureSource: com.fairylive.app.core.settings.CaptureSource = com.fairylive.app.core.settings.CaptureSource.SINGLE_APP
+        captureSource: com.fairylive.app.core.settings.CaptureSource = com.fairylive.app.core.settings.CaptureSource.SINGLE_APP,
+        context: Context? = null
     ) {
         if (isCapturing) {
             stop()
@@ -109,6 +173,7 @@ class ScreenCaptureEngine {
         Log.i("FairyCapture", "ProjectionStarted=true")
 
         this.mediaProjection = projection
+        this.captureSourceMode = captureSource
         this.currentWidth = alignedWidth
         this.currentHeight = alignedHeight
         this.currentDpi = dpi
@@ -122,6 +187,29 @@ class ScreenCaptureEngine {
         this.handlerThread = thread
         val handler = Handler(thread.looper)
         this.captureHandler = handler
+
+        // Register orientation/display listener if context is available
+        if (context != null) {
+            val dm = context.getSystemService(Context.DISPLAY_SERVICE) as? DisplayManager
+            this.displayManager = dm
+            if (dm != null) {
+                val listener = object : DisplayManager.DisplayListener {
+                    override fun onDisplayAdded(displayId: Int) {}
+                    override fun onDisplayRemoved(displayId: Int) {}
+                    override fun onDisplayChanged(displayId: Int) {
+                        if (displayId == Display.DEFAULT_DISPLAY && isCapturing) {
+                            handleDisplayChange(dm)
+                        }
+                    }
+                }
+                this.displayListener = listener
+                try {
+                    dm.registerDisplayListener(listener, handler)
+                } catch (e: Exception) {
+                    Log.w("ScreenCaptureEngine", "Failed to register DisplayListener: ${e.message}")
+                }
+            }
+        }
 
         // Mandatory callback registration before VirtualDisplay on Android 14+
         projection.registerCallback(projectionCallback, handler)
@@ -211,6 +299,7 @@ class ScreenCaptureEngine {
             return
         }
         this.virtualDisplay = vd
+        com.fairylive.app.core.lifecycle.StreamLifecycleDiagnostics.virtualDisplayCreated(alignedWidth, alignedHeight, dpi)
 
         isCapturing = true
         CaptureStateNotifier.updateState(CaptureState.CAPTURING)
@@ -271,6 +360,8 @@ class ScreenCaptureEngine {
         this.currentDpi = newDpi
 
         virtualDisplay?.resize(alignedWidth, alignedHeight, newDpi)
+        onResolutionChanged?.invoke(alignedWidth, alignedHeight)
+        com.fairylive.app.core.lifecycle.StreamLifecycleDiagnostics.virtualDisplayCreated(alignedWidth, alignedHeight, newDpi)
 
         if (internalImageReader != null) {
             val handler = captureHandler ?: return
@@ -307,6 +398,36 @@ class ScreenCaptureEngine {
         )
     }
 
+    private fun handleDisplayChange(dm: DisplayManager) {
+        val display = dm.getDisplay(Display.DEFAULT_DISPLAY) ?: return
+        val rotation = display.rotation
+        val isLandscape = (rotation == Surface.ROTATION_90 || rotation == Surface.ROTATION_270)
+
+        val metrics = android.util.DisplayMetrics()
+        @Suppress("DEPRECATION")
+        display.getRealMetrics(metrics)
+        val realW = metrics.widthPixels
+        val realH = metrics.heightPixels
+
+        // When capturing a single app (e.g. Free Fire MAX), the target task is a fixed landscape game.
+        // If the user temporarily switches to a portrait launcher/app, do NOT shrink the VirtualDisplay
+        // to portrait if it would letterbox the game when returning!
+        val targetW: Int
+        val targetH: Int
+        if (captureSourceMode == com.fairylive.app.core.settings.CaptureSource.SINGLE_APP) {
+            targetW = maxOf(realW, realH)
+            targetH = minOf(realW, realH)
+        } else {
+            targetW = if (isLandscape) maxOf(realW, realH) else minOf(realW, realH)
+            targetH = if (isLandscape) minOf(realW, realH) else maxOf(realW, realH)
+        }
+
+        Log.i("ScreenCaptureEngine", "[CAPTURE-CHAIN] Display changed: rotation=$rotation (isLandscape=$isLandscape, singleApp=${captureSourceMode == com.fairylive.app.core.settings.CaptureSource.SINGLE_APP}), target=${targetW}x${targetH}")
+        if (targetW != currentWidth || targetH != currentHeight) {
+            updateResolution(targetW, targetH, currentDpi)
+        }
+    }
+
     /**
      * Complete teardown of virtual display, media projection, and background handlers.
      */
@@ -319,6 +440,15 @@ class ScreenCaptureEngine {
         isPaused = false
 
         Log.i("FairyCapture", "ProjectionStopped=true")
+        com.fairylive.app.core.lifecycle.StreamLifecycleDiagnostics.projectionStopped()
+
+        displayListener?.let { listener ->
+            try {
+                displayManager?.unregisterDisplayListener(listener)
+            } catch (_: Exception) {}
+        }
+        displayListener = null
+        displayManager = null
 
         try {
             virtualDisplay?.release()

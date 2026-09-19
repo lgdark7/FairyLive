@@ -1,25 +1,134 @@
-TOTAL_TEXTS: 3709
-=== [3650] ===
-Clearly isolate webpage JavaScript from application credentials.
-=== [3653] ===
-==================================================
-=== [3655] ===
-14. CREATOR-ONLY FLOATING CONTROL DOCK
-=== [3657] ===
-==================================================
-=== [3660] ===
-Build a polished floating creator control dock.
-=== [3663] ===
-It MUST exist only in:
-=== [3669] ===
-It MUST NOT enter:
-=== [3672] ===
-BROADCAST_COMPOSITE
-=== [3699] ===
-The dock should be draggable.
-=== [3702] ===
-It should remember its position.
-=== [3705] ===
-Use compact circular/p
-=== [3706] ===
-ChatGPT can make mistakes. Check important info.
+TOTAL_TEXTS: 887
+--- [807] ---
+Based strictly on the dossier you provided:
+--- [808] ---
+?? What Phase 3 successfully fixes
+--- [809] ---
+The important part is that this isn't merely adding UI features. The reported fixes attack the actual causes of the overlay glitches you were seeing:
+--- [810] ---
+Scaling drift between Studio and broadcast
+--- [811] ---
+Rotated handles jumping/unresponsive
+--- [812] ---
+Web overlay impossible to move normally
+--- [813] ---
+Crop handles behaving incorrectly after rotation
+--- [814] ---
+Layer buttons doing nothing
+--- [815] ---
+Locked overlays still editable
+--- [816] ---
+Preview/GLES layer ordering mismatch
+--- [817] ---
+That's the right architectural direction for FAIRY LIVE.
+--- [818] ---
+?? One thing I would NOT call fully proven yet
+--- [819] ---
+The dossier says:
+--- [820] ---
+"Geometry parity across all 10 overlay types"
+--- [821] ---
+and reports unit-test coverage, but the supplied evidence only gives a 
+--- [822] ---
+single aggregate live FLV acceptance capture
+--- [823] ---
+. It doesn't demonstrate a visual device-side parity test for every overlay type.
+--- [824] ---
+So I would classify that particular claim as:
+--- [825] ---
+Mathematically implemented + unit verified, but visual parity across every overlay type still deserves a dedicated real-device acceptance pass.
+--- [826] ---
+That is not a Phase 3 blocker, but it should be a release-hardening item.
+--- [827] ---
+?? PHASE 4 AUTHORIZATION
+--- [828] ---
+Phase 4 is authorized.
+--- [829] ---
+However, I recommend 
+--- [830] ---
+NO major feature expansion yet
+--- [832] ---
+The next milestone should be:
+--- [833] ---
+FAIRY LIVE V1.2 - Phase 4
+--- [834] ---
+Real-Device Overlay QA & Broadcast Fidelity
+--- [835] ---
+Primary objective:
+--- [836] ---
+Make the overlays feel production-grade on an actual physical Android device, not just mathematically correct in tests/emulator captures.
+--- [837] ---
+Phase 4 priorities
+--- [838] ---
+P0 - Physical-device validation
+--- [839] ---
+P0 - Overlay visual fidelity
+--- [841] ---
+Test every overlay type:
+--- [842] ---
+TEXT  IMAGE  GIF  FACECAM  ALERT  QR  LOWER_THIRD  GOAL  WIDGET  YOUTUBE_SUBSCRIBER  WEB
+--- [843] ---
+For each:
+--- [844] ---
+P1 - Gesture torture testing
+--- [846] ---
+Especially:
+--- [848] ---
+P1 - Web overlay stress
+--- [849] ---
+P1 - Broadcast/preview comparison
+--- [850] ---
+This is especially important.
+--- [851] ---
+Capture the 
+--- [852] ---
+same scene
+--- [853] ---
+ from:
+--- [854] ---
+Creator Studio Preview
+--- [858] ---
+GLES Composite
+--- [862] ---
+RTMP/YouTube Output
+--- [863] ---
+Then verify that the overlay's:
+--- [864] ---
+remain visually equivalent.
+--- [865] ---
+P2 - Performance
+--- [866] ---
+Measure:
+--- [867] ---
+?? Architecture freeze rule
+--- [868] ---
+For Phase 4, I strongly recommend:
+--- [869] ---
+NO new overlay types.
+--- [871] ---
+NO new major UI features.
+--- [873] ---
+NO backend rewrite.
+--- [875] ---
+Test  reproduce  identify root cause  fix  regression test  physical-device verification.
+--- [876] ---
+That keeps the project from becoming feature-rich but unstable.
+--- [877] ---
+Final gate
+--- [878] ---
+Phase 4 should only be declared complete when the agent can provide:
+--- [879] ---
+Physical device + real YouTube Live + complete overlay matrix + quantitative metrics + screenshots/video evidence + regression tests.
+--- [880] ---
+So the official decision is:
+--- [881] ---
+?? FAIRY LIVE V1.2 Phase 3 APPROVED.
+--- [882] ---
+?? Phase 4 AUTHORIZED: Real-Device Overlay QA & Broadcast Fidelity.
+--- [883] ---
+?? Feature expansion frozen; stability and visual fidelity are now the priority.
+--- [884] ---
+ChatGPT can make mistakes. Check important info.
+--- [886] ---
+Message ChatGPT
+

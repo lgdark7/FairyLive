@@ -112,8 +112,12 @@ class MainActivity : AppCompatActivity(), StreamStateNotifier.Listener {
                 binding.headerStatusBadge.setTextColor(ContextCompat.getColor(this, R.color.status_green))
                 binding.headerStatusBadge.setBackgroundResource(R.drawable.bg_scene_chip)
                 val currentFrag = supportFragmentManager.findFragmentById(R.id.fragment_container)
-                if (currentFrag !is com.fairylive.app.ui.studio.CreatorStudioFragment) {
-                    hudManager?.show()
+                if (!android.provider.Settings.canDrawOverlays(this)) {
+                    if (currentFrag !is com.fairylive.app.ui.studio.CreatorStudioFragment) {
+                        hudManager?.show()
+                    } else {
+                        hudManager?.dismiss()
+                    }
                 } else {
                     hudManager?.dismiss()
                 }

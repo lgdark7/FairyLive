@@ -307,6 +307,9 @@ class AudioCaptureEngine {
 
     companion object {
         private const val TAG = "AudioCaptureEngine"
-        private const val GAP_COMPENSATION_THRESHOLD_US = 40_000L
+        // 500ms threshold: normal AudioRecord buffer read timing (~46ms for 2048 samples) and
+        // OS scheduling jitter are smoothly bridged by continuous sample counting. Only a genuine
+        // hardware or system stall exceeding 500ms will trigger silence frame synthesis.
+        private const val GAP_COMPENSATION_THRESHOLD_US = 500_000L
     }
 }

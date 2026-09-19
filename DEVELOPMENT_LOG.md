@@ -704,3 +704,67 @@
 - **Work Performed**:
   - Initialized native Android project with Kotlin 1.9.22, AGP 8.2.2, JDK 17, and established baseline.
   - Approved by ChatGPT on 2026-09-13.
+
+---
+
+## 2026-09-19 — Milestone V1.2.1: Production Hardening & Physical Gate
+- **Milestone**: V1.2.1 Hardening & Physical Smoke Gate
+- **Work Performed**:
+  - Implemented `StreamStopReason` enum and `StreamLifecycleDiagnostics` tracking all 19 safe diagnostic gates.
+  - Eliminated `CONNECTED -> STOPPING` loop by classifying fatal publish errors (`RtmpPublishRejectedException`) and guarding network loops against reconnecting on intentional stops (`!isRunning.get()`).
+  - Added GLES texture matrix (`uTexMatrix`) and `SurfaceTexture.getTransformMatrix()` handling orientation and Free Fire 16:9 dynamic resizing without distortion.
+  - Redesigned floating HUD into compact collapsed button with expand/collapse and strictly isolated it to `RenderDomain.CREATOR_ONLY`.
+  - Implemented Live Chat in `BottomSheetDialog` isolated from broadcast video.
+  - Hardened microphone mute/unmute to zero PCM buffer while maintaining continuous presentation timestamps (`ptsUs`).
+  - Cleaned Settings UI to expose only YouTube Server URL and masked Stream Key.
+  - Validated 100% pass across 344 unit tests; built release APK `app-release-v1.2.1.apk` (2.28 MB).
+  - Empirically verified complete lifecycle, single-app capture, clean teardown, and immediate restart on Android 15 Pixel 8 AVD.
+  - Submitted complete engineering dossier to ChatGPT Desktop App via UIAutomation; extracted response requiring physical Pixel 6a verification.
+  - Attached physical Google Pixel 6a (`26081JEGR07015`, Android 17 / API 37) and executed complete physical smoke test suite:
+    - Installed `app-release-v1.2.1.apk` (2.28 MB, non-debuggable production build).
+    - Verified Free Fire MAX (`com.dts.freefiremax`) single-app capture (`RECORD_CONTENT_TASK`) with zero creator UI leakage.
+    - Verified GLES `uTexMatrix` handling 2400x1080 landscape gaming into upright 16:9 1080p without distortion.
+    - Verified hardware video encoder: `c2.exynos.h264.encoder` at 30 fps.
+    - Verified collapsible floating HUD (`hudBtnToggleCollapse`) with expand/collapse and Live Chat bottom sheet (`RenderDomain.CREATOR_ONLY`).
+    - Verified mic mute zeroing PCM buffer with continuous `ptsUs` audio pacing (`muxAfps=43.1`, `sentAfps=43.0`).
+    - Verified clean user stop (`STOP_REASON_USER`) with complete resource release (`MediaProjection: null`) and immediate Session 2 restart reaching `STREAM_RUNNING` within 500ms.
+    - Verified active streaming to YouTube Live RTMP ingest (`rtmp://a.rtmp.youtube.com:1935/live2`) with stream ID 1.
+    - Performance & Thermals: RAM PSS 105.9 MB, Battery 59%, Temp 40.0°C.
+  - Generated `PHYSICAL_RELEASE_GATE.md` and `PHYSICAL_RELEASE_METRICS.json` with final verdict: **PASS — PHYSICAL PIXEL 6a VERIFIED**.
+  - Investigated and resolved YouTube Studio Ingest Handshake Root Causes:
+    - Extracted `csd-0` (SPS) and `csd-1` (PPS) from `MediaCodec.INFO_OUTPUT_FORMAT_CHANGED` in `HardwareVideoEncoder.kt`.
+    - Enforced `timestampMs = 0L` on AVC and AAC sequence headers in `H264FlvPacketizer.kt` and `AacFlvPacketizer.kt`.
+    - Implemented `waitForPublishResult()` and background `FairyRtmpReader` in `RtmpClient.kt` to handle `NetStream.Publish.Start` and answer RTMP Ping Requests (Event 6 -> 7).
+    - Extracted `csd-0` (`AudioSpecificConfig`) in `AacMediaCodecEncoder.kt`.
+    - Re-built production release APK `app-release-v1.2.1.apk` (2.28 MB) and re-verified on physical Pixel 6a (`26081JEGR07015`).
+    - Verified YouTube Studio in Chrome (PID 11548): `Status: LIVE`, `Health: Excellent`, player active, duration > 1:36.
+    - Verified immediate restart (Session 2): `Status: LIVE`, `Health: Excellent`, duration 1:58.
+    - Submitted resolution dossier to ChatGPT Desktop App; received formal sign-off: **"FAIRY LIVE V1.2.1 — YOUTUBE LIVE PHYSICAL INGEST GATE: APPROVED ✅"**.
+  - All V1.2.1 production release gates certified. Project ready for Release & Distribution Phase.
+
+---
+
+## 2026-09-19 — Milestone V1.2.2: Free Fire Frame Collapse Fix, Dynamic Symmetrical Crop & Bitrate Stabilization
+- **Milestone**: V1.2.2 Quality Enhancement & Streamer In-Game Floating HUD
+- **Critical Issues Addressed**:
+  1. **Free Fire Frame Collapse After App Switch**:
+     - *Reproduction*: Stream Free Fire MAX in landscape (`2400x1080`), switch away to portrait launcher/app (`1080x2400`), return to Free Fire MAX. The captured game collapsed into a small horizontal strip near the bottom with large black borders.
+     - *Root Cause*:
+       - `VirtualDisplay` was resized to portrait `1080x2400` when `DisplayManager.DisplayListener` detected portrait during app switch. When returning to Free Fire MAX, Android's `WindowManager` letterboxed the landscape game inside the portrait VirtualDisplay (height 486 px).
+       - Android fires `onCapturedContentVisibilityChanged(true)` on returning to foreground, but did not re-fire `onCapturedContentResize(2400, 1080)`. The existing callback in `ScreenCaptureEngine.kt` and `FairyStreamService.kt` did nothing on visibility change, leaving the VirtualDisplay and GLES renderer permanently stuck with portrait geometry and stale transform matrices.
+       - `GlesRenderer.updateCaptureQuad()` was applying letterbox scaling ($scaleY = 0.80$) instead of center-crop.
+     - *Fix Applied*:
+       - Created `CaptureGeometryState` atomically tracking source ($2400\times1080$), output ($1920\times1080$), symmetrical crop offsets (`cropLeft = 0.10`, `cropRight = 0.10`), scale, and visibility.
+       - Updated `GlesRenderer.kt` with deterministic center-crop policy for gaming: quad covers full $[-1, 1]$ canvas, and `captureQuadUvs` maps $U \in [0.10, 0.90]$, eliminating letterboxing, squashing, and black borders.
+       - Wired `onCapturedContentVisibilityChanged(true)` in `ScreenCaptureEngine.kt` to re-query display geometry, re-anchor `VirtualDisplay` to landscape ($2400\times1080$) for single-app game captures, and notify `OverlayCompositor` and `GlesRenderer` to rebuild quad and UV state.
+       - In `handleDisplayChange()`, prevented `VirtualDisplay` from shrinking to portrait when `captureSourceMode == SINGLE_APP`.
+       - Created `OverlayCoordinateConverter` ensuring overlays placed relative to source coordinates ($x = 1600 / 2400$) map mathematically to the 16:9 output broadcast coordinate space ($x_{out} = 1360 / 1920 = 0.7083$).
+  2. **Bitrate Collapse to ~492–530 Kbps**:
+     - *Root Cause*: `NetworkQualityMonitor.kt` had a rule `(lastCalculatedThroughputBps in 1..250_000L) -> CRITICAL` and `(250_001..500_000L) -> POOR`. When the video encoder produced low-motion frames or when stream started, `lastCalculatedThroughputBps` was low despite zero queue backpressure (`queueRatio = 0`) and instantaneous socket writes (`avgLatency < 50ms`). The monitor falsely declared the network `CRITICAL`, triggering an ABR death spiral that pinned the encoder at 300–500 kbps.
+     - *Fix Applied*:
+       - Guarded throughput checks in `NetworkQualityMonitor.kt` with `hasCongestionSignal` (`queueRatio >= 0.20f || consecutiveSlowWrites > 0 || avgLatency >= slowWriteThresholdMs`). Low generated bytes alone when queue is empty now maintains `HEALTHY` or `EXCELLENT`.
+       - Enhanced `StreamPipeline.kt` with sliding window byte rate tracking (5s, 10s, 30s), socket write stall counting, keyframe interval tracking, and structured `[BITRATE-AUDIT]` logging.
+  3. **Verification**:
+     - Added `V122CaptureAndBitrateParityUnitTest.kt` (8 comprehensive tests).
+     - Executed `./gradlew testDebugUnitTest`: **366 / 366 unit tests passing (100% PASS)**.
+     - Built `./gradlew assembleRelease`: generated `app-release-v1.2.2.apk` (2.3 MB).

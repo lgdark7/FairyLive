@@ -1656,12 +1656,16 @@ class CreatorStudioFragment : Fragment(),
                 } else {
                     val app = requireActivity().application as FairyLiveApplication
                     val id = "img_${System.currentTimeMillis() % 10000}"
-                    val elem = OverlayElement.createImage(
+                    val normW = 0.20f
+                    val normH = normW * (16f / 9f) // 1:1 square aspect on 16:9 canvas
+                    val elem = OverlayElement.createImageWithBounds(
                         id = id,
                         resourcePath = "overlay_logo.png",
                         x = 0.75f,
                         y = 0.05f,
-                        width = 0.20f,
+                        width = normW,
+                        height = normH,
+                        opacity = 1f,
                         zIndex = 10
                     )
                     val newScene = app.sceneManager.addOverlayToActiveScene(elem)
@@ -1686,14 +1690,22 @@ class CreatorStudioFragment : Fragment(),
                 }
             }
 
+            val boundsOpts = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            android.graphics.BitmapFactory.decodeFile(assetFile.absolutePath, boundsOpts)
+            val imgAspect = if (boundsOpts.outHeight > 0) boundsOpts.outWidth.toFloat() / boundsOpts.outHeight.toFloat() else 1f
+            val normW = 0.30f
+            val normH = ((normW * (16f / 9f)) / imgAspect).coerceIn(0.05f, 0.90f)
+
             val app = requireActivity().application as FairyLiveApplication
             val id = "img_custom_${System.currentTimeMillis() % 10000}"
-            val elem = OverlayElement.createImage(
+            val elem = OverlayElement.createImageWithBounds(
                 id = id,
                 resourcePath = assetFile.absolutePath,
                 x = 0.20f,
                 y = 0.20f,
-                width = 0.30f,
+                width = normW,
+                height = normH,
+                opacity = 1f,
                 zIndex = 15
             )
             val newScene = app.sceneManager.addOverlayToActiveScene(elem)
@@ -1717,9 +1729,14 @@ class CreatorStudioFragment : Fragment(),
                 }
             }
 
+            val boundsOpts = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            android.graphics.BitmapFactory.decodeFile(assetFile.absolutePath, boundsOpts)
+            val imgAspect = if (boundsOpts.outHeight > 0) boundsOpts.outWidth.toFloat() / boundsOpts.outHeight.toFloat() else 1f
+
             val app = requireActivity().application as FairyLiveApplication
             val elem = app.sceneManager.activeScene.overlayElements.firstOrNull { it.id == targetElementId } ?: return
-            val updated = elem.copy(resourcePath = assetFile.absolutePath)
+            val normH = ((elem.normalizedWidth * (16f / 9f)) / imgAspect).coerceIn(0.05f, 0.90f)
+            val updated = elem.copy(resourcePath = assetFile.absolutePath, normalizedHeight = normH)
             val newScene = app.sceneManager.updateOverlayInActiveScene(updated, recordHistory = true)
             persistAndSyncScene(newScene)
             binding.broadcastPreviewView.setSelectedElement(updated.id)
@@ -1914,9 +1931,13 @@ class CreatorStudioFragment : Fragment(),
 
         val rawW = resources.displayMetrics.widthPixels
         val rawH = resources.displayMetrics.heightPixels
-        val safeWidth = (rawW / 2) * 2
-        val safeHeight = (rawH / 2) * 2
+        val isLandscapeStream = settings.width > settings.height || settings.profile.width > settings.profile.height
+        val safeWidth = if (isLandscapeStream) (maxOf(rawW, rawH) / 2) * 2 else (rawW / 2) * 2
+        val safeHeight = if (isLandscapeStream) (minOf(rawW, rawH) / 2) * 2 else (rawH / 2) * 2
         val dpi = resources.configuration.densityDpi
+
+        com.fairylive.app.core.lifecycle.StreamLifecycleDiagnostics.capturePermissionGranted()
+        com.fairylive.app.core.lifecycle.StreamLifecycleDiagnostics.captureSourceSelected(settings.captureSource.name)
 
         FairyStreamService.startCapture(
             context = ctx,

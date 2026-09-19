@@ -66,6 +66,8 @@ class FairyStreamService : Service() {
 
     private var activeMediaProjection: MediaProjection? = null
     private val mainHandler = Handler(Looper.getMainLooper())
+    private val isStopping = java.util.concurrent.atomic.AtomicBoolean(false)
+    private var floatingHudManager: com.fairylive.app.ui.hud.StreamerFloatingHudManager? = null
 
     inner class LocalBinder : Binder() {
         fun getService(): FairyStreamService = this@FairyStreamService
@@ -148,7 +150,10 @@ class FairyStreamService : Service() {
                 }
             }
             ACTION_STOP_CAPTURE -> {
-                handleStopCapture()
+                stopStream(
+                    com.fairylive.app.core.lifecycle.StreamStopReason.STOP_REASON_USER,
+                    "User stopped stream from UI"
+                )
             }
             ACTION_TOGGLE_FACECAM -> {
                 toggleFacecam()
@@ -235,23 +240,78 @@ class FairyStreamService : Service() {
     }
 
     private fun handleStopCapture() {
+        stopStream(
+            com.fairylive.app.core.lifecycle.StreamStopReason.STOP_REASON_USER,
+            "handleStopCapture called"
+        )
+    }
+
+    fun stopStream(
+        reason: com.fairylive.app.core.lifecycle.StreamStopReason,
+        details: String = ""
+    ) {
+        if (isStopping.getAndSet(true)) {
+            return
+        }
+        com.fairylive.app.core.lifecycle.StreamLifecycleDiagnostics.streamStopRequested(reason, "FairyStreamService")
+        com.fairylive.app.core.lifecycle.StreamLifecycleDiagnostics.streamStopReason(reason, details)
+
         cameraEngine.stop()
         overlayCompositor.updateFacecamConfig(overlayCompositor.facecamConfig.copy(enabled = false))
         captureEngine.stop()
+        overlayCompositor.stop()
         videoEncoder.stop()
         audioPipeline.stop()
         streamPipeline.stop()
         videoEncoder.setEncodedFrameListener(null)
+        videoEncoder.onSpsPpsAvailable = null
         audioPipeline.setEncodedAudioFrameListener(null)
+        audioPipeline.onAudioSpecificConfigAvailable = null
         MediaClock.stopSession()
         try {
             activeMediaProjection?.stop()
         } catch (_: Exception) {}
         activeMediaProjection = null
-        updateNotificationContent("Capture, encoders, and stream stopped")
+
+        mainHandler.post {
+            floatingHudManager?.dismiss()
+            floatingHudManager = null
+        }
+
+        com.fairylive.app.core.lifecycle.StreamLifecycleDiagnostics.projectionStopped()
+        com.fairylive.app.core.lifecycle.StreamLifecycleDiagnostics.encoderStopped()
+        com.fairylive.app.core.lifecycle.StreamLifecycleDiagnostics.rtmpDisconnected()
+
+        if (reason.isUserInitiated) {
+            StreamStateNotifier.updateState(StreamState.IDLE)
+            CaptureStateNotifier.updateState(CaptureState.IDLE)
+            AudioStateNotifier.updateState(AudioCaptureState.IDLE)
+            StreamTelemetryNotifier.updateState(RtmpConnectionState.IDLE)
+            updateNotificationContent("Capture and stream stopped")
+        } else {
+            StreamStateNotifier.updateState(StreamState.ERROR)
+            CaptureStateNotifier.updateState(CaptureState.ERROR)
+            AudioStateNotifier.updateState(AudioCaptureState.ERROR)
+            StreamTelemetryNotifier.updateState(RtmpConnectionState.FAILED)
+            updateNotificationContent("Stream ended: $details")
+            com.fairylive.app.core.common.CreatorErrorNotifier.postError(
+                title = "Broadcast Stopped",
+                message = "The live broadcast stopped: $details ($reason)",
+                resolution = "Verify stream settings and tap GO LIVE to resume."
+            )
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            stopForeground(STOP_FOREGROUND_REMOVE)
+        } else {
+            @Suppress("DEPRECATION")
+            stopForeground(true)
+        }
+        stopSelf()
     }
 
     private fun handleStartCapture(intent: Intent) {
+        isStopping.set(false)
         // Guard against duplicate start bursts or re-entrancy
         if (captureEngine.isCapturing || videoEncoder.isEncoding) {
             Log.w("FairyStreamService", "Capture session already active during start request — recycling previous session")
@@ -284,7 +344,7 @@ class FairyStreamService : Service() {
         val enableEncoding = intent.getBooleanExtra(EXTRA_ENABLE_ENCODING, true)
         val enableAudio = intent.getBooleanExtra(EXTRA_ENABLE_AUDIO, true)
         val enableCompositor = intent.getBooleanExtra(EXTRA_ENABLE_COMPOSITOR, false)
-        val bitrateKbps = intent.getIntExtra(EXTRA_BITRATE_KBPS, 1200).coerceIn(200, 8000)
+        val bitrateKbps = intent.getIntExtra(EXTRA_BITRATE_KBPS, 2500).coerceIn(200, 8000)
         val fps = intent.getIntExtra(EXTRA_FPS, 24).coerceIn(10, 60)
 
         // Ensure foreground service is running with MediaProjection & Microphone types
@@ -334,33 +394,17 @@ class FairyStreamService : Service() {
                 override fun onStop() {
                     Log.w("FairyStreamService", "MediaProjection stopped by system — tearing down capture")
                     mainHandler.post {
-                        cameraEngine.stop()
-                        overlayCompositor.updateFacecamConfig(overlayCompositor.facecamConfig.copy(enabled = false))
-                        captureEngine.stop()
-                        overlayCompositor.stop()
-                        videoEncoder.stop()
-                        audioPipeline.stop()
-                        streamPipeline.stop()
-                        activeMediaProjection = null
-                        MediaClock.stopSession()
-                        StreamStateNotifier.updateState(StreamState.IDLE)
-                        CaptureStateNotifier.updateState(CaptureState.IDLE)
-                        AudioStateNotifier.updateState(AudioCaptureState.IDLE)
-                        StreamTelemetryNotifier.updateState(RtmpConnectionState.IDLE)
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                            stopForeground(STOP_FOREGROUND_REMOVE)
-                        } else {
-                            @Suppress("DEPRECATION")
-                            stopForeground(true)
-                        }
-                        stopSelf()
+                        stopStream(
+                            com.fairylive.app.core.lifecycle.StreamStopReason.STOP_REASON_PROJECTION_REVOKED,
+                            "MediaProjection revoked by system"
+                        )
                     }
                 }
                 override fun onCapturedContentResize(width: Int, height: Int) {
-                    Log.i("FairyStreamService", "Projection resized: ${width}x${height}")
+                    Log.i("FairyStreamService", "[CAPTURE-CHAIN] Projection resized callback: ${width}x${height}")
                 }
                 override fun onCapturedContentVisibilityChanged(visible: Boolean) {
-                    Log.i("FairyStreamService", "Projection visibility changed: $visible")
+                    Log.i("FairyStreamService", "[CAPTURE-CHAIN] Projection visibility changed: $visible")
                 }
             }, mainHandler)
 
@@ -398,13 +442,21 @@ class FairyStreamService : Service() {
                 captureSurface = encoderSurface
             }
 
+            captureEngine.onResolutionChanged = { newW, newH ->
+                overlayCompositor.updateDimensions(newW, newH)
+            }
+            captureEngine.onVisibilityChanged = { visible ->
+                overlayCompositor.onVisibilityChanged(visible)
+            }
+
             captureEngine.start(
                 projection,
                 encW,
                 encH,
                 dpi,
                 customSurface = captureSurface,
-                captureSource = settings?.captureSource ?: com.fairylive.app.core.settings.CaptureSource.SINGLE_APP
+                captureSource = settings?.captureSource ?: com.fairylive.app.core.settings.CaptureSource.SINGLE_APP,
+                context = this
             )
 
             if (!captureEngine.isCapturing || CaptureStateNotifier.currentState == CaptureState.ERROR) {
@@ -419,12 +471,13 @@ class FairyStreamService : Service() {
                 return
             }
 
+            val audioBitrate = settings?.audioBitrateKbps ?: 128
             // Start audio pipeline concurrently if microphone permission is granted
             if (enableAudio && PermissionManager.hasAudioPermission(this)) {
                 val audioConfig = AudioCaptureConfig(
                     sampleRate = 44100,
                     channelConfig = AudioFormat.CHANNEL_IN_MONO,
-                    bitrateKbps = 96,
+                    bitrateKbps = audioBitrate,
                     sourceType = AudioSourceType.MIC
                 )
                 audioPipeline.start(audioConfig, projection)
@@ -471,8 +524,14 @@ class FairyStreamService : Service() {
                 videoEncoder.setEncodedFrameListener { frame ->
                     streamPipeline.onVideoFrame(frame)
                 }
+                videoEncoder.onSpsPpsAvailable = { sps, pps ->
+                    streamPipeline.setSpsPps(sps, pps)
+                }
                 audioPipeline.setEncodedAudioFrameListener { frame ->
                     streamPipeline.onAudioFrame(frame)
+                }
+                audioPipeline.onAudioSpecificConfigAvailable = { config ->
+                    streamPipeline.setAudioSpecificConfig(config)
                 }
 
                 // Wire ABR dynamic adjustments to the hardware video encoder
@@ -493,9 +552,23 @@ class FairyStreamService : Service() {
                         previousState: RtmpConnectionState
                     ) {
                         when (newState) {
-                            RtmpConnectionState.PUBLISHING -> StreamStateNotifier.updateState(StreamState.STREAMING)
+                            RtmpConnectionState.PUBLISHING -> {
+                                StreamStateNotifier.updateState(StreamState.STREAMING)
+                                com.fairylive.app.core.lifecycle.StreamLifecycleDiagnostics.streamRunning()
+                                mainHandler.post {
+                                    if (floatingHudManager == null && android.provider.Settings.canDrawOverlays(this@FairyStreamService)) {
+                                        floatingHudManager = com.fairylive.app.ui.hud.StreamerFloatingHudManager(this@FairyStreamService)
+                                        floatingHudManager?.show()
+                                    }
+                                }
+                            }
                             RtmpConnectionState.ERROR,
-                            RtmpConnectionState.FAILED -> StreamStateNotifier.updateState(StreamState.ERROR)
+                            RtmpConnectionState.FAILED -> {
+                                stopStream(
+                                    com.fairylive.app.core.lifecycle.StreamStopReason.STOP_REASON_RTMP_ERROR,
+                                    "RTMP connection failed or rejected by server"
+                                )
+                            }
                             RtmpConnectionState.RECONNECTING -> StreamStateNotifier.updateState(StreamState.STARTING)
                             RtmpConnectionState.DISCONNECTED -> StreamStateNotifier.updateState(StreamState.STARTING)
                             RtmpConnectionState.STOPPING -> StreamStateNotifier.updateState(StreamState.STOPPING)
@@ -516,7 +589,7 @@ class FairyStreamService : Service() {
                     videoFps = fps,
                     videoBitrateKbps = bitrateKbps,
                     audioSampleRate = 44100,
-                    audioBitrateKbps = 96,
+                    audioBitrateKbps = audioBitrate,
                     audioChannels = 1
                 )
             } else {
@@ -609,7 +682,9 @@ class FairyStreamService : Service() {
         audioPipeline.stop()
         streamPipeline.stop()
         videoEncoder.setEncodedFrameListener(null)
+        videoEncoder.onSpsPpsAvailable = null
         audioPipeline.setEncodedAudioFrameListener(null)
+        audioPipeline.onAudioSpecificConfigAvailable = null
         try {
             activeMediaProjection?.stop()
         } catch (_: Exception) {}
@@ -655,7 +730,9 @@ class FairyStreamService : Service() {
         audioPipeline.stop()
         streamPipeline.stop()
         videoEncoder.setEncodedFrameListener(null)
+        videoEncoder.onSpsPpsAvailable = null
         audioPipeline.setEncodedAudioFrameListener(null)
+        audioPipeline.onAudioSpecificConfigAvailable = null
         try {
             activeMediaProjection?.stop()
         } catch (_: Exception) {}

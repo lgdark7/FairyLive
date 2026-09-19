@@ -75,9 +75,13 @@ class DashboardFragment : Fragment(),
             val bounds = windowMetrics?.bounds
             val rawW = bounds?.width() ?: resources.displayMetrics.widthPixels
             val rawH = bounds?.height() ?: resources.displayMetrics.heightPixels
-            val safeWidth = (rawW / 2) * 2
-            val safeHeight = (rawH / 2) * 2
+            val isLandscapeStream = settings.width > settings.height || settings.profile.width > settings.profile.height
+            val safeWidth = if (isLandscapeStream) (maxOf(rawW, rawH) / 2) * 2 else (rawW / 2) * 2
+            val safeHeight = if (isLandscapeStream) (minOf(rawW, rawH) / 2) * 2 else (rawH / 2) * 2
             val dpi = resources.configuration.densityDpi
+
+            com.fairylive.app.core.lifecycle.StreamLifecycleDiagnostics.capturePermissionGranted()
+            com.fairylive.app.core.lifecycle.StreamLifecycleDiagnostics.captureSourceSelected(settings.captureSource.name)
 
             FairyStreamService.startCapture(
                 context = ctx,

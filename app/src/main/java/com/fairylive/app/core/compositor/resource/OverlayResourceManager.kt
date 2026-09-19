@@ -103,10 +103,42 @@ class OverlayResourceManager(
 
     private fun decode(resourcePath: String, assets: AssetManager): Bitmap? {
         return try {
+            val normalized = resourcePath.removeSuffix("/")
+            val boundsOpts = BitmapFactory.Options().apply {
+                inJustDecodeBounds = true
+            }
+            when {
+                normalized.startsWith("asset://") || normalized.startsWith("assets://") -> {
+                    val assetPath = normalized.replace(Regex("^assets?://"), "")
+                    assets.open(assetPath).use { stream: InputStream ->
+                        BitmapFactory.decodeStream(stream, null, boundsOpts)
+                    }
+                }
+                resourcePath.startsWith("file://") -> {
+                    BitmapFactory.decodeFile(resourcePath.removePrefix("file://"), boundsOpts)
+                }
+                else -> {
+                    val f = File(resourcePath)
+                    if (f.exists()) {
+                        BitmapFactory.decodeFile(resourcePath, boundsOpts)
+                    } else {
+                        assets.open(resourcePath.trimStart('/')).use {
+                            BitmapFactory.decodeStream(it, null, boundsOpts)
+                        }
+                    }
+                }
+            }
+
+            var sampleSize = 1
+            val maxDim = 1920
+            while ((boundsOpts.outWidth / sampleSize) > maxDim || (boundsOpts.outHeight / sampleSize) > maxDim) {
+                sampleSize *= 2
+            }
+
             val opts = BitmapFactory.Options().apply {
                 inPreferredConfig = Bitmap.Config.ARGB_8888
+                inSampleSize = sampleSize
             }
-            val normalized = resourcePath.removeSuffix("/")
             when {
                 normalized.startsWith("asset://") || normalized.startsWith("assets://") -> {
                     val assetPath = normalized.replace(Regex("^assets?://"), "")
@@ -119,8 +151,12 @@ class OverlayResourceManager(
                 }
                 else -> {
                     val f = File(resourcePath)
-                    if (f.exists()) BitmapFactory.decodeFile(resourcePath, opts) else assets.open(resourcePath.trimStart('/')).use {
-                        BitmapFactory.decodeStream(it, null, opts)
+                    if (f.exists()) {
+                        BitmapFactory.decodeFile(resourcePath, opts)
+                    } else {
+                        assets.open(resourcePath.trimStart('/')).use {
+                            BitmapFactory.decodeStream(it, null, opts)
+                        }
                     }
                 }
             }

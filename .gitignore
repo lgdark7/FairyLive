@@ -23,4 +23,9 @@ out/
 *.log
 screenshot_*.png
 tools/*.png
+tools/*.jpg
+tools/*.jpeg
+tools/*.db
+tools/*.pid
+ui_hud*.xml
 tools/__pycache__/

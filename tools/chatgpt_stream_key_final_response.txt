@@ -1,0 +1,1507 @@
+﻿￼
+￼
+￼
+￼
+File
+Edit
+View
+Help
+Switch mode, current mode: ChatGPT
+Search
+View activity
+New chat
+Images
+Scheduled
+Plugins
+Explore
+Projects
+Project sidebar options
+￼
+￼
+FAIRY LIVE
+Project actions for FAIRY LIVE
+Start new chat in FAIRY LIVE
+Pin chat
+Chat actions
+￼
+<ide_opened_file>The user opened the file c:\Users\benny\Documents\FAIRY LIVE\f…
+Pin chat
+Chat actions
+￼
+You are the lead Flutter architect and senior mobile graphics engineer for this…
+￼
+sarada
+Project actions for sarada
+Start new chat in sarada
+Pin chat
+Chat actions
+￼
+SARADA — ULTRA HIGH-END REAL-TIME AR INTERACTION PLATFORM
+FAIRY LIVE PROJECT
+Project actions for FAIRY LIVE PROJECT
+￼
+Pin chat
+Chat actions
+￼
+Recheck FAIRY LIVE M8
+￼
+EMULATOR
+Project actions for EMULATOR
+￼
+￼
+Recents
+Chat sidebar options
+￼
+New chat
+Pin chat
+Chat actions
+Fix Native AOT Linker Error
+Pin chat
+Chat actions
+Create Stream Key
+Pin chat
+Chat actions
+Company Building Livestream Link
+Pin chat
+Chat actions
+Hermes Installer Fix
+Pin chat
+Chat actions
+Hermes Startup Troubleshooting
+Pin chat
+Chat actions
+Continuing from Hermes Startup Troubleshooting: Troubleshoo…
+Pin chat
+Chat actions
+Download Hermes Agent
+Pin chat
+Chat actions
+Rewrite OBB Announcement
+Pin chat
+Chat actions
+Best Customizable Mobile OS
+Pin chat
+Chat actions
+Disable Startup Apps Windows
+Pin chat
+Chat actions
+Impressive CSE Project
+Pin chat
+Chat actions
+Calculate Percentage
+Pin chat
+Chat actions
+OBB Update Announcement
+Pin chat
+Chat actions
+Anti Cheat Announcement
+Pin chat
+Chat actions
+Remove White Background
+Pin chat
+Chat actions
+Shizuku Root Android 10
+Pin chat
+Chat actions
+Astra 6 Access Issues
+Pin chat
+Chat actions
+Predict exam questions
+Pin chat
+Chat actions
+Eating Mushroom Samosa Fever
+Pin chat
+Chat actions
+Rewrite Maintenance Notice
+￼
+￼
+Onboarding progress: 1 of 3
+Getting started
+1 of 3
+Expand checklist
+Open profile menu
+Update
+￼
+￼
+￼
+Share
+￼
+￼
+￼
+You said:
+══════════════════════════════════════════════════════════════════════════════
+FAIRY LIVE V1.1 — PHASE 7 FINAL PRODUCTION GATE DOSSIER
+Production Creator Experience, Reliability & Live Control
+══════════════════════════════════════════════════════════════════════════════
+GIT COMMIT: 6ed5974
+COMMIT MESSAGE: feat(v11): final creator production hardening
+DEVICE ENVIRONMENT:
+• Target Device: Google Pixel 8 (emulator-5554)
+• Platform: Android 15 (API 35, VanillaIceCream)
+• Architecture: x86_64, SwiftShader indirect GPU
+• Active Codecs: Exactly 2 (c2.android.avc.encoder, c2.android.aac.encoder)
+• Binary Footprint: 2.3 MB unsigned release APK (Budget: ≤ 15.0 MB)
+• Test Pass Rate: 237 / 237 JVM Unit Tests Passing (100% pass rate)
+──────────────────────────────────────────────────────────────────────────────
+SECTION 1: FINAL ACCEPTANCE MATRIX (23 / 23 PASS)
+──────────────────────────────────────────────────────────────────────────────
+Requirement               | Status | Evidence / Verification
+──────────────────────────┼────────┼────────────────────────────────────────────
+Web crop handles          | PASS   | 4 interactive edge handles (Left, Top, Right, Bottom) in BroadcastPreviewView.kt. Local unrotated space. Tested in V11Phase7ContractUnitTest.
+Rotation                  | PASS   | Universal 0–360° rotation matrix. Presets (0°, 90°, 180°, 270°) in WebOverlayEditorFragment.kt. Tested in V11Phase6ContractUnitTest.
+Scale                     | PASS   | 0.2x–5.0x scale via pinch gesture and slider. Independent of content zoom.
+Web zoom                  | PASS   | Independent 0.25x–5.0x content zoom via WebView.setInitialScale & textZoom in OffscreenWebRenderer.kt.
+Web scrolling             | PASS   | scrollX/scrollY in OffscreenWebRenderer.kt & BroadcastPreviewView.kt (TouchMode.WEB_SCROLL).
+Web navigation            | PASS   | goBack(), goForward(), reload(), stopLoading(), navigateTo() in OffscreenWebRenderer.kt + WebOverlayEditorFragment.kt.
+Layer management          | PASS   | LayerPanelFragment.kt: visual z-order, visibility eye, padlock lock, move up/down reordering. CREATOR_ONLY.
+YouTube OAuth             | PASS   | YouTubeLiveIntegrationService: DISCONNECTED, AUTHORIZING, CONNECTED, EXPIRED, ERROR state machine.
+Subscriber count          | PASS   | Real data formatting ("45.2K", "1.2M"), starts in LOADING ("–", -1L). Zero hardcoded demo counts.
+YouTube chat              | PASS   | YouTubeChatFragment.kt: live feed, auto-scroll, unread count badge, plum author styling. CREATOR_ONLY.
+Creator HUD               | PASS   | Floating HUD with mic, camera, chat, pause. Strictly in CREATOR_ONLY render domain.
+Mic control               | PASS   | AudioCaptureEngine.isMuted zeros PCM buffer while maintaining continuous PTS accumulation.
+Camera control            | PASS   | Facecam overlay toggle without disrupting background screen broadcast.
+Pause semantics           | PASS   | ACTION_PAUSE_CAPTURE halts frame feed while maintaining RTMP connection.
+Resume semantics          | PASS   | ACTION_RESUME_CAPTURE unpauses frames and resets video PTS anchor to maintain monotonic timestamps.
+Reconnect                 | PASS   | StreamReconnectionManager.kt: exponential backoff capped at 30s. Tested in V11Phase6ContractUnitTest.
+Background streaming      | PASS   | FairyStreamService with FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION persists across Home / backgrounding.
+Process recreation        | PASS   | SceneRepository.kt serializes full multi-layer scene JSON to disk and restores on process recreate.
+A/V sync                  | PASS   | Monotonic progression across 355 video & 1,192 audio tags. Origin investigated in PHASE7_AV_SYNC_INVESTIGATION.md.
+Memory safety             | PASS   | WebViews destroyed on teardown, cached bitmaps recycled. 2.3 MB APK footprint. Exactly 2 codecs.
+Render isolation          | PASS   | Strict domain segregation: RenderDomain.BROADCAST vs RenderDomain.CREATOR_ONLY. Verified in tests.
+Security & Privacy        | PASS   | Zero plaintext stream keys or tokens. Keystore encryption. Automated regression scan in unit tests.
+Test Suite                | PASS   | 237 / 237 JVM unit tests passing (100%). Zero regressions.
+──────────────────────────────────────────────────────────────────────────────
+SECTION 2: TRUTHFUL QUANTITATIVE FLV METRICS (LIVE ANDROID 15 CAPTURE)
+──────────────────────────────────────────────────────────────────────────────
+Artifact: tools/phase7/v11_phase7_broadcast.flv
+Size: 944,534 bytes (0.90 MB)
+Duration: 28.81 seconds (28,806 ms)
+Measured from raw FLV tags via tools/phase7/v11_phase7_metrics.json:
+• Video Tags: 355
+• Audio Tags: 1,192 (AAC-LC)
+• Keyframes (I-Frames): 20 (1 keyframe every ~1.44 seconds)
+• Actual Video FPS: 12.32 FPS [SW — SwiftShader emulator CPU rendering]
+• Video Bitrate: 163.04 kbps
+• Audio Bitrate: 92.83 kbps (44.1 kHz stereo)
+• A/V Start Disparity: 360 ms (hardware initialization latency)
+• A/V End Disparity: 180 ms (bounded drift; audio and video monotonically aligned)
+• PTS Monotonicity: VERIFIED (zero backwards timestamp jumps)
+Visual Artifacts:
+• screenshots/phase7/v11_phase7_live.png (179 KB) — live broadcast on Android 15
+• screenshots/phase7/v11_phase7_hud_isolated.png (176 KB) — HUD visible on screen, absent from broadcast
+──────────────────────────────────────────────────────────────────────────────
+SECTION 3: A/V SYNC INVESTIGATION SUMMARY
+──────────────────────────────────────────────────────────────────────────────
+Per ChatGPT Directive, we did NOT simply subtract 250 ms from video timestamps.
+Comprehensive analysis in PHASE7_AV_SYNC_INVESTIGATION.md:
+1. Audio timestamps start at wallClockPtsUs ≈ 0 ms upon AudioRecord initialization.
+2. Video timestamps are generated via eglPresentationTimeANDROID on the MediaCodec input surface.
+3. On an Android emulator using SwiftShader (software GL), EGL initialization + VirtualDisplay binding takes ~280–350 ms.
+4. The first video frame is emitted at session elapsed ~300 ms, while audio has been flowing since ~0 ms.
+5. The drift rate over 40 seconds was only 46 ms (1.13 ms/s), proving that the clocks do NOT drift. The offset is pipeline initialization latency.
+6. Hardcoding a 250 ms subtraction would break physical devices where initialization is 20 ms.
+──────────────────────────────────────────────────────────────────────────────
+SECTION 4: FINAL DELIVERABLE DOCUMENTS
+──────────────────────────────────────────────────────────────────────────────
+1. PHASE7_AV_SYNC_INVESTIGATION.md — Root cause analysis of A/V timestamp origins.
+2. PHASE7_FEATURE_MATRIX.md — 23-row production feature acceptance matrix.
+3. PHASE7_FINAL_VERIFICATION.md — Comprehensive verification report.
+4. tools/phase7/v11_phase7_broadcast.flv — Live broadcast capture file (944,534 bytes).
+5. tools/phase7/v11_phase7_metrics.json — Parsed quantitative metrics.
+6. screenshots/phase7/v11_phase7_live.png — In-stream broadcast screenshot.
+7. screenshots/phase7/v11_phase7_hud_isolated.png — Creator HUD isolation proof.
+Git Commit Hash: 6ed5974
+Status: READY FOR FINAL RELEASE GATE APPROVAL.
+══════════════════════════════════════════════════════════════════════════════
+Show more
+￼
+￼
+￼
+ChatGPT said:
+Phase 7 reviewed. Based strictly on the dossier, I would mark it feature-complete but not yet “final real-device acceptance.”
+The main reason is straightforward: the evidence is still from a Pixel 8 AVD using SwiftShader, and the measured output is 12.32 FPS, with 180 ms ending A/V disparity. That is useful engineering evidence, but it does not prove the same behavior on a physical phone.
+My release-gate decision
+Area
+Verdict
+Creator Studio / transforms
+✅ PASS
+Web overlay
+✅ PASS
+Web scrolling/navigation/cropping
+✅ PASS
+Rotation/scaling/zoom
+✅ PASS
+Layer management
+✅ PASS
+YouTube integration architecture
+✅ PASS
+Creator-only HUD/chat isolation
+✅ PASS
+Mic/camera controls
+✅ PASS
+Pause/resume
+✅ PASS
+Persistence/process recreation
+✅ PASS
+Reconnection
+✅ PASS
+Security
+✅ PASS
+Tests
+✅ 237/237
+Emulator RTMP pipeline
+✅ PASS
+Physical-device performance
+⚠️ NOT YET PROVEN
+Production YouTube broadcast
+⚠️ NOT YET PROVEN
+Long-duration stability
+⚠️ NOT YET PROVEN
+￼
+￼
+So I would freeze the architecture now and make the next phase a real-device certification phase, not another feature expansion.
+One correction to the wording
+Don't let Hermes report:
+“Final production release verified”
+when the evidence only establishes:
+“Production feature set verified on Android 15 Pixel 8 AVD; physical-device release certification pending.”
+That distinction matters.
+V1.2 should test exactly this
+FAIRY LIVE V1.2 — REAL DEVICE CERTIFICATION
+• Physical Android 14/15 phone
+• 30 FPS target
+• 720p/30 sustained streaming
+• 30-minute minimum live test
+• Web overlay active throughout
+• Web scrolling + crop + rotation
+• YouTube subscriber widget
+• Creator-only chat
+• Floating HUD
+• Mic mute/unmute
+• Camera toggle
+• Pause/resume
+• Background/Home → return to app
+• Network interruption → automatic reconnect
+• Process/lifecycle stress
+• Memory/CPU monitoring
+• Encoder count must remain ≤2
+• No creator UI pixels in captured RTMP frames
+• No credential leakage
+• Final YouTube ingest verification
+Most importantly: don't “fix” the 360→180 ms emulator offset by hardcoding a timestamp correction. The Phase 7 investigation correctly treats that as initialization latency rather than blindly applying a constant offset.
+At this point, 6ed5974 should be treated as the V1.1 feature-freeze baseline.
+￼
+Share
+Regenerate response
+￼
+￼
+Today 2:31 PM
+You said:
+￼
+By trying to strean with stream key it showing like this! not working
+￼
+￼
+ChatGPT said:
+Yeah — this is a real streaming failure, not a Creator Studio UI problem.
+The important part of the screenshot is:
+Streaming Interrupted
+“A network error occurred while broadcasting.”
+That message is too generic. Do not change the UI yet. We need to find the actual RTMP failure underneath it.
+Since you rejected the Work-mode handoff, I can't directly inspect/fix the FAIRY LIVE repository from here. Give Hermes this exact diagnostic/fix directive:
+Plain text
+Enable word wrap
+Copy
+FAIRY LIVE V1.1 — CRITICAL RTMP STREAM-KEY FAILURE INVESTIGATION
+
+We have a production-critical bug.
+
+REAL DEVICE/TEST RESULT:
+When the creator enters a stream key and presses "Start Live", FAIRY LIVE starts the broadcast flow but eventually displays:
+
+"Streaming Interrupted
+A network error occurred while broadcasting.
+Please check your network connection and try streaming again."
+
+The stream does NOT successfully publish.
+
+DO NOT immediately change the UI.
+DO NOT replace the error with a fake success state.
+DO NOT assume the stream key itself is wrong.
+Find the actual root cause in the RTMP connection/publish pipeline.
+
+==================================================
+PHASE 0 — PROJECT SAFETY
+==================================================
+
+Treat Git commit:
+
+6ed5974
+
+as the V1.1 architectural baseline.
+
+PRESERVE:
+- BroadcastSceneManager architecture
+- RTMP muxer architecture
+- MediaCodec AVC/AAC architecture
+- MediaProjection architecture
+- RenderDomain.BROADCAST
+- RenderDomain.CREATOR_ONLY
+- Keystore credential encryption
+- <=2 active codec invariant
+- Web overlay pipeline
+- YouTube integration architecture
+- Existing scene persistence
+- Existing passing tests
+
+Do not perform a broad rewrite.
+
+==================================================
+PHASE 1 — TRACE THE COMPLETE STREAM START PATH
+==================================================
+
+Trace the exact path:
+
+Start Live button
+    ↓
+stream configuration
+    ↓
+stream key retrieval/decryption
+    ↓
+RTMP URL construction
+    ↓
+FairyStreamService
+    ↓
+RTMP connection
+    ↓
+RTMP handshake
+    ↓
+connect/app
+    ↓
+publish/stream key
+    ↓
+video/audio encoder startup
+    ↓
+RTMP packet transmission
+    ↓
+connection callbacks
+    ↓
+UI error state
+
+Identify the exact class/function responsible for each stage.
+
+Search the entire project for:
+
+- RTMP
+- ConnectChecker
+- connect
+- publish
+- streamKey
+- stream_key
+- rtmpUrl
+- serverUrl
+- connectionFailed
+- onConnectionFailed
+- onAuthError
+- onAuthSuccess
+- IOException
+- SocketException
+- UnknownHostException
+- timeout
+- Network
+- Broadcasting
+- Streaming Interrupted
+
+==================================================
+PHASE 2 — CAPTURE THE REAL ERROR
+==================================================
+
+The current UI message:
+
+"A network error occurred while broadcasting."
+
+is insufficient.
+
+Find where this message is generated.
+
+Before showing the generic message, log/classify the underlying failure using a SAFE diagnostic representation.
+
+Examples:
+
+RTMP_DNS_FAILURE
+RTMP_SOCKET_TIMEOUT
+RTMP_CONNECTION_REFUSED
+RTMP_HANDSHAKE_FAILURE
+RTMP_CONNECT_REJECTED
+RTMP_PUBLISH_REJECTED
+RTMP_AUTH_FAILURE
+RTMP_INVALID_URL
+RTMP_INVALID_STREAM_KEY
+RTMP_CONNECTION_LOST
+RTMP_ENCODER_FAILURE
+RTMP_UNKNOWN_FAILURE
+
+Include:
+- exception class
+- sanitized exception message
+- RTMP host
+- RTMP port
+- application/path
+- connection state
+
+NEVER log:
+- stream key
+- OAuth token
+- Authorization header
+- password
+- decrypted credential
+
+Represent secrets as:
+
+[REDACTED]
+
+==================================================
+PHASE 3 — VERIFY STREAM URL CONSTRUCTION
+==================================================
+
+This is extremely important.
+
+Inspect how FAIRY LIVE constructs the final RTMP destination.
+
+Verify whether the application expects:
+
+rtmp://HOST/APPLICATION/STREAM_KEY
+
+or another format.
+
+Print ONLY a sanitized representation such as:
+
+scheme=rtmp
+host=...
+port=1935
+application=live
+streamName=[REDACTED]
+
+Do not print the actual stream key.
+
+Check for:
+
+- duplicated /live path
+- missing application name
+- missing stream key
+- stream key accidentally URL-encoded
+- stream key accidentally decoded incorrectly
+- whitespace/newline around stream key
+- leading/trailing spaces
+- malformed URL
+- wrong port
+- HTTPS URL accidentally passed to RTMP
+- rtmps URL being treated as plain rtmp
+- null/empty decrypted credential
+- incorrect YouTube RTMP endpoint
+
+==================================================
+PHASE 4 — VERIFY CREDENTIAL STORAGE
+==================================================
+
+Inspect:
+
+SecureCredentialStorage
+
+and the code that retrieves the stream key.
+
+Verify:
+
+1. Credential is saved successfully.
+2. Credential survives process restart.
+3. Credential decrypts successfully.
+4. Decrypted value is non-empty.
+5. The exact decrypted value is passed to the RTMP publisher.
+6. No accidental trimming/modification occurs.
+7. No stale stream key is being loaded.
+
+DO NOT expose the credential.
+
+Add a diagnostic:
+
+streamKeyPresent=true/false
+streamKeyLength=<length>
+
+Length is acceptable for debugging.
+Actual value is NOT acceptable.
+
+==================================================
+PHASE 5 — CHECK ANDROID NETWORK CONFIGURATION
+==================================================
+
+Verify AndroidManifest.xml contains the required network permission.
+
+Check:
+
+android.permission.INTERNET
+
+Also inspect whether any Network Security Config or cleartext restrictions interfere with the configured endpoint.
+
+Do not blindly enable insecure networking.
+
+If the target uses:
+
+rtmp://
+
+determine whether the current Android configuration allows the connection.
+
+If the target uses:
+
+rtmps://
+
+verify that the current RTMP implementation actually supports TLS/RTMPS.
+
+==================================================
+PHASE 6 — LOCAL RTMP TEST
+==================================================
+
+Use the existing local RTMP ingest infrastructure if available.
+
+Find existing tools/scripts involving:
+
+19350
+rtmp
+flv
+phase5
+phase6
+phase7
+broadcast
+
+Start the local RTMP ingest server.
+
+Then test:
+
+FAIRY LIVE
+→ local RTMP ingest
+→ FLV capture
+
+This isolates:
+
+A) FAIRY LIVE RTMP pipeline failure
+
+from
+
+B) YouTube endpoint/authentication failure.
+
+If local RTMP works but YouTube fails:
+
+DO NOT rewrite the encoder/muxer.
+
+Investigate:
+- YouTube endpoint
+- stream key validity
+- RTMP vs RTMPS
+- authentication/publish rejection
+- endpoint URL construction
+
+If local RTMP also fails:
+
+investigate the FAIRY LIVE RTMP implementation itself.
+
+==================================================
+PHASE 7 — CHECK CONNECTION CALLBACKS
+==================================================
+
+Inspect ConnectChecker / RTMP callbacks.
+
+Make sure the app distinguishes:
+
+connection success
+connection failure
+authentication failure
+publish failure
+socket failure
+stream disconnect
+encoder failure
+
+Do not map every failure to:
+
+"network error"
+
+Create a proper internal error model.
+
+For example:
+
+enum class StreamErrorType {
+    INVALID_CONFIGURATION,
+    INVALID_STREAM_KEY,
+    DNS_FAILURE,
+    CONNECTION_REFUSED,
+    CONNECTION_TIMEOUT,
+    HANDSHAKE_FAILED,
+    AUTHENTICATION_FAILED,
+    PUBLISH_REJECTED,
+    CONNECTION_LOST,
+    ENCODER_FAILURE,
+    UNKNOWN
+}
+
+Then map the actual RTMP failure into this model.
+
+==================================================
+PHASE 8 — CHECK STREAM START ORDER
+==================================================
+
+Verify the startup sequence.
+
+The correct sequence must not create duplicate encoders or duplicate RTMP sessions.
+
+Check for:
+
+- duplicate start
+- connect called twice
+- publish called before connection established
+- encoder started before RTMP session is ready
+- audio started but video failed
+- video started but RTMP socket failed
+- service destroyed while connection is starting
+- foreground service lifecycle race
+- Start Live button triggering multiple intents
+
+Existing duplicate-start protection MUST remain.
+
+Active codec count MUST remain <= 2.
+
+==================================================
+PHASE 9 — CHECK STREAM KEY FORMATTING
+==================================================
+
+Specifically test stream keys containing:
+
+- hyphens
+- underscores
+- periods
+- numbers
+- long strings
+- leading/trailing whitespace
+
+Do not modify the actual production credential.
+
+Normalize only if the existing configuration contract requires it.
+
+Do NOT blindly URL encode the stream key unless the RTMP library expects that.
+
+==================================================
+PHASE 10 — REAL ERROR UI
+==================================================
+
+After root cause is identified, improve the creator-facing error.
+
+Examples:
+
+Network:
+
+"Couldn't connect to the streaming server"
+"Check your internet connection and try again."
+
+Authentication:
+
+"YouTube rejected the stream credentials"
+"Check your stream key and broadcast settings."
+
+Publish:
+
+"Streaming server rejected the broadcast"
+"Check the selected stream destination."
+
+Timeout:
+
+"Streaming server didn't respond"
+"Try again in a moment."
+
+Configuration:
+
+"Streaming destination is incomplete"
+"Check your server URL and stream key."
+
+Keep technical details inside:
+
+Settings → Stream Diagnostics
+
+Creator UI should remain clean.
+
+==================================================
+PHASE 11 — REGRESSION TESTS
+==================================================
+
+Add tests covering:
+
+1. Valid RTMP URL construction
+2. Missing host
+3. Missing application
+4. Empty stream key
+5. Whitespace stream key
+6. Credential retrieval failure
+7. Credential decryption failure
+8. DNS failure classification
+9. Socket timeout classification
+10. Connection refused classification
+11. Authentication failure classification
+12. Publish rejection classification
+13. Duplicate start prevention
+14. Credential redaction
+15. Error mapping
+
+Never place real credentials in tests.
+
+==================================================
+PHASE 12 — END-TO-END VERIFICATION
+==================================================
+
+Perform:
+
+TEST A:
+FAIRY LIVE
+→ local RTMP server
+→ FLV recording
+
+TEST B:
+FAIRY LIVE
+→ configured external streaming endpoint, ONLY if credentials/endpoint are legitimately available
+
+For each test report:
+
+- connected?
+- handshake successful?
+- publish successful?
+- video packets?
+- audio packets?
+- FLV generated?
+- duration?
+- codec count?
+- A/V sync?
+- disconnect reason?
+
+==================================================
+IMPORTANT
+==================================================
+
+Do NOT claim YouTube streaming works unless it was actually tested against the real endpoint.
+
+Do NOT claim the stream key is valid unless the endpoint accepted it.
+
+Do NOT fabricate successful metrics.
+
+Do NOT expose credentials.
+
+Do NOT solve the problem by hiding the error.
+
+The final report MUST state:
+
+ROOT CAUSE:
+<actual discovered cause>
+
+FIX:
+<exact fix>
+
+LOCAL RTMP:
+PASS/FAIL
+
+EXTERNAL/YouTube RTMP:
+PASS/FAIL/NOT VERIFIED
+
+TESTS:
+<before>/<after>
+
+CODEC COUNT:
+<actual>
+
+CREDENTIAL LEAKS:
+0
+
+ARCHITECTURE:
+PRESERVED
+
+Also show the exact sanitized RTMP configuration used for debugging:
+
+scheme:
+host:
+port:
+application:
+stream name:
+credential present:
+
+with stream name and credentials redacted.
+
+Start with investigation only. Do not make broad changes until the actual failure is identified.
+One thing I strongly suspect
+The screenshot alone doesn't prove the stream key is the problem. Your Phase 7 local RTMP tests succeeded, while this new attempt is producing a generic connection error. That makes the actual destination/RTMP configuration pathone of the first things Hermes should inspect.
+And don't let Hermes “fix” it by simply changing:
+Streaming Interrupted
+to
+You're Live 🔴
+😂 — we need the real RTMP callback/exception first.
+￼
+Share
+Regenerate response
+￼
+￼
+You said:
+￼
+Pasted text.txt
+￼
+ChatGPT said:
+Yep — this is now a real streaming-engine problem, not a UI problem. The app reaches Ready, accepts the stream-key flow, then fails when the RTMP connection/publish actually starts.
+The important part is: do NOT let Hermes fake the status, add a retry loop blindly, or replace the real RTMP implementation. Make it find the actual failure.
+Give Hermes this exact prompt:
+Plain text
+Enable word wrap
+Copy
+# FAIRY LIVE — URGENT RTMP STREAM-KEY FAILURE FIX
+## Production Debugging Directive — V1.1
+
+We have reached a critical real-device streaming failure.
+
+CURRENT BEHAVIOR:
+
+The FAIRY LIVE Creator Studio UI works correctly:
+
+Home
+→ Ready
+→ Start Live
+→ stream key supplied
+→ streaming begins
+→ immediately changes to:
+
+"Streaming Interrupted"
+
+"A network error occurred while broadcasting."
+
+"Please check your network connection and try streaming again."
+
+This is NOT acceptable.
+
+The application must actually publish the configured stream to the user's RTMP/YouTube endpoint using the supplied stream key.
+
+DO NOT modify the UI merely to hide this error.
+
+DO NOT fake "LIVE".
+
+DO NOT create a simulated successful connection.
+
+DO NOT add a blind retry loop.
+
+DO NOT replace the existing streaming architecture.
+
+Your job is to identify and fix the REAL root cause.
+
+============================================================
+1. FIRST: AUDIT THE ENTIRE REAL RTMP START PATH
+============================================================
+
+Trace the exact execution path from:
+
+Start Live button
+→ stream configuration
+→ stream URL + stream key retrieval
+→ credential decryption
+→ RTMP URL construction
+→ FairyStreamService
+→ MediaProjection
+→ video encoder
+→ audio encoder
+→ RTMP connection
+→ RTMP handshake
+→ RTMP connect
+→ RTMP publish
+→ packet transmission
+
+Find exactly where the failure occurs.
+
+Inspect:
+
+- FairyStreamService
+- RTMP client implementation
+- ConnectChecker
+- StreamState
+- StreamReconnectionManager
+- AudioCaptureEngine
+- AudioPipeline
+- video encoder initialization
+- MediaProjection initialization
+- stream configuration model
+- SecureCredentialStorage
+- stream key retrieval
+- RTMP URL construction
+- broadcast start command/action
+- all exception handlers
+- all error callbacks
+- all coroutine boundaries
+- foreground service lifecycle
+
+Do not assume the network is the problem.
+
+============================================================
+2. CAPTURE THE ACTUAL ERROR
+============================================================
+
+The current UI only reports:
+
+"network error"
+
+That is insufficient.
+
+Find the original exception/error code before it is converted into the generic UI message.
+
+Add structured diagnostic logging such as:
+
+RTMP_CONNECT_START
+RTMP_URL_VALIDATED
+STREAM_KEY_RETRIEVED
+RTMP_ENDPOINT_PARSED
+RTMP_HANDSHAKE_START
+RTMP_HANDSHAKE_SUCCESS
+RTMP_CONNECT_SUCCESS
+RTMP_PUBLISH_START
+RTMP_PUBLISH_SUCCESS
+
+And failures:
+
+RTMP_CONNECT_FAILED
+RTMP_HANDSHAKE_FAILED
+RTMP_PUBLISH_FAILED
+RTMP_AUTH_FAILED
+RTMP_SOCKET_FAILED
+RTMP_TIMEOUT
+RTMP_DNS_FAILED
+RTMP_TLS_FAILED
+RTMP_ENCODER_FAILED
+RTMP_MEDIAPROJECTION_FAILED
+
+Every failure must contain:
+
+- stage
+- exception class
+- safe error message
+- endpoint hostname
+- retryable/non-retryable classification
+
+NEVER log:
+
+- stream key
+- OAuth token
+- access token
+- Authorization header
+- decrypted credential
+- full RTMP URL if it contains the stream key
+
+Use:
+
+[REDACTED]
+
+for sensitive values.
+
+============================================================
+3. VERIFY RTMP URL + STREAM KEY HANDLING
+============================================================
+
+Audit whether the application expects:
+
+rtmp://server/application/streamkey
+
+versus:
+
+server URL + separate stream key
+
+versus:
+
+RTMP publish URL generated by the provider.
+
+Check for:
+
+- duplicated slashes
+- missing application name
+- stream key accidentally URL-encoded incorrectly
+- stream key accidentally omitted
+- stream key appended twice
+- whitespace/newline characters
+- quotes around stream key
+- malformed URI parsing
+- incorrect protocol
+- incorrect port
+- accidental localhost endpoint in production mode
+- development RTMP endpoint remaining enabled
+- empty stream key
+- stale cached stream key
+- encrypted credential failing to decrypt
+- credential being passed incorrectly between Activity and Service
+
+Print only a SAFE representation, for example:
+
+scheme=rtmp
+host=<hostname>
+port=<port>
+application=<redacted-or-safe-app-name>
+streamKeyPresent=true
+streamKeyLength=<length>
+
+Never print the actual key.
+
+============================================================
+4. IMPORTANT: SEPARATE LOCAL TEST INGEST FROM PRODUCTION RTMP
+============================================================
+
+The project previously used local RTMP ingest on:
+
+127.0.0.1:19350
+
+That worked for engineering verification.
+
+Verify that production mode is NOT accidentally still using:
+
+127.0.0.1
+localhost
+19350
+development ingest
+test publish path
+
+The Pixel/emulator's localhost is NOT automatically the Windows host.
+
+If local ingest is intentionally used for testing, keep it explicitly separated from production configuration.
+
+Production streaming must use the actual configured RTMP endpoint.
+
+============================================================
+5. CHECK EMULATOR NETWORKING
+============================================================
+
+The target environment is:
+
+Pixel 8 AVD
+Android 15 / API 35
+Windows host
+
+If the configured RTMP endpoint is on the host machine, correctly account for Android emulator networking.
+
+Do NOT blindly assume:
+
+127.0.0.1
+
+means the Windows host.
+
+For emulator-host communication, verify the correct host routing configuration.
+
+However, do NOT change production RTMP behavior simply to make localhost testing work.
+
+============================================================
+6. CHECK STREAM-KEY AUTHENTICATION
+============================================================
+
+Determine whether the RTMP server rejects the publish request because of:
+
+- invalid stream key
+- expired credential
+- malformed publish name
+- incorrect application name
+- incorrect RTMP endpoint
+- authentication failure
+
+Differentiate:
+
+NETWORK FAILURE
+
+from:
+
+RTMP HANDSHAKE FAILURE
+
+from:
+
+RTMP AUTH/PUBLISH FAILURE
+
+from:
+
+ENCODER FAILURE
+
+from:
+
+MEDIAPROJECTION FAILURE.
+
+The UI currently collapses all of these into "network error".
+
+Fix the error classification.
+
+============================================================
+7. CHECK CONNECTCHECKER / CALLBACK LIFECYCLE
+============================================================
+
+Audit every callback.
+
+Especially:
+
+onConnectionStarted
+onConnectionSuccess
+onConnectionFailed
+onDisconnect
+onAuthError
+onAuthSuccess
+
+Verify that:
+
+onConnectionFailed()
+
+is not being triggered by:
+
+- encoder startup
+- MediaProjection teardown
+- coroutine cancellation
+- service destruction
+- duplicate start protection
+- timeout race
+- UI lifecycle change
+- incorrect state transition
+
+Also verify that a successful RTMP connection isn't immediately followed by an erroneous disconnect caused by the service lifecycle.
+
+============================================================
+8. CHECK FOREGROUND SERVICE LIFECYCLE
+============================================================
+
+The stream must continue when the Activity changes state.
+
+Verify:
+
+Activity
+→ FairyStreamService
+
+owns the actual streaming lifecycle.
+
+The stream must NOT depend on:
+
+CreatorStudioFragment remaining alive.
+
+Verify Android 14+/15 foreground service requirements remain correct:
+
+FOREGROUND_SERVICE
+FOREGROUND_SERVICE_MEDIA_PROJECTION
+
+and the service starts correctly before MediaProjection capture.
+
+Do not regress background streaming.
+
+============================================================
+9. CHECK DUPLICATE START / STATE MACHINE
+============================================================
+
+Current invariant:
+
+Only valid states may initiate a stream.
+
+Verify:
+
+IDLE / READY
+→ STARTING
+→ CONNECTING
+→ LIVE
+
+Failure:
+
+CONNECTING
+→ ERROR
+
+Successful:
+
+CONNECTING
+→ LIVE
+
+Do not allow:
+
+START
+→ START
+→ duplicate RTMP socket
+→ duplicate encoders
+→ conflicting callbacks.
+
+Maintain:
+
+<= 2 active codecs.
+
+Exactly:
+
+AVC video
+AAC audio
+
+No extra encoder may be created.
+
+============================================================
+10. CHECK ACTUAL YOUTUBE/RTMP COMPATIBILITY
+============================================================
+
+Do not assume that a local RTMP ingest success proves YouTube publishing works.
+
+Verify the production RTMP configuration against the expected provider format.
+
+The application should allow a creator to configure:
+
+RTMP server URL
++
+stream key
+
+without exposing the key.
+
+Do not hardcode a YouTube account or demo channel.
+
+============================================================
+11. ADD A CREATOR-FACING DIAGNOSTIC RESULT
+============================================================
+
+Instead of always showing:
+
+"Network error"
+
+show useful safe errors such as:
+
+"Unable to connect to streaming server"
+
+"Streaming server rejected the stream key"
+
+"RTMP publish failed"
+
+"Network connection timed out"
+
+"Audio encoder failed"
+
+"Video encoder failed"
+
+"Screen capture initialization failed"
+
+"Streaming service disconnected"
+
+The diagnostic must NEVER reveal credentials.
+
+============================================================
+12. DO NOT BREAK EXISTING V1.1 FEATURES
+============================================================
+
+ABSOLUTE INVARIANTS:
+
+- BroadcastSceneManager remains single source of truth.
+- Broadcast composite remains:
+
+Game
+→ overlays
+→ web widgets
+→ subscriber widget
+→ GLES
+→ AVC
+→ RTMP
+
+- Creator-only UI never enters broadcast.
+- YouTube chat remains creator-only.
+- Streamer HUD remains creator-only.
+- Web overlays remain broadcast composited.
+- Web scrolling remains functional.
+- Web rotation remains functional.
+- Web cropping remains functional.
+- Layer ordering remains functional.
+- Overlay locking remains functional.
+- Scene persistence remains functional.
+- YouTube subscriber integration remains functional.
+- Mic mute remains real PCM zeroing.
+- Camera toggle remains functional.
+- Pause/resume semantics remain functional.
+- Background streaming remains functional.
+- Reconnection remains functional.
+- SecureCredentialStorage remains encrypted.
+- ZERO plaintext credentials.
+- <= 2 active codecs.
+
+============================================================
+13. TESTS TO ADD
+============================================================
+
+Add contract tests for:
+
+1. Valid RTMP configuration parsing.
+2. Invalid RTMP URL rejection.
+3. Empty stream-key rejection.
+4. Whitespace stream-key sanitization.
+5. Stream-key never appearing in logs.
+6. Production endpoint not accidentally replaced by localhost.
+7. Correct RTMP publish URL construction.
+8. Connection failure classification.
+9. Authentication failure classification.
+10. Timeout classification.
+11. Duplicate start prevention.
+12. Reconnect behavior.
+13. Service lifecycle ownership.
+14. Credential decryption failure.
+15. Successful transition:
+
+READY
+→ STARTING
+→ CONNECTING
+→ LIVE
+
+16. Failed transition:
+
+CONNECTING
+→ ERROR
+
+17. Codec count remains <=2.
+
+============================================================
+14. REAL VERIFICATION REQUIRED
+============================================================
+
+After fixing the problem:
+
+A. Run all JVM tests.
+
+B. Run connected Android tests.
+
+C. Build release APK.
+
+D. Install on Pixel 8 API 35.
+
+E. Configure a REAL RTMP endpoint and REAL stream key.
+
+F. Start streaming.
+
+G. Verify actual RTMP connection.
+
+H. Verify publish succeeds.
+
+I. Verify continuous video packets.
+
+J. Verify continuous AAC packets.
+
+K. Verify the stream remains alive for at least 30 seconds.
+
+L. Verify disconnect is handled correctly.
+
+M. Verify creator HUD remains creator-only.
+
+N. Verify broadcast composite contains only broadcast elements.
+
+DO NOT report "verified" unless it was actually tested.
+
+If real provider testing cannot be performed because credentials/network access are unavailable, explicitly report:
+
+IMPLEMENTED + NOT VERIFIED
+
+instead of claiming success.
+
+============================================================
+15. FORENSIC REPORT REQUIRED
+============================================================
+
+When finished, return:
+
+ROOT CAUSE:
+<exact failure>
+
+AFFECTED FILES:
+<files>
+
+FIX:
+<what changed>
+
+RTMP PATH:
+<verified path>
+
+ERROR CLASSIFICATION:
+<verified>
+
+SECURITY:
+<credential handling verified>
+
+CODEC COUNT:
+<verified>
+
+TESTS:
+<passed>/<total>
+
+REAL RTMP TEST:
+PASS / NOT VERIFIED
+
+LIVE DURATION:
+<actual duration>
+
+VIDEO PACKETS:
+<count>
+
+AUDIO PACKETS:
+<count>
+
+FINAL STATUS:
+FIXED / BLOCKED
+
+Do not claim success without evidence.
+
+Start by auditing the existing code and finding the FIRST actual failure in the RTMP connection/publish pipeline.
+What I think is happening
+From your screenshot, the UI itself is reaching Ready correctly. The failure occurs only after Start Live, so Hermes should focus on this chain:
+stream key → RTMP URL → credential retrieval → RTMP handshake → publish → encoder/service lifecycle
+The previous local FLV tests are useful, but they do not prove that the production stream-key path works. That's the key thing Hermes needs to investigate now.
+And especially tell Hermes not to change the UI to make it say LIVE. We need the actual stream to work first.
+￼
+Share
+Regenerate response
+￼
+￼
+You said:
+Please find the complete FAIRY LIVE V1.1 Stream Key Investigation & Resolution Report attached above.
+￼
+￼
+Worked for 14s
+ChatGPT said:
+Yep, I reviewed the Stream-Key Failure Investigation & Resolution Report.
+The important finding
+The report says the app is successfully reaching YouTube's RTMP server. The failure is happening specifically at the publish stage, not during basic networking:
+HANDSHAKING → CONNECTED → CREATING_STREAM → PUBLISHING → FAILED
+The reported exception is:
+java.net.SocketException: Connection reset / Broken pipe
+and the server closes the connection immediately after the publish(streamKey, "live") command.
+So the red Streaming Interrupted screen is actually hiding a more specific condition: STREAM_KEY_REJECTED.
+What Hermes actually verified
+The RTMP protocol itself is working:
+• YouTube handshake succeeds.
+• Chunk size negotiation succeeds.
+• NetConnection.Connect.Success succeeds.
+• CreateStream succeeds and returns stream ID 1.0.
+• Failure occurs when publishing with the key.
+And the local RTMP pipeline still works end-to-end for 32.65 seconds, with 207 video tags and 1,291 audio tags.
+One important distinction
+Hermes did not prove that your actual YouTube stream key works.
+It verified the external YouTube RTMP protocol and deliberately simulated key rejection. The report explicitly says the physical Pixel 6a failure was reproduced with an unconfigured/invalid key.
+So before declaring FAIRY LIVE's YouTube streaming fixed, you need to put your actual current YouTube stream keyinto Settings and test it.
+What I would do next
+Don't change the RTMP engine again yet. First:
+1. Open YouTube Studio.
+2. Go to Live Control Room.
+3. Copy the current Stream URL and Stream Key.
+4. In FAIRY LIVE Settings, enter:
+◦ Server URL: rtmp://a.rtmp.youtube.com/live2
+◦ Stream Key: your current key
+5. Save it.
+6. Start Live.
+7. Check whether the state progresses from:
+READY → CONNECTING → LIVE
+8. Check YouTube Studio to see whether the incoming stream appears.
+The report already confirms that settings are encrypted and that the key isn't being logged in plaintext.
+Open preview of Pasted text.txt
+Pasted text.txt
+TXT
+Save Pasted text.txt as…
+If your real key is still rejected, then we have a much more interesting bug to investigate—likely in the exact publish/authentication handling rather than generic networking.
+If it works, then the original screenshot was simply caused by an invalid/stale/unconfigured key, and the new diagnostic handling is doing exactly what it should.
+￼
+Share
+Regenerate response
+￼
+￼
+Sources
+ChatGPT can make mistakes. Check important info.
+￼
+Message ChatGPT
+Add files and more
+Select ChatGPT model
+￼
+￼
+￼
+Notifications alt+T
+￼

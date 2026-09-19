@@ -1,0 +1,11 @@
+{
+  "pss_initial_kb": 32313,
+  "endurance_broadcast_live": true,
+  "pss_active_broadcast_kb": 37714,
+  "network_error_card_shown": false,
+  "pss_after_cleanup_kb": 0,
+  "pss_growth_kb": -32313,
+  "non_debuggable_enforced": true,
+  "zero_plaintext_credentials": true,
+  "zero_fatal_crashes": true
+}

@@ -333,21 +333,25 @@ class BroadcastPreviewView @JvmOverloads constructor(
                 OverlayType.IMAGE -> {
                     val iv = ImageView(context)
                     val path = elem.resourcePath
-                    if (path != null && java.io.File(path).exists()) {
+                    var loadedBitmap: Bitmap? = null
+                    if (path != null) {
                         try {
                             val opts = android.graphics.BitmapFactory.Options().apply {
                                 inSampleSize = 2
                             }
-                            val bmp = android.graphics.BitmapFactory.decodeFile(path, opts)
-                            if (bmp != null) {
-                                iv.setImageBitmap(bmp)
-                                iv.scaleType = ImageView.ScaleType.FIT_CENTER
+                            if (java.io.File(path).exists()) {
+                                loadedBitmap = android.graphics.BitmapFactory.decodeFile(path, opts)
                             } else {
-                                iv.setImageResource(R.drawable.ic_stream)
+                                val assetName = path.replace(Regex("^assets?://"), "").trimStart('/')
+                                context.assets.open(assetName).use { stream ->
+                                    loadedBitmap = android.graphics.BitmapFactory.decodeStream(stream, null, opts)
+                                }
                             }
-                        } catch (_: Exception) {
-                            iv.setImageResource(R.drawable.ic_stream)
-                        }
+                        } catch (_: Exception) {}
+                    }
+                    if (loadedBitmap != null) {
+                        iv.setImageBitmap(loadedBitmap)
+                        iv.scaleType = ImageView.ScaleType.FIT_CENTER
                     } else {
                         iv.setImageResource(R.drawable.ic_stream)
                         iv.setBackgroundColor(Color.parseColor("#4000E5FF"))

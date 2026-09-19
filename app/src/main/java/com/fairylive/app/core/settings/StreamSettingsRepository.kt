@@ -21,7 +21,7 @@ class StreamSettingsRepository(
     private val prefs: SharedPreferences =
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
-    fun loadSettings(defaultProfile: StreamProfile = StreamProfile.LOW): StreamSettings {
+    fun loadSettings(defaultProfile: StreamProfile = StreamProfile.BALANCED): StreamSettings {
         val profileName = prefs.getString(KEY_PROFILE, defaultProfile.name) ?: defaultProfile.name
         val profile = try {
             StreamProfile.valueOf(profileName)

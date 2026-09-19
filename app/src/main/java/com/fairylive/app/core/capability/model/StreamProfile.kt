@@ -27,7 +27,7 @@ enum class StreamProfile(
         width = 1280,
         height = 720,
         fps = 30,
-        videoBitrateKbps = 2200,
+        videoBitrateKbps = 2500,
         audioBitrateKbps = 128,
         description = "720p @ 30fps - Standard HD for mid-tier devices"
     ),
@@ -36,7 +36,7 @@ enum class StreamProfile(
         width = 1920,
         height = 1080,
         fps = 30,
-        videoBitrateKbps = 4000,
+        videoBitrateKbps = 4500,
         audioBitrateKbps = 160,
         description = "1080p @ 30fps - High performance devices only"
     ),
@@ -45,7 +45,7 @@ enum class StreamProfile(
         width = 1280,
         height = 720,
         fps = 30,
-        videoBitrateKbps = 2200,
+        videoBitrateKbps = 2500,
         audioBitrateKbps = 128,
         description = "User-defined custom resolution, bitrate, and framerate"
     )

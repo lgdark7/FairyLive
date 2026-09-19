@@ -181,6 +181,27 @@ class OverlayCompositor(
     }
 
     /**
+     * Propagates new capture / stream dimensions on orientation change or task resize.
+     */
+    fun updateDimensions(width: Int, height: Int) {
+        renderHandler?.post {
+            renderer.updateDimensions(width, height)
+        }
+    }
+
+    /**
+     * Propagates capture visibility lifecycle changes to the renderer.
+     */
+    fun onVisibilityChanged(visible: Boolean) {
+        renderHandler?.post {
+            renderer.onVisibilityChanged(visible)
+        }
+    }
+
+    val currentGeometryState: com.fairylive.app.core.capture.model.CaptureGeometryState
+        get() = renderer.currentGeometryState
+
+    /**
      * Event-driven render loop with a poll fallback.
      *
      * Primary: the SurfaceTexture frame-available callback posts to this handler.

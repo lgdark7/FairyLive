@@ -6,66 +6,90 @@
     android:background="@drawable/bg_streamer_hud_pill"
     android:elevation="12dp"
     android:gravity="center_vertical"
-    android:orientation="horizontal">
+    android:orientation="horizontal"
+    android:padding="4dp">
 
-    <!-- Live indicator dot & status -->
-    <TextView
-        android:id="@+id/hudLiveStatus"
+    <!-- Compact Floating Toggle Button (Always visible: Click to toggle Expand/Collapse) -->
+    <ImageButton
+        android:id="@+id/hudBtnToggleCollapse"
+        android:layout_width="40dp"
+        android:layout_height="40dp"
+        android:background="@drawable/bg_hud_circle_button"
+        android:contentDescription="Toggle Streamer Controls"
+        android:padding="8dp"
+        android:scaleType="centerInside"
+        android:src="@android:drawable/ic_menu_manage" />
+
+    <!-- Expanded Streamer Controls (Visible only when expanded) -->
+    <LinearLayout
+        android:id="@+id/hudExpandedControls"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:paddingEnd="10dp"
-        android:text="● LIVE"
-        android:textColor="#E53935"
-        android:textSize="12sp"
-        android:textStyle="bold" />
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="8dp"
+        android:paddingEnd="4dp"
+        android:visibility="gone">
 
-    <!-- Chat Quick Toggle Button -->
-    <ImageButton
-        android:id="@+id/hudBtnChat"
-        android:layout_width="38dp"
-        android:layout_height="38dp"
-        android:layout_marginEnd="6dp"
-        android:background="@drawable/bg_hud_circle_button"
-        android:contentDescription="YouTube Live Chat"
-        android:src="@android:drawable/stat_notify_chat" />
+        <!-- Live indicator dot & status -->
+        <TextView
+            android:id="@+id/hudLiveStatus"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:paddingEnd="8dp"
+            android:text="● LIVE"
+            android:textColor="#E53935"
+            android:textSize="12sp"
+            android:textStyle="bold" />
 
-    <!-- Microphone Mute/Unmute Toggle Button -->
-    <ImageButton
-        android:id="@+id/hudBtnMic"
-        android:layout_width="38dp"
-        android:layout_height="38dp"
-        android:layout_marginEnd="6dp"
-        android:background="@drawable/bg_hud_circle_button"
-        android:contentDescription="Mute or Unmute Microphone"
-        android:src="@android:drawable/ic_btn_speak_now" />
+        <!-- Chat Quick Toggle Button -->
+        <ImageButton
+            android:id="@+id/hudBtnChat"
+            android:layout_width="38dp"
+            android:layout_height="38dp"
+            android:layout_marginEnd="6dp"
+            android:background="@drawable/bg_hud_circle_button"
+            android:contentDescription="YouTube Live Chat"
+            android:src="@android:drawable/stat_notify_chat" />
 
-    <!-- Facecam Camera Toggle Button -->
-    <ImageButton
-        android:id="@+id/hudBtnCamera"
-        android:layout_width="38dp"
-        android:layout_height="38dp"
-        android:layout_marginEnd="6dp"
-        android:background="@drawable/bg_hud_circle_button"
-        android:contentDescription="Toggle Facecam Camera"
-        android:src="@android:drawable/ic_menu_camera" />
+        <!-- Microphone Mute/Unmute Toggle Button -->
+        <ImageButton
+            android:id="@+id/hudBtnMic"
+            android:layout_width="38dp"
+            android:layout_height="38dp"
+            android:layout_marginEnd="6dp"
+            android:background="@drawable/bg_hud_circle_button"
+            android:contentDescription="Mute or Unmute Microphone"
+            android:src="@android:drawable/ic_btn_speak_now" />
 
-    <!-- Stream Pause/Freeze Toggle Button -->
-    <ImageButton
-        android:id="@+id/hudBtnPause"
-        android:layout_width="38dp"
-        android:layout_height="38dp"
-        android:layout_marginEnd="6dp"
-        android:background="@drawable/bg_hud_circle_button"
-        android:contentDescription="Pause or Resume Stream"
-        android:src="@android:drawable/ic_media_pause" />
+        <!-- Facecam Camera Toggle Button -->
+        <ImageButton
+            android:id="@+id/hudBtnCamera"
+            android:layout_width="38dp"
+            android:layout_height="38dp"
+            android:layout_marginEnd="6dp"
+            android:background="@drawable/bg_hud_circle_button"
+            android:contentDescription="Toggle Facecam Camera"
+            android:src="@android:drawable/ic_menu_camera" />
 
-    <!-- Quick More Menu / Action Sheet -->
-    <ImageButton
-        android:id="@+id/hudBtnMore"
-        android:layout_width="38dp"
-        android:layout_height="38dp"
-        android:background="@drawable/bg_hud_circle_button"
-        android:contentDescription="Creator Options"
-        android:src="@android:drawable/ic_menu_more" />
+        <!-- Stream Pause/Freeze Toggle Button -->
+        <ImageButton
+            android:id="@+id/hudBtnPause"
+            android:layout_width="38dp"
+            android:layout_height="38dp"
+            android:layout_marginEnd="6dp"
+            android:background="@drawable/bg_hud_circle_button"
+            android:contentDescription="Pause or Resume Stream"
+            android:src="@android:drawable/ic_media_pause" />
+
+        <!-- Quick More Menu / Action Sheet -->
+        <ImageButton
+            android:id="@+id/hudBtnMore"
+            android:layout_width="38dp"
+            android:layout_height="38dp"
+            android:background="@drawable/bg_hud_circle_button"
+            android:contentDescription="Creator Options"
+            android:src="@android:drawable/ic_menu_more" />
+    </LinearLayout>
 
 </LinearLayout>

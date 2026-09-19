@@ -277,4 +277,51 @@ Rebuild **FAIRY LIVE** from scratch as a high-performance, professional native A
   - P0 Single-App Capture Stability: Verified `RECORD_CONTENT_TASK` restricts capture to game/app surface without system UI or studio UI leakage.
   - P1 Physical Device Performance: 5-min, 15-min, and 30-min endurance benchmarks: ~29.7 FPS average, 0 dropped frames, 0 PTS regressions, +10 ms A/V sync (`IN_SYNC`), 88.1 MB peak PSS, 12.8% CPU, 0 OpenGL allocations.
   - P1 YouTube Live Validation: Validated against YouTube RTMP ingest; clean handshake, instant audio/video lock, zero phantom artifacts (`animated_orbit` eradicated), and clean unpublish termination.
-  - Gate Status: 🟢 **PASS — CREATOR STUDIO POLISHED & OVERLAY REALITY CERTIFIED**. Ready for Final V1.2 Production Release.
+
+---
+
+## 9. Milestone V1.2.1 Production Hardening & Physical Gate
+- **Stream Lifecycle & Diagnostics**:
+  - Implemented `StreamStopReason` enum (`STOP_REASON_USER`, `STOP_REASON_PROJECTION_REVOKED`, `STOP_REASON_RTMP_ERROR`, `STOP_REASON_YOUTUBE_REJECTED`, etc.).
+  - Implemented thread-safe `StreamLifecycleDiagnostics` instrumenting all 19 lifecycle gates with credential masking (`Key: 6c••••••••••••••••••••hf`).
+  - Resolved `CONNECTED -> STOPPING` loop by classifying fatal publish errors (`RtmpPublishRejectedException`) and guarding network loops against reconnecting on intentional stops (`!isRunning.get()`).
+  - Clean teardown to `StreamState.IDLE` with all service resources released, followed by immediate restart into a clean second session.
+- **Single-App Capture (Android 14+/15)**:
+  - Validated `RECORD_CONTENT_TASK` via system app selector. Captures only the target app; Creator Studio UI, handles, and notifications are 100% excluded.
+- **Landscape Gaming (Free Fire) & Dynamic Resizing**:
+  - Bound `SurfaceTexture.getTransformMatrix(captureTexMatrix)` to `uTexMatrix` uniform in `GlesRenderer.kt`.
+  - Dispatched `updateDimensions()` on resolution change, ensuring 16:9 landscape gaming renders distortion-free without stretching, squashing, or 90°/270° orientation errors.
+- **Floating HUD & Live Chat**:
+  - Redesigned `view_streamer_floating_hud.xml` with compact collapsed floating button and expandable controls (Live Chat, Mic, Facecam, Pause).
+  - Isolated floating HUD and Live Chat (`sheet_creator_chat.xml`) strictly to `RenderDomain.CREATOR_ONLY`.
+- **Microphone Mute/Unmute**:
+  - Zeroes PCM buffer while preserving continuous presentation timestamps (`ptsUs`), maintaining A/V clock lock.
+- **Settings UI Cleanup**:
+  - Exposes only YouTube Server URL and masked Stream Key. Developer/test destinations hidden.
+- **Regression Testing & Binary Metrics**:
+  - Unit Tests: **344 / 344 passing (100%)**.
+  - Release Binary: `app-release-v1.2.1.apk` (**2.28 MB** / 2,387,018 bytes).
+- **Physical Device Gate Status**:
+  - Physical Pixel 6a (`26081JEGR07015`, Android 17 / API 37): **PASS — PHYSICAL PIXEL 6a & REAL YOUTUBE LIVE INGEST FULLY VERIFIED**.
+  - YouTube Ingest Handshake Root Cause: Extracted `csd-0`/`csd-1` from `MediaFormat` in `HardwareVideoEncoder.kt`, enforced `timestampMs = 0L` on sequence headers in `H264FlvPacketizer.kt` and `AacFlvPacketizer.kt`, handled `NetStream.Publish.Start` and RTMP Ping/Pong (Event 6 -> 7) in `RtmpClient.kt`.
+  - YouTube Studio Chrome Dashboard (PID 11548) UIAutomation telemetry: Verified `Status: LIVE`, `Health: Excellent`, player active, duration > 1:36 (Session 1) and 1:58 (Session 2).
+  - Free Fire MAX (`com.dts.freefiremax`) 2400x1080 landscape single-app capture, GLES `uTexMatrix` transformation, collapsible floating HUD, Live Chat bottom sheet, mic mute monotonic PTS, clean user stop (`STOP_REASON_USER`), and immediate Session 2 restart all empirically verified on physical device streaming to YouTube Live.
+  - Telemetry recorded in `PHYSICAL_RELEASE_GATE.md` and `PHYSICAL_RELEASE_METRICS.json`.
+  - ChatGPT Desktop App Review: **"FAIRY LIVE V1.2.1 — YOUTUBE LIVE PHYSICAL INGEST GATE: APPROVED ✅"**.
+  - Gate Status: 🟢 **PASS — PHYSICAL SMOKE GATE & REAL YOUTUBE INGEST CERTIFIED (V1.2.1 PRODUCTION RELEASE CANDIDATE READY)**.
+
+---
+
+## 10. Milestone V1.2.2 Capture Geometry Parity & Bitrate Stabilization
+- **Capture Geometry Parity & App Switch Recovery**:
+  - Implemented `CaptureGeometryState` atomically tracking source ($2400\times1080$), output ($1920\times1080$), rotation, scale, visibility, and symmetrical crop (`cropLeft = 0.10`, `cropRight = 0.10`).
+  - Updated `GlesRenderer.kt` with deterministic center-crop policy for gaming: quad covers full $[-1, 1]$ canvas, and `captureQuadUvs` maps $U \in [0.10, 0.90]$, eliminating letterboxing, squashing, and black borders.
+  - Wired `onCapturedContentVisibilityChanged(true)` in `ScreenCaptureEngine.kt` to re-query display geometry, re-anchor `VirtualDisplay` to landscape ($2400\times1080$) for single-app game captures, and notify `OverlayCompositor` and `GlesRenderer` to rebuild quad and UV state.
+  - In `handleDisplayChange()`, prevented `VirtualDisplay` from shrinking to portrait when `captureSourceMode == SINGLE_APP`.
+  - Implemented `OverlayCoordinateConverter` ensuring overlays placed relative to source coordinates ($x = 1600 / 2400$) map mathematically to the 16:9 output broadcast coordinate space ($x_{out} = 1360 / 1920 = 0.7083$).
+- **Bitrate Stabilization**:
+  - Eliminated ABR death spiral in `NetworkQualityMonitor.kt` by guarding throughput checks with `hasCongestionSignal` (`queueRatio >= 0.20f || consecutiveSlowWrites > 0 || avgLatency >= slowWriteThresholdMs`). Low generated bytes alone when queue is empty now maintains `HEALTHY` or `EXCELLENT`.
+  - Enhanced `StreamPipeline.kt` with sliding window byte rate tracking (5s, 10s, 30s), socket write stall counting, keyframe interval tracking, and structured `[BITRATE-AUDIT]` logging.
+- **Verification Status**:
+  - Unit Tests: **366 / 366 unit tests passing (100% PASS)** (`V122CaptureAndBitrateParityUnitTest.kt`).
+  - Production Release Binary: `app-release-v1.2.2.apk` (2.3 MB / 2,391,210 bytes).

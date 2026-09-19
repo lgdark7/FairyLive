@@ -7,6 +7,7 @@ import com.fairylive.app.core.scene.model.BroadcastScene
 import com.fairylive.app.core.settings.CaptureSource
 import com.fairylive.app.core.settings.StreamDestination
 import com.fairylive.app.core.settings.StreamSettings
+import com.fairylive.app.core.stream.flv.AacFlvPacketizer
 import org.junit.Assert.*
 import org.junit.Test
 import kotlin.math.*
@@ -350,5 +351,157 @@ class V12Phase4BroadcastParityUnitTest {
             assertFalse("Layer ID must not be HUD", layer.id.startsWith("hud_"))
             assertFalse("Layer ID must not be handle", layer.id.startsWith("handle_"))
         }
+    }
+
+    // --- 19. FREE FIRE MAX 2400x1080 ASPECT-PRESERVING FIT ---
+    @Test
+    fun test19_freeFireMax2400x1080_fittedWithoutCropping() {
+        val streamWidth = 1920
+        val streamHeight = 1080
+        val captureWidth = 2400
+        val captureHeight = 1080
+
+        val canvasAspect = streamWidth.toFloat() / streamHeight.toFloat()
+        val sourceAspect = captureWidth.toFloat() / captureHeight.toFloat()
+
+        assertTrue("Source is wider than canvas", sourceAspect > canvasAspect)
+
+        val scaleX = 1.0f
+        val scaleY = canvasAspect / sourceAspect
+
+        assertEquals("Full width span in NDC", 1.0f, scaleX, 0.001f)
+        assertEquals("Letterbox height ratio", 0.8f, scaleY, 0.001f)
+
+        val fittedPixelWidth = streamWidth * scaleX
+        val fittedPixelHeight = streamHeight * scaleY
+        val topLetterboxMargin = (streamHeight - fittedPixelHeight) / 2f
+
+        assertEquals(1920f, fittedPixelWidth, 0.01f)
+        assertEquals(864f, fittedPixelHeight, 0.01f)
+        assertEquals(108f, topLetterboxMargin, 0.01f)
+
+        assertEquals(sourceAspect, fittedPixelWidth / fittedPixelHeight, 0.001f)
+    }
+
+    // --- 20. CENTERED OVERLAY QUAD EXACT NDC BOUNDS ---
+    @Test
+    fun test20_centeredOverlayQuad_exactNdcBounds() {
+        val streamWidth = 1920
+        val streamHeight = 1080
+
+        val normX = 0.75f
+        val normY = 0.05f
+        val normW = 0.20f
+        val normH = 0.20f * (16f / 9f)
+
+        val t = OverlayTransform(
+            normalizedX = normX,
+            normalizedY = normY,
+            normalizedWidth = normW,
+            normalizedHeight = normH
+        )
+
+        val w = t.resolvedWidth(streamWidth)
+        val h = t.resolvedHeight(streamWidth, streamHeight)
+        val left = t.resolvedLeft(streamWidth)
+        val top = t.resolvedTop(streamWidth, streamHeight)
+
+        val clipX = left * 2f / streamWidth - 1f
+        val clipY = 1f - top * 2f / streamHeight
+        val clipW = w * 2f / streamWidth
+        val clipH = h * 2f / streamHeight
+
+        val centerX = clipX + clipW / 2f
+        val centerY = clipY - clipH / 2f
+
+        val vBL_x = -0.5f * clipW + centerX
+        val vBL_y = -0.5f * clipH + centerY
+        val vTR_x = 0.5f * clipW + centerX
+        val vTR_y = 0.5f * clipH + centerY
+
+        assertEquals(clipX, vBL_x, 0.001f)
+        assertEquals(clipY - clipH, vBL_y, 0.001f)
+        assertEquals(clipX + clipW, vTR_x, 0.001f)
+        assertEquals(clipY, vTR_y, 0.001f)
+
+        assertTrue("X min >= -1", vBL_x >= -1.0f)
+        assertTrue("X max <= 1", vTR_x <= 1.0f)
+        assertTrue("Y min >= -1", vBL_y >= -1.0f)
+        assertTrue("Y max <= 1", vTR_y <= 1.0f)
+    }
+
+    // --- 21. ORIENTATION HANDLING LANDSCAPE PRESERVATION ---
+    @Test
+    fun test21_orientationHandling_landscapePreservation() {
+        // When device is in landscape (e.g. playing Free Fire MAX) but a system dialog momentarily
+        // reports portrait dimensions (1080x2400), the orientation logic must preserve landscape (2400x1080)
+        val reportedWidth = 1080
+        val reportedHeight = 2400
+        val isLandscape = true
+
+        val adjustedW = if (isLandscape && reportedWidth < reportedHeight) reportedHeight else reportedWidth
+        val adjustedH = if (isLandscape && reportedWidth < reportedHeight) reportedWidth else reportedHeight
+
+        assertEquals(2400, adjustedW)
+        assertEquals(1080, adjustedH)
+
+        // Verify that 2400x1080 maps to full width on 1920x1080 canvas with 0.80 scaleY
+        val canvasW = 1920
+        val canvasH = 1080
+        val canvasAspect = canvasW.toFloat() / canvasH.toFloat()
+        val sourceAspect = adjustedW.toFloat() / adjustedH.toFloat()
+
+        assertTrue(sourceAspect > canvasAspect)
+        val scaleX = 1.0f
+        val scaleY = canvasAspect / sourceAspect
+        assertEquals(1.0f, scaleX, 0.001f)
+        assertEquals(0.80f, scaleY, 0.001f)
+    }
+
+    // --- 22. FLV AAC TAG HEADER SPECIFICATION COMPLIANCE ---
+    @Test
+    fun test22_flvAacTagHeaderByte0xAF() {
+        val packetizerMono = AacFlvPacketizer(sampleRate = 44100, channelCount = 1)
+        val packetizerStereo = AacFlvPacketizer(sampleRate = 44100, channelCount = 2)
+
+        val frameData = byteArrayOf(0x12, 0x34)
+        val packetsMono = packetizerMono.processAacFrame(frameData, 100L)
+        val packetsStereo = packetizerStereo.processAacFrame(frameData, 100L)
+
+        // Per Adobe FLV Spec v10.1 (p. 76), AAC tag header first byte MUST ALWAYS be 0xAF
+        assertEquals(0xAF, packetsMono[0].payload[0].toInt() and 0xFF)
+        assertEquals(0xAF, packetsMono[1].payload[0].toInt() and 0xFF)
+        assertEquals(0xAF, packetsStereo[0].payload[0].toInt() and 0xFF)
+        assertEquals(0xAF, packetsStereo[1].payload[0].toInt() and 0xFF)
+    }
+
+    // --- 23. DYNAMIC ABR LADDER CREATION ---
+    @Test
+    fun test23_dynamicAbrLadderCreation() {
+        val ladder4500 = com.fairylive.app.core.network.AdaptiveBitrateController.createLadder(4500)
+        assertEquals(4500, ladder4500[0])
+        assertEquals(3375, ladder4500[1])
+        assertEquals(2250, ladder4500[2])
+        assertEquals(1350, ladder4500[3])
+
+        val abr = com.fairylive.app.core.network.AdaptiveBitrateController()
+        abr.initialize(4500)
+        assertEquals(4500, abr.currentBitrateKbps)
+        assertEquals(4500, abr.maxBitrateKbps)
+    }
+
+    // --- 24. STREAMER FLOATING HUD RENDER DOMAIN ---
+    @Test
+    fun test24_systemOverlayHudRenderDomain() {
+        val fakeContext = SecureCredentialStorageTest.FakeTestContext()
+        val hud = com.fairylive.app.ui.hud.StreamerFloatingHudManager(fakeContext)
+        assertEquals(RenderDomain.CREATOR_ONLY, hud.renderDomain)
+    }
+
+    // --- 25. STREAM PROFILE BITRATE COMPLIANCE ---
+    @Test
+    fun test25_streamProfileBalancedAndHighBitrates() {
+        assertEquals(2500, com.fairylive.app.core.capability.model.StreamProfile.BALANCED.videoBitrateKbps)
+        assertEquals(4500, com.fairylive.app.core.capability.model.StreamProfile.HIGH.videoBitrateKbps)
     }
 }

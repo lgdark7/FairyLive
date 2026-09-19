@@ -1,0 +1,858 @@
+1 of 3
+You said:
+FAIRY LIVE — V1.2.1 FINAL PHYSICAL DEVICE SMOKE GATE RESPONSE
+STATUS: BLOCKED — physical verification could not be completed (device disconnected from USB/ADB bus)
+Awaiting creator attachment of the physical Pixel 6a to execute the ready automated smoke script (tools/test
+v121
+complete
+verification.py).
+ChatGPT said:
+Yep. This is the 
+correct result
+, and Hermes did the right thing by marking it 
+BLOCKED instead of fabricating a physical-device PASS
+Current gate
+V1.2.1 Single-App Capture implementation:
+ ✅ APPROVED
+Pixel 8/API 35 validation:
+ ✅ PASS
+Physical Pixel 6a validation:
+ ⏸️ BLOCKED — device disconnected
+V1.2.1 final production release:
+ ⏳ WAITING ONLY FOR PHYSICAL DEVICE SMOKE TEST
+Nothing else should be changed right now.
+What you do now
+Connect the 
+Pixel 6a via USB
+, enable 
+USB debugging
+, then make sure Windows sees it:
+powershell
+adb
+devices
+You want:
+Plain text
+26081JEGR07015    device
+Not
+Plain text
+offline
+unauthorized
+Once it shows 
+device
+, tell Hermes:
+Plain text
+The Pixel 6a is connected and ADB shows:
+26081JEGR07015    device
+Proceed with tools/test_v121_complete_verification.py.
+Run ONLY the V1.2.1 final physical smoke gate.
+Do not modify production source code.
+Verify:
+- Single-App capture
+- Target app remains captured when FAIRY LIVE is foregrounded
+- Creator UI never enters broadcast
+- overlays remain visible
+- no notification/system UI leakage
+- stop/restart projection
+- FPS / PTS / frame drops
+- audio gaps
+- A/V sync
+- crashes / ANRs
+- memory and codec count
+Generate the final physical-device report.
+If all checks pass, mark:
+PASS — physical Pixel 6a verified.
+If anything fails, stop and report the exact failure.
+🚦 Then we make the final decision
+If Pixel 6a passes:
+FAIRY LIVE V1.2.1 → FINAL PRODUCTION RELEASE ✅
+Then we can 
+tag the release and stop touching the V1.2 streaming architecture
+If it fails, we fix 
+only the demonstrated physical-device defect
+, rerun the gate, and don't start adding unrelated features.
+So we're actually very close now. 
+The only current blocker is the Pixel 6a being connected.
+You said:
+when i start sharing then it showing connected then stoping and this happening continuesly and also! this is the stream key and url 
+"[REDACTED]","rtmp
+//a.rtmp.youtube.com/live2"
+give it hermes and tell check everything like freamwork and overlays by adding while stream running 
+and make it correct by see it in streaming(already open youtube studio tab in chrome browser) and make them like aline correctly when free fire playing! 
+like when streamer play video games it has to visible like horizentally right! thats why 
+and also in setting it showing so many to give keys like local and some other 2 tell that to take only youtube stream key and url and remove those other 2 options! 
+the floating tab in screen while stream must be show live chat!(Visible only for streamer not in live ) and also mic buttonn must be work gud! And also add one button to make it like memu button if streamer want he has to click to see optioon if not then he can make it like as memu button again and also that has opnly visible to streamer not in live stream 
+ChatGPT said:
+Yes — 
+this is the right thing to investigate before calling V1.2.1 finished.
+ The repeated 
+Connected → Stopped → Connected → Stopped
+ loop means Hermes needs to debug the actual runtime pipeline, not just add more tests.
+One important thing first: 
+you pasted a live YouTube stream key. Treat it as compromised.
+ After testing, regenerate/revoke that key in YouTube Studio. I won't repeat it here or put it into a prompt/log.
+Also, your YouTube URL format should be normalized by the app to the official YouTube RTMP ingest endpoint; 
+the user should not have to choose among Local/Test/other destinations in production Settings.
+Give Hermes this exact instruction
+Plain text
+FAIRY LIVE — V1.2.1 CRITICAL LIVE-STREAMING + CREATOR UI FIX
+THIS IS NOW A REAL PRODUCTION DEBUGGING TASK.
+The creator reports:
+1. Starting screen sharing repeatedly does:
+   CONNECTED
+   -> STOPPING
+   -> CONNECTED
+   -> STOPPING
+   -> repeats continuously.
+2. The creator wants the complete streaming pipeline investigated while actually streaming.
+3. Overlays must be added/edited WHILE the stream is running and verified in the actual broadcast output.
+4. Free Fire gameplay must be captured in proper LANDSCAPE orientation.
+   The final broadcast should look like a normal horizontal gaming stream, not a portrait phone recording stretched/cropped incorrectly.
+5. YouTube Studio is already open in Chrome.
+   Use it to verify the actual live output where available.
+6. Production Settings currently exposes multiple stream destinations/keys.
+   Production UI must expose ONLY YouTube Live:
+      - YouTube Server URL
+      - YouTube Stream Key
+   Remove/hide production options for:
+      - Local test server
+      - custom/test destinations
+      - any other unnecessary stream-key fields
+   IMPORTANT:
+   Do not remove internal developer/test infrastructure if tests require it.
+   It must simply be inaccessible from the production creator UI and impossible to accidentally select for a production broadcast.
+7. The floating streamer control must remain CREATOR-ONLY.
+   While live it should provide:
+      - Live Chat button/panel
+      - working Microphone toggle
+      - compact Menu button
+   NONE of these controls may appear in the broadcast.
+8. Add a compact streamer-only Menu/Floating button behavior:
+   COLLAPSED:
+      show only the small floating button, similar to a compact game/emulator control.
+   EXPANDED:
+      clicking it reveals the streamer controls.
+   Clicking again collapses them back.
+   This UI must exist only in the creator's local UI/window and must NEVER enter MediaProjection broadcast frames.
+9. MIC BUTTON:
+   Verify the microphone toggle actually controls the live audio pipeline.
+   Test:
+      OFF -> audio stops
+      ON -> audio resumes
+   Do not merely change the icon.
+10. LIVE CHAT:
+   Implement the streamer-only live-chat panel using the project's existing architecture.
+   It must:
+      - be visible to creator
+      - never be composited into broadcast
+      - never be captured by the target-app stream
+      - not cover the gameplay permanently
+      - be dismissible/collapsible
+--------------------------------------------------
+CRITICAL DEBUGGING: CONNECTED -> STOPPED LOOP
+--------------------------------------------------
+DO NOT guess.
+Trace the complete lifecycle:
+User taps Start
+  ->
+MediaProjection permission
+  ->
+single-app selection
+  ->
+MediaProjection created
+  ->
+VirtualDisplay
+  ->
+Surface/SurfaceTexture
+  ->
+GLES compositor
+  ->
+MediaCodec
+  ->
+RTMP socket
+  ->
+YouTube handshake
+  ->
+publish
+  ->
+continuous video/audio frames
+Find EXACTLY which component triggers stop.
+Instrument the lifecycle with safe diagnostics:
+CAPTURE_REQUESTED
+CAPTURE_PERMISSION_GRANTED
+CAPTURE_SOURCE_SELECTED
+PROJECTION_CREATED
+VIRTUAL_DISPLAY_CREATED
+SURFACE_CREATED
+ENCODER_STARTED
+AUDIO_STARTED
+RTMP_CONNECTING
+RTMP_CONNECTED
+RTMP_HANDSHAKE_COMPLETE
+RTMP_PUBLISH_STARTED
+FIRST_VIDEO_FRAME
+FIRST_AUDIO_FRAME
+STREAM_RUNNING
+STREAM_STOP_REQUESTED
+STREAM_STOP_REASON
+PROJECTION_STOPPED
+ENCODER_STOPPED
+RTMP_DISCONNECTED
+Every STOP must have an explicit reason.
+Examples:
+STOP_REASON_USER
+STOP_REASON_PROJECTION_REVOKED
+STOP_REASON_SURFACE_DESTROYED
+STOP_REASON_ENCODER_ERROR
+STOP_REASON_AUDIO_ERROR
+STOP_REASON_RTMP_ERROR
+STOP_REASON_YOUTUBE_REJECTED
+STOP_REASON_ORIENTATION_CHANGE
+STOP_REASON_DUPLICATE_SESSION
+STOP_REASON_EXCEPTION
+NEVER silently restart the stream after an unexpected stop.
+If it stops, report the first/root failure.
+--------------------------------------------------
+YOUTUBE VALIDATION
+--------------------------------------------------
+Use the creator-provided credentials ONLY for runtime testing.
+NEVER:
+- commit the stream key
+- put it in source code
+- write it to logs
+- put it in test fixtures
+- put it in screenshots
+- include it in reports
+- expose it through diagnostics
+Mask it everywhere.
+After testing, tell the creator to regenerate the stream key.
+Verify:
+- YouTube RTMP handshake
+- publish
+- first video frame
+- first audio frame
+- continuous stream
+- clean Stop Live
+- clean FCUnpublish
+Do not declare "connected" as success.
+Success means:
+CONNECTED
+HANDSHAKE COMPLETE
+PUBLISH STARTED
+VIDEO FLOWING
+AUDIO FLOWING
+STREAM REMAINS RUNNING
+--------------------------------------------------
+FREE FIRE / LANDSCAPE VALIDATION
+--------------------------------------------------
+Use Free Fire as the target app if available.
+Expected orientation:
+16:9 LANDSCAPE gameplay
+FAIRY LIVE broadcast overlays
+Do NOT:
+- stretch portrait gameplay
+- rotate the encoded video incorrectly
+- crop important gameplay UI
+- make overlays use portrait coordinates
+When target app rotates:
+1. Detect capture dimensions/orientation.
+2. Propagate the orientation correctly through:
+   MediaProjection
+   Surface
+   SurfaceTexture
+   GLES compositor
+   encoder
+   RTMP metadata/output.
+3. Recalculate overlay transform space from the actual broadcast dimensions.
+Verify overlays remain correctly aligned after:
+- portrait -> landscape
+- landscape -> portrait
+- app restart
+- starting live
+- stopping live
+If Free Fire is landscape, the output must be landscape.
+--------------------------------------------------
+LIVE OVERLAY TEST
+--------------------------------------------------
+While an actual stream is running:
+1. Start Free Fire capture.
+2. Start YouTube broadcast.
+3. Add TEXT overlay.
+4. Move it.
+5. Resize it.
+6. Rotate it.
+7. Add IMAGE.
+8. Move it.
+9. Add WEB/other supported overlay if available.
+10. Reorder layers.
+11. Hide/show an overlay.
+12. Lock/unlock an overlay.
+For every change verify:
+CREATOR PREVIEW
+      ==
+ACTUAL BROADCAST OUTPUT
+The creator's:
+- cyan borders
+- handles
+- rotation stem
+- crop handles
+- snap guides
+- layer controls
+must NEVER appear in YouTube output.
+The overlay itself MUST appear.
+--------------------------------------------------
+STREAMER FLOATING UI
+--------------------------------------------------
+The floating streamer control must be explicitly:
+RenderDomain.CREATOR_ONLY
+It must NOT be:
+- part of the scene
+- part of OverlayCompositor
+- part of GLES broadcast layers
+- captured into the broadcast
+Test:
+STREAMER:
+  sees floating control
+BROADCAST:
+  does not see floating control
+Open menu:
+  streamer sees controls
+BROADCAST:
+  still does not see controls
+Open chat:
+  streamer sees chat
+BROADCAST:
+  does not see chat
+Toggle mic:
+  streamer sees state change
+  broadcast audio actually changes
+--------------------------------------------------
+PRODUCTION SETTINGS CLEANUP
+--------------------------------------------------
+Production Settings should look approximately like:
+STREAMING
+Destination
+  YouTube Live
+Server URL
+  rtmp://a.rtmp.youtube.com/live2
+Stream Key
+  •••••••••••••••
+[Save]
+Do NOT expose:
+- Local Test
+- Custom RTMP
+- localhost
+- 10.0.2.2
+- 19350
+- multiple unrelated stream-key fields
+Developer test destinations may remain behind developer/test infrastructure but MUST NOT be selectable in the normal production creator UI.
+--------------------------------------------------
+IMPORTANT SECURITY
+--------------------------------------------------
+The stream key provided by the creator is now considered exposed.
+Use it only for the immediate test.
+Then:
+1. purge it from logs/artifacts
+2. verify it was never committed
+3. tell creator to regenerate it
+Never include the actual key in:
+- Git
+- PROJECT_MEMORY.md
+- DEVELOPMENT_LOG.md
+- screenshots
+- reports
+- source
+- test data
+--------------------------------------------------
+ARCHITECTURE CONSTRAINT
+--------------------------------------------------
+DO NOT:
+- add third-party streaming SDK
+- replace MediaCodec
+- replace OpenGL ES
+- replace MediaProjection
+- rewrite RTMP
+- create a second streaming pipeline
+- fake single-app capture using screen cropping
+Keep the existing architecture.
+Fix the actual root cause.
+--------------------------------------------------
+VERIFICATION REQUIREMENT
+--------------------------------------------------
+Test on the physical Pixel 6a if connected.
+Also use Pixel 8 AVD only as supplemental verification.
+YouTube Studio is already open in Chrome.
+Verify the ACTUAL broadcast output.
+Minimum live test:
+10+ minutes if stable.
+Record:
+- FPS
+- frame drops
+- PTS regressions
+- audio gaps
+- A/V sync
+- peak PSS
+- CPU
+- active codecs
+- RTMP reconnects
+- MediaProjection state
+- encoder state
+- audio state
+--------------------------------------------------
+DELIVERABLE
+--------------------------------------------------
+Create:
+V1.2.1_LIVE_STREAM_ROOT_CAUSE_REPORT.md
+V1.2.1_OVERLAY_LIVE_VALIDATION.md
+V1.2.1_CREATOR_FLOATING_UI_REPORT.md
+V1.2.1_YOUTUBE_VALIDATION.md
+Update:
+DEVELOPMENT_LOG.md
+PROJECT_MEMORY.md
+Do NOT claim PASS based on unit tests.
+The final verdict must identify the actual cause of:
+CONNECTED -> STOPPED -> CONNECTED -> STOPPED
+and prove the fix with an actual running broadcast.
+If a defect is discovered:
+FIX IT,
+REBUILD,
+RETEST,
+and only then report PASS.
+One important design point
+For 
+Free Fire
+, Hermes should make the broadcast canvas follow the 
+actual captured landscape dimensions
+, rather than forcing the existing portrait Studio dimensions onto the stream. That's likely to matter for the "preview looks right but broadcast doesn't" problem you've been seeing.
+And the floating control should work like:
+Collapsed:
+→ tap
+Expanded:
+💬 Chat | 🎙 Mic | ⚙ Menu
+→ tap again
+Collapsed:
+All of that is 
+creator-side only
+Finally, because you exposed the YouTube key in chat, 
+regenerate it after the debugging session
+. Don't reuse that key for production.
+You said:
+Comprehensive Summary of Findings & Engineering Accomplishments
+1. Root Cause Analysis: The CONNECTED -> STOPPING Loop
+We traced the complete lifecycle to identify why screen sharing was repeatedly cycling between 
+CONNECTED
+ and 
+STOPPING
+Silent Reconnection Loop on Fatal Errors
+Incomplete Teardown in ****
+handleStopCapture()
+Missing Lifecycle Linkages
+2. Architecture Implemented & Verified
+A. Explicit Stop Reasons & Safe Diagnostics
+StreamStopReason.kt
+StreamLifecycleDiagnostics.kt
+(All stream keys and URLs are strictly sanitized/masked with 
+[REDACTED]
+Service Teardown
+Rejection Detection
+B. Landscape Gaming (Free Fire) Support
+GLES Texture Matrix (
+uTexMatrix
+Dynamic Dimension Propagation
+C. Production Settings UI Cleanup
+Single Destination
+Production Labels
+Test Integrity
+D. Creator-Only Floating HUD & Live Chat
+Audio Pipeline Verification
+Creator-Only Chat
+ChatGPT said:
+Yep. The latest engineering summary indicates the 
+main CONNECTED → STOPPING loop has already been addressed in code
+, along with landscape handling, YouTube-only settings, creator-only chat/HUD, and mic mute.
+But there is one important thing before calling this finished:
+🚨 Do NOT use that stream key again
+You posted the actual YouTube stream key in chat. Treat it as 
+compromised
+ and rotate/regenerate it in YouTube Studio before the final live test. I won't repeat or store it.
+What Hermes should verify next
+Since you declined the Work-mode handoff, I can't directly inspect/edit your repository or operate Chrome from this chat. So the next Hermes task should be a 
+verification + real-device fix pass
+, not another architecture rewrite.
+Give Hermes this:
+Plain text
+FAIRY LIVE V1.2.1 — FINAL REAL-LIVE DEBUG + CREATOR UX VERIFICATION
+DO NOT redesign the streaming architecture.
+DO NOT introduce Flutter or any third-party streaming SDK.
+DO NOT add new streaming frameworks.
+IMPORTANT SECURITY:
+The previously exposed YouTube stream key is compromised.
+Never print, log, screenshot, commit, or hardcode any stream key.
+Use the existing secure settings/secret mechanism only.
+Recommend rotating the exposed key before final YouTube validation.
+PRIMARY OBJECTIVE:
+Find and completely eliminate any remaining CONNECTED -> STOPPING -> CONNECTED loop.
+1. STREAM LIFECYCLE
+Trace:
+CAPTURE_REQUESTED
+CAPTURE_PERMISSION_GRANTED
+CAPTURE_SOURCE_SELECTED
+PROJECTION_CREATED
+VIRTUAL_DISPLAY_CREATED
+SURFACE_CREATED
+ENCODER_STARTED
+AUDIO_STARTED
+RTMP_CONNECTING
+RTMP_CONNECTED
+RTMP_HANDSHAKE_COMPLETE
+RTMP_PUBLISH_STARTED
+FIRST_VIDEO_FRAME
+FIRST_AUDIO_FRAME
+STREAM_RUNNING
+If STOP occurs, record:
+STREAM_STOP_REQUESTED
+STREAM_STOP_REASON
+PROJECTION_STOPPED
+ENCODER_STOPPED
+RTMP_DISCONNECTED
+For every stop, report the EXACT StreamStopReason.
+There must be NO silent reconnect after:
+- YouTube publish rejection
+- invalid/revoked stream key
+- RTMP handshake failure
+- projection failure
+- encoder failure
+- audio failure
+- surface destruction
+User STOP must end in IDLE.
+After STOP:
+- MediaProjection released
+- VirtualDisplay released
+- SurfaceTexture released
+- encoder released
+- audio capture released
+- RTMP socket closed
+- reconnect coroutine cancelled
+- foreground service stopped/cleaned
+- state = IDLE
+Then immediately start another stream and verify a clean second session.
+2. SINGLE-APP CAPTURE
+Test Android 14+/15.
+Select Free Fire through the Android system
+"Share or record an app" picker.
+Verify broadcast contains ONLY Free Fire.
+Must NOT contain:
+- FAIRY LIVE Creator Studio
+- editor canvas
+- cyan selection borders
+- resize handles
+- crop handles
+- rotation stem
+- snap guides
+- floating controls
+- chat panel
+- Android notifications
+- status/notification shade
+- other applications
+Bring Creator Studio to foreground while Free Fire remains selected.
+Broadcast must continue showing Free Fire.
+3. FREE FIRE LANDSCAPE
+Use landscape 16:9 output.
+Preferred test:
+1280x720.
+Verify:
+- no portrait stretching
+- no squashing
+- no unexpected 90/270 degree rotation
+- correct SurfaceTexture transform
+- correct GLES texture matrix
+- correct aspect ratio
+- correct crop
+- correct overlay coordinate mapping
+The final broadcast should look like a normal horizontal gaming stream.
+4. OVERLAY REALITY TEST
+While streaming, test:
+TEXT
+IMAGE
+GIF
+FACECAM
+ALERT
+QR
+LOWER_THIRD
+GOAL
+WIDGET
+YOUTUBE_SUBSCRIBER
+WEB
+For each overlay verify:
+- visible in Creator Studio preview
+- visible in broadcast
+- same position
+- same size
+- same rotation
+- same crop
+- same scale
+- correct z-order
+- no creator handles in broadcast
+Where supported, create/move/resize an overlay WHILE STREAMING and verify the updated scene reaches the GLES broadcast compositor.
+Do NOT fake this with unit tests.
+5. CREATOR-ONLY FLOATING CONTROL
+Implement/verify a compact collapsed floating button.
+Collapsed:
+[ small floating button ]
+Tap:
+Expanded:
+- Live Chat
+- Mic mute/unmute
+- collapse button
+Tap again:
+Collapsed.
+This UI must exist ONLY for the streamer.
+It must NEVER enter the broadcast.
+Test:
+Free Fire selected for capture
+Creator Studio foreground
+floating button visible to creator
+Then inspect actual broadcast frames.
+Expected:
+Free Fire + broadcast overlays ONLY.
+6. LIVE CHAT
+Floating creator panel opens Live Chat.
+Chat is creator-only.
+It must not be rendered into:
+- GLES compositor
+- broadcast scene
+- captured game
+- RTMP video
+7. MIC
+Mic button must:
+MUTE:
+- silence microphone PCM
+- continue producing audio timestamps
+- maintain A/V clock
+- not kill AudioRecord
+UNMUTE:
+- restore microphone PCM
+Verify both transitions during an active stream.
+Measure A/V sync before/after.
+8. SETTINGS
+Creator-facing Settings must expose ONLY:
+YouTube Server URL
+YouTube Stream Key
+Remove/hide:
+- Local
+- Custom
+- Local Test
+- alternate destination selectors
+- alternate URL fields
+Internal developer test infrastructure may remain in source/CI.
+9. YOUTUBE
+Use the existing YouTube Studio browser session if available.
+Do NOT expose credentials.
+Verify:
+RTMP connect
+RTMP handshake
+publish
+first video frame
+first audio frame
+stable streaming
+clean stop
+If YouTube rejects the publish, DO NOT reconnect indefinitely.
+Report the actual rejection category.
+10. TESTS
+Add regression tests for:
+- CONNECTED -> STOPPING loop
+- fatal YouTube rejection
+- clean teardown
+- immediate restart
+- SINGLE_APP capture
+- landscape orientation
+- SurfaceTexture transform
+- overlay parity
+- live overlay update
+- creator-only floating controls
+- chat isolation
+- mic mute/unmute
+Run complete test suite.
+11. FINAL REPORT
+Report only empirically verified results:
+- exact root cause
+- files changed
+- lifecycle before/after
+- capture result
+- Free Fire landscape result
+- overlay results
+- creator HUD isolation
+- chat result
+- mic result
+- YouTube result
+- unit/instrumentation tests
+- APK size
+- remaining blockers
+NEVER claim physical-device or YouTube PASS without actual evidence.
+Most important:
+ don't let Hermes keep adding features until the 
+CONNECTED → STOPPING
+ cause is proven from the lifecycle logs. That's the blocker to solve first.
+You said:
+FAIRY LIVE V1.2.1 COMPREHENSIVE PRODUCTION HARDENING & VERIFICATION DOSSIER
+EXECUTIVE SUMMARY
+This dossier provides the complete, empirically verified report on FAIRY LIVE V1.2.1 hardening. All 11 technical requirements have been implemented, verified on Android 15 (API 35 Pixel 8 Emulator), and backed by 344 passing unit tests (100%).
+1. STREAM LIFECYCLE & DIAGNOSTIC GATES
+19 Diagnostic Tags
+Root-Cause Analysis of 
+CONNECTED -> STOPPING
+ Loop
+Teardown & Clean State
+Immediate Restart
+2. SINGLE-APP CAPTURE (Android 14+ / 15)
+3. LANDSCAPE GAMING (Free Fire) & DYNAMIC RESIZING
+4. OVERLAY REALITY & LIVE SCENE MUTATION
+5. CREATOR-ONLY FLOATING CONTROLS
+6. LIVE CHAT ISOLATION
+7. MICROPHONE MUTE / UNMUTE BEHAVIOR
+8. SETTINGS UI CLEANUP
+9. YOUTUBE LIVE RTMP INTEGRATION
+10. REGRESSION TEST SUITE
+100% PASS
+ChatGPT said:
+This dossier is a 
+strong verification result
+, but I would 
+not issue a final production-release authorization yet
+Phase 9/1.2.1 review
+🚨 One important discrepancy
+The dossier says:
+“All physical smoke test gates pass pending final USB attachment of Pixel 6a.”
+Those two statements conflict.
+If the Pixel 6a has 
+not actually been connected and tested
+, then the physical gate cannot be called PASS. The correct status is:
+PHYSICAL DEVICE GATE: PENDING / BLOCKED
+The emulator results are excellent, but they don't replace the Tensor G1 physical-device test.
+Also: credential security
+The report still contains a 
+partially masked stream key
+6c••••••••••••••••••••hf
+That's better than plaintext, but because the original key was exposed earlier, 
+rotate/regenerate that YouTube stream key
+ before the final production broadcast. Don't put even a partial key into future reports if it isn't necessary.
+🟢 What Hermes should do NEXT
+Don't add another feature. 
+Freeze the code now.
+The next task is:
+V1.2.1 Final Physical Device Gate → Pixel 6a → Free Fire → YouTube Live → 15–30 min endurance.
+Have Hermes run:
+FAIRY LIVE V1.2.1 — FINAL PHYSICAL DEVICE RELEASE GATE
+
+CODE IS FROZEN.
+NO NEW FEATURES.
+NO ARCHITECTURAL REFACTOR.
+
+Connect the physical Pixel 6a and verify:
+
+1. adb device is the physical Pixel 6a.
+2. Install the exact V1.2.1 release APK.
+3. Start FAIRY LIVE.
+4. Configure ONLY YouTube destination.
+5. Select SINGLE-APP capture.
+6. Select Free Fire through Android's system app picker.
+7. Start streaming.
+8. Verify YouTube receives the stream.
+9. Put Free Fire in landscape.
+10. Play continuously.
+
+During the live test verify:
+
+CAPTURE:
+- only Free Fire appears
+- Creator Studio never appears
+- floating HUD never appears
+- chat never appears
+- editor handles never appear
+- Android notifications never appear
+
+LANDSCAPE:
+- 16:9 output
+- no stretching
+- no squashing
+- no rotation error
+- correct SurfaceTexture transform
+
+OVERLAYS:
+- text
+- image
+- GIF
+- facecam
+- alert
+- QR
+- lower third
+- goal
+- widget
+- subscriber
+- web
+
+Move/resize several overlays DURING the live stream and verify the actual YouTube output.
+
+HUD:
+- collapsed floating button visible to creator
+- expand/collapse works
+- Live Chat works
+- mic mute works
+- mic unmute works
+- HUD never appears on YouTube
+
+LIFECYCLE:
+- stream remains stable
+- no CONNECTED/STOPPING flapping
+- no reconnect loop
+- no crashes
+- no ANRs
+- no frame drops
+- no PTS regressions
+- A/V sync remains acceptable
+
+Run:
+5 minute stability
+15 minute stability
+30 minute stability
+
+Then STOP.
+
+Verify:
+MediaProjection released
+VirtualDisplay released
+SurfaceTexture released
+MediaCodec released
+AudioRecord released
+RTMP socket closed
+foreground service stopped
+state = IDLE
+
+Immediately start a SECOND stream and verify it succeeds.
+
+SECURITY:
+Never print or save the stream key.
+Never put it in logs/screenshots/reports/git.
+
+FINAL VERDICT MUST BE ONE OF:
+
+PASS — physical Pixel 6a verified
+
+OR
+
+BLOCKED — physical verification could not be completed
+
+Do not claim PASS without actual Pixel 6a evidence.
+
+Generate:
+PHYSICAL_RELEASE_GATE.md
+PHYSICAL_RELEASE_METRICS.json
+
+Update PROJECT_MEMORY.md and DEVELOPMENT_LOG.md.
+After that
+If the Pixel 6a passes, 
+then V1.2.1 is genuinely at the production-release gate
+At that point we stop changing the streaming engine and move to the 
+release/distribution phase
+: signed production APK/AAB, final security audit, versioning, release notes, backup/tagging, and installation/update testing.
+ChatGPT can make mistakes. Check important info.
+Ask ChatGPT

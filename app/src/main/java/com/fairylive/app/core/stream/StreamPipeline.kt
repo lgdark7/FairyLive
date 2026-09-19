@@ -84,6 +84,38 @@ class StreamPipeline(
     private var currentBitrateBps: Long = 0L
     private var lastAbrEvalTime: Long = 0L
 
+    // High-resolution sliding window byte rate trackers
+    private class ByteRateWindow(val windowMs: Long) {
+        private val samples = ArrayDeque<Pair<Long, Int>>()
+        private var totalBytes: Long = 0L
+
+        fun add(bytes: Int, nowMs: Long) {
+            samples.addLast(Pair(nowMs, bytes))
+            totalBytes += bytes
+            while (samples.isNotEmpty() && nowMs - samples.first().first > windowMs) {
+                totalBytes -= samples.removeFirst().second
+            }
+        }
+
+        fun getRateBps(nowMs: Long): Long {
+            while (samples.isNotEmpty() && nowMs - samples.first().first > windowMs) {
+                totalBytes -= samples.removeFirst().second
+            }
+            return if (samples.isEmpty()) 0L else (totalBytes * 8L * 1000L) / windowMs
+        }
+
+        fun reset() {
+            samples.clear()
+            totalBytes = 0L
+        }
+    }
+
+    private val window5s = ByteRateWindow(5_000L)
+    private val window10s = ByteRateWindow(10_000L)
+    private val window30s = ByteRateWindow(30_000L)
+    private var lastKeyframeTimeMs: Long = 0L
+    private var socketWriteStalls: Long = 0L
+
     @Volatile
     var isStreaming: Boolean = false
         private set
@@ -155,6 +187,8 @@ class StreamPipeline(
             audioChannels = audioChannels
         )
         packetQueue.offer(metadataPacket)
+        // Inject initial AAC sequence header (timestamp 0)
+        packetQueue.offer(audioPacketizer.buildAacSequenceHeader(0L))
 
         val thread = Thread({ networkLoop(endpoint) }, "FairyStreamSenderThread").apply {
             priority = Thread.NORM_PRIORITY + 1
@@ -192,9 +226,14 @@ class StreamPipeline(
                         audioChannels = streamAudioChannels
                     )
                     packetQueue.offer(metadataPacket)
-                    packetQueue.offer(audioPacketizer.buildAacSequenceHeader(MediaClock.currentSessionTimeUs() / 1000L))
+                    packetQueue.offer(audioPacketizer.buildAacSequenceHeader(0L))
+                    val sps = videoPacketizer.cachedSps
+                    val pps = videoPacketizer.cachedPps
+                    if (sps != null && pps != null) {
+                        packetQueue.offer(videoPacketizer.buildAvcSequenceHeader(sps, pps, 0L))
+                    }
                     onRequestKeyFrame?.invoke()
-                    Log.i(TAG, "Reconnected: re-injected metadata and requested sync keyframe")
+                    Log.i(TAG, "Reconnected: re-injected metadata, sequence headers, and requested sync keyframe")
                 }
 
                 // Main packet transmission loop
@@ -204,6 +243,13 @@ class StreamPipeline(
                     val writeStart = SystemClock.elapsedRealtime()
                     rtmpClient.sendPacket(packet)
                     val latency = SystemClock.elapsedRealtime() - writeStart
+                    if (latency >= 100L) {
+                        socketWriteStalls++
+                    }
+                    val nowWrite = SystemClock.elapsedRealtime()
+                    window5s.add(packet.payload.size, nowWrite)
+                    window10s.add(packet.payload.size, nowWrite)
+                    window30s.add(packet.payload.size, nowWrite)
 
                     totalBytesSent += packet.payload.size
                     totalPacketsSent++
@@ -241,6 +287,11 @@ class StreamPipeline(
                 rtmpClient.close()
                 isStreaming = false
 
+                val isFatalAuth = e is com.fairylive.app.core.stream.rtmp.RtmpPublishRejectedException ||
+                        (e.message?.contains("rejected", ignoreCase = true) == true) ||
+                        (e.message?.contains("BadName", ignoreCase = true) == true) ||
+                        (e.message?.contains("Denied", ignoreCase = true) == true)
+
                 // Strictly prevent false LIVE reporting
                 StreamTelemetryNotifier.updateState(RtmpConnectionState.DISCONNECTED)
                 StreamTelemetryNotifier.updateTelemetry(
@@ -249,6 +300,32 @@ class StreamPipeline(
                         lastError = e.message
                     )
                 )
+
+                if (isFatalAuth) {
+                    Log.e(TAG, "YouTube / RTMP server permanently rejected publish. Halting stream without retry.")
+                    com.fairylive.app.core.lifecycle.StreamLifecycleDiagnostics.streamStopReason(
+                        com.fairylive.app.core.lifecycle.StreamStopReason.STOP_REASON_YOUTUBE_REJECTED,
+                        e.message ?: "YouTube rejected stream key"
+                    )
+                    StreamTelemetryNotifier.updateState(RtmpConnectionState.FAILED)
+                    StreamTelemetryNotifier.updateTelemetry(
+                        StreamTelemetryNotifier.currentTelemetry.copy(
+                            connectionState = RtmpConnectionState.FAILED,
+                            lastError = "YouTube rejected stream: ${e.message}"
+                        )
+                    )
+                    com.fairylive.app.core.common.CreatorErrorNotifier.postError(
+                        title = "YouTube Stream Key Rejected",
+                        message = "YouTube rejected the stream key: ${e.message}. Please verify your stream key in Settings.",
+                        resolution = "Copy your stream key from YouTube Studio and update Settings."
+                    )
+                    break
+                }
+
+                if (!isRunning.get()) {
+                    Log.i(TAG, "StreamPipeline stopped intentionally, exiting network loop.")
+                    break
+                }
 
                 // Schedule bounded exponential backoff reconnection
                 val delayMs = reconnectionManager.scheduleNextAttempt(e.message ?: "Socket disconnect")
@@ -270,6 +347,10 @@ class StreamPipeline(
                     reconnectionManager.onAttemptStarted()
                 } else {
                     Log.e(TAG, "Reconnection limit reached or stopped. Halting stream.")
+                    com.fairylive.app.core.lifecycle.StreamLifecycleDiagnostics.streamStopReason(
+                        com.fairylive.app.core.lifecycle.StreamStopReason.STOP_REASON_RTMP_ERROR,
+                        e.message ?: "Reconnection exhausted"
+                    )
                     StreamTelemetryNotifier.updateState(RtmpConnectionState.FAILED)
                     StreamTelemetryNotifier.updateTelemetry(
                         StreamTelemetryNotifier.currentTelemetry.copy(
@@ -344,6 +425,10 @@ class StreamPipeline(
      */
     fun onVideoFrame(frame: EncodedFrame) {
         if (!isRunning.get()) return
+        val now = SystemClock.elapsedRealtime()
+        if (frame.isKeyFrame) {
+            lastKeyframeTimeMs = now
+        }
         // Canonical timestamp conversion: PTS in microseconds / 1000 = FLV timestamp in milliseconds
         val ptsMs = frame.presentationTimeUs / 1000L
 
@@ -385,6 +470,16 @@ class StreamPipeline(
 
     fun setSpsPps(sps: ByteArray, pps: ByteArray) {
         videoPacketizer.setSpsPps(sps, pps)
+        val header = videoPacketizer.buildAvcSequenceHeader(sps, pps, 0L)
+        packetQueue.offer(header)
+        Log.i(TAG, "Queued initial AVC Sequence Header (timestamp 0) from csd-0/csd-1")
+    }
+
+    fun setAudioSpecificConfig(config: ByteArray) {
+        audioPacketizer.setAudioSpecificConfig(config)
+        val header = audioPacketizer.buildAacSequenceHeader(0L)
+        packetQueue.offer(header)
+        Log.i(TAG, "Queued initial AAC Sequence Header (timestamp 0) from csd-0")
     }
 
     val queueEvictions: Long get() = packetQueue.queueEvictions.get()
@@ -404,6 +499,23 @@ class StreamPipeline(
         if (now - lastAuditLogTime < 5_000L) return
         lastAuditLogTime = now
         val elapsedSec = (now - auditStartElapsed) / 1000.0
+        val rtmpBps5s = window5s.getRateBps(now)
+        val rtmpBps10s = window10s.getRateBps(now)
+        val rtmpBps30s = window30s.getRateBps(now)
+        val rtmpKbps5s = rtmpBps5s / 1000L
+        val rtmpKbps10s = rtmpBps10s / 1000L
+        val rtmpKbps30s = rtmpBps30s / 1000L
+        val kfInterval = if (lastKeyframeTimeMs > 0) now - lastKeyframeTimeMs else 0L
+
+        Log.i(
+            TAG,
+            "[BITRATE-AUDIT] encoderBitrate=${abrController.currentBitrateKbps}kbps " +
+                "rtmp5s=${rtmpKbps5s}kbps rtmp10s=${rtmpKbps10s}kbps rtmp30s=${rtmpKbps30s}kbps " +
+                "muxV=$muxedVideoTags muxA=$muxedAudioTags sentV=$videoFramesSent sentA=$audioFramesSent " +
+                "qDepth=${packetQueue.size}/$maxQueuePackets socketStalls=$socketWriteStalls " +
+                "reconnects=${reconnectionManager.attemptCount} drops=${packetQueue.droppedCount.get()} " +
+                "kfInterval=${kfInterval}ms health=${networkMonitor.currentHealth}"
+        )
         Log.i(
             TAG,
             "STAGE-AUDIT muxedV=$muxedVideoTags muxedA=$muxedAudioTags sentV=$videoFramesSent sentA=$audioFramesSent " +
@@ -437,8 +549,13 @@ class StreamPipeline(
         videoPacketizer.reset()
         audioPacketizer.reset()
         networkMonitor.unregister()
+        StreamTelemetryNotifier.updateState(RtmpConnectionState.IDLE)
         networkMonitor.reset()
         reconnectionManager.reset()
+        window5s.reset()
+        window10s.reset()
+        window30s.reset()
+        socketWriteStalls = 0L
 
         StreamTelemetryNotifier.updateState(RtmpConnectionState.IDLE)
     }

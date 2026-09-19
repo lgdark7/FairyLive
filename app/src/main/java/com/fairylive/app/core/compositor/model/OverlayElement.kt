@@ -63,6 +63,27 @@ data class OverlayElement(
             zIndex = zIndex
         )
 
+        fun createImageWithBounds(
+            id: String,
+            resourcePath: String,
+            x: Float,
+            y: Float,
+            width: Float,
+            height: Float,
+            opacity: Float = 1f,
+            zIndex: Int = 0
+        ) = OverlayElement(
+            id = id,
+            type = OverlayType.IMAGE,
+            resourcePath = resourcePath,
+            normalizedX = x,
+            normalizedY = y,
+            normalizedWidth = width,
+            normalizedHeight = height,
+            opacity = opacity,
+            zIndex = zIndex
+        )
+
         fun createText(
             id: String,
             config: TextOverlayConfig,

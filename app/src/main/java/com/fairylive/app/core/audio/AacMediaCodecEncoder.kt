@@ -43,6 +43,7 @@ class AacMediaCodecEncoder {
     private var mediaCodec: MediaCodec? = null
     private var config: AudioCaptureConfig? = null
     private var frameListener: EncodedAudioFrameListener? = null
+    var onAudioSpecificConfigAvailable: ((ByteArray) -> Unit)? = null
     var codecSelection: AudioCodecSelection? = null
         private set
 
@@ -202,7 +203,19 @@ class AacMediaCodecEncoder {
 
             when (outputIndex) {
                 MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> {
-                    Log.i(TAG, "Audio encoder format changed: ${codec.outputFormat}")
+                    val newFormat = codec.outputFormat
+                    Log.i(TAG, "Audio encoder format changed: $newFormat")
+                    try {
+                        val csd0 = newFormat.getByteBuffer("csd-0")
+                        if (csd0 != null) {
+                            val config = ByteArray(csd0.remaining())
+                            csd0.get(config)
+                            Log.i(TAG, "Extracted AudioSpecificConfig (${config.size}B) from csd-0")
+                            onAudioSpecificConfigAvailable?.invoke(config)
+                        }
+                    } catch (e: Exception) {
+                        Log.w(TAG, "Failed to extract csd-0 from audio format", e)
+                    }
                 }
                 MediaCodec.INFO_TRY_AGAIN_LATER -> {}
                 else -> {
@@ -237,6 +250,10 @@ class AacMediaCodecEncoder {
 
             totalFramesEncoded++
             totalBytesEncoded += bufferInfo.size
+
+            if (totalFramesEncoded == 1L) {
+                com.fairylive.app.core.lifecycle.StreamLifecycleDiagnostics.firstAudioFrame(bufferInfo.presentationTimeUs)
+            }
 
             val now = SystemClock.elapsedRealtime()
             val diff = now - lastMetricsCalcTime

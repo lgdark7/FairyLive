@@ -38,6 +38,9 @@ data class VideoEncoderConfig(
         format.setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, keyframeIntervalSec)
         format.setInteger(MediaFormat.KEY_BITRATE_MODE, bitrateMode)
         format.setInteger(MediaFormat.KEY_PROFILE, profile)
+        try {
+            format.setInteger(MediaFormat.KEY_PREPEND_HEADER_TO_SYNC_FRAMES, 1)
+        } catch (_: Exception) {}
         return format
     }
 

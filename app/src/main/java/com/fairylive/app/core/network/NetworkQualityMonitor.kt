@@ -293,22 +293,23 @@ class NetworkQualityMonitor(
         val previousHealth = currentHealth
         val queueRatio = if (currentQueueMax > 0) currentQueueDepth.toFloat() / currentQueueMax.toFloat() else 0f
         val avgLatency = averageLatencyMs
+        val hasCongestionSignal = queueRatio >= 0.20f || consecutiveSlowWrites > 0 || avgLatency >= slowWriteThresholdMs
 
         val newHealth = when {
             // Severe congestion or failure conditions
-            consecutiveFailures > 0 || !isNetworkAvailable || (isRtmpConnected && avgLatency >= criticalWriteThresholdMs) || queueRatio >= 0.75f || (lastCalculatedThroughputBps in 1..250_000L) -> {
+            consecutiveFailures > 0 || !isNetworkAvailable || (isRtmpConnected && avgLatency >= criticalWriteThresholdMs) || queueRatio >= 0.75f || (hasCongestionSignal && lastCalculatedThroughputBps in 1..250_000L) -> {
                 NetworkHealth.CRITICAL
             }
             // Poor network
-            consecutiveSlowWrites >= 3 || avgLatency >= 350L || queueRatio >= 0.50f || (lastCalculatedThroughputBps in 250_001..500_000L) -> {
+            consecutiveSlowWrites >= 3 || avgLatency >= 350L || queueRatio >= 0.50f || (hasCongestionSignal && lastCalculatedThroughputBps in 250_001..500_000L) -> {
                 NetworkHealth.POOR
             }
             // Degraded network
-            consecutiveSlowWrites >= 1 || avgLatency >= slowWriteThresholdMs || queueRatio >= 0.25f || (lastCalculatedThroughputBps in 500_001..800_000L) -> {
+            consecutiveSlowWrites >= 1 || avgLatency >= slowWriteThresholdMs || queueRatio >= 0.25f || (hasCongestionSignal && lastCalculatedThroughputBps in 500_001..800_000L) -> {
                 NetworkHealth.DEGRADED
             }
             // Excellent network
-            avgLatency in 1..49 && consecutiveSlowWrites == 0 && queueRatio <= 0.05f && (lastCalculatedThroughputBps == 0L || lastCalculatedThroughputBps >= 1_000_000L) -> {
+            avgLatency in 1..49 && consecutiveSlowWrites == 0 && queueRatio <= 0.05f -> {
                 NetworkHealth.EXCELLENT
             }
             // Default healthy

@@ -75,7 +75,7 @@
                         android:layout_height="wrap_content"
                         android:buttonTint="@color/accent_primary"
                         android:checked="true"
-                        android:text="YouTube Live (a.rtmp.youtube.com:1935/live2)"
+                        android:text="YouTube Live (rtmp://a.rtmp.youtube.com/live2)"
                         android:textColor="@color/text_primary"
                         android:textSize="13sp" />
 
@@ -87,7 +87,8 @@
                         android:buttonTint="@color/accent_primary"
                         android:text="Custom RTMP Destination"
                         android:textColor="@color/text_primary"
-                        android:textSize="13sp" />
+                        android:textSize="13sp"
+                        android:visibility="gone" />
 
                     <RadioButton
                         android:id="@+id/rb_dest_local_test"
@@ -97,14 +98,15 @@
                         android:buttonTint="@color/accent_primary"
                         android:text="Local Test Server (127.0.0.1:19350 - Dev Only)"
                         android:textColor="@color/text_muted"
-                        android:textSize="12sp" />
+                        android:textSize="12sp"
+                        android:visibility="gone" />
                 </RadioGroup>
 
                 <TextView
                     android:id="@+id/tv_label_server_url"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Destination URL"
+                    android:text="YouTube Server URL"
                     android:textColor="@color/text_secondary"
                     android:textSize="12sp" />
 
@@ -114,7 +116,7 @@
                     android:layout_height="44dp"
                     android:layout_marginTop="4dp"
                     android:background="@drawable/bg_control_icon_button"
-                    android:hint="rtmp://a.rtmp.youtube.com:1935/live2"
+                    android:hint="rtmp://a.rtmp.youtube.com/live2"
                     android:inputType="textUri"
                     android:paddingHorizontal="12dp"
                     android:textColor="@color/text_primary"
@@ -125,7 +127,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="12dp"
-                    android:text="Stream Key"
+                    android:text="YouTube Stream Key"
                     android:textColor="@color/text_secondary"
                     android:textSize="12sp" />
 

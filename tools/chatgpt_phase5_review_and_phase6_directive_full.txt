@@ -1,0 +1,874 @@
+Bruh - **I would NOT mark Phase 5 as fully accepted yet.** ??
+
+The report shows good progress, but there is a big difference between **"contract tests exist"** and **"the whole Phase 5 creator experience was actually implemented and interactively verified."**
+
+## ?? Phase 5 Review Verdict: CONDITIONALLY ACCEPTED
+
+### What I accept
+
+These parts look solid from the dossier:
+
+- Web URL validation
+- Web navigation API
+- Separate webpage zoom vs overlay scale
+- Crop persistence
+- Rotation persistence
+- Overlay locking
+- Z-index/layer ordering
+- WebView cleanup
+- Duplicate stream-start protection
+- Creator-only diagnostics
+- Process-death scene persistence
+- Credential redaction
+- 218/218 JVM tests
+- 31/31 connected tests
+- Real FLV capture
+- 2 codecs
+- MediaProjection architecture preserved
+
+### But these are still questionable ??
+
+The Phase 5 directive was much larger than the **5 modified files** reported.
+
+For example, the directive explicitly required:
+
+- Professional layer panel
+- Hide/show layers
+- Duplicate/delete layer UI
+- Web overlay gesture arbitration
+- Actual webpage scrolling through touch
+- Web zoom UI
+- Crop handles
+- Transform handles
+- Creator HUD improvements
+- Actual camera toggle
+- Chat auto-scroll behavior
+- Chat reconnect
+- YouTube chat interaction
+- Network reconnect state machine
+- Background streaming verification
+- Screen lock/unlock verification
+- configuration-change verification
+- memory/resource measurement
+- actual FPS measurement
+- dropped-frame measurement
+- accessibility audit
+- responsive layouts
+- full acceptance sequence
+
+Yet the report's **Modified Files** section only lists:
+
+```text
+OverlayConfigs.kt
+OffscreenWebRenderer.kt
+StreamDiagnosticsFragment.kt
+V11Phase5ContractUnitTest.kt
+v11_phase5_metrics.json
+```
+
+That doesn't prove the broader UI/lifecycle requirements were actually completed.
+
+Also, this is important:
+
+> `Est. video frames: 5,646`  
+> `Est. audio frames: 8,657`
+
+Those are explicitly **estimated**, so they should not be presented as definitive streaming metrics.
+
+---
+
+# ?? Therefore Phase 6 should NOT just add more features
+
+Phase 6 should be:
+
+# FAIRY LIVE V1.1 - PHASE 6
+## "Real Device Production Acceptance & Creator UX Completion"
+
+Give Hermes this:
+
+```text
+FAIRY LIVE V1.1 - PHASE 6 MASTER DIRECTIVE
+
+TITLE:
+"REAL-DEVICE PRODUCTION ACCEPTANCE, CREATOR UX COMPLETION & RELIABILITY"
+
+STATUS:
+Phase 5 is CONDITIONALLY ACCEPTED.
+
+Do NOT begin by adding new flashy features.
+
+First audit the actual FAIRY LIVE codebase against the Phase 5 directive and prove which requirements genuinely exist.
+
+The previous Phase 5 report claimed broad completion, but only five files were listed as modified. Therefore Phase 6 begins with a forensic implementation audit.
+
+==================================================
+1. PHASE 6 PRIMARY OBJECTIVE
+==================================================
+
+Turn FAIRY LIVE into a genuinely production-ready mobile creator streaming studio.
+
+The priority order is:
+
+1. Real functionality
+2. Real device verification
+3. Creator UX
+4. Stream reliability
+5. Render-domain isolation
+6. Performance
+7. Persistence
+8. Security
+9. Regression testing
+
+DO NOT fabricate verification.
+
+If something exists only as:
+- a model
+- a placeholder
+- a contract test
+- a fake UI
+- an estimated metric
+
+it must NOT be reported as fully verified.
+
+==================================================
+2. PHASE 6 AUDIT FIRST
+==================================================
+
+Before modifying code create:
+
+FEATURE_AUDIT_PHASE6.md
+
+For every Phase 5 requirement classify it:
+
+IMPLEMENTED + VERIFIED
+IMPLEMENTED + NOT VERIFIED
+PARTIALLY IMPLEMENTED
+NOT IMPLEMENTED
+
+Include:
+
+- exact source file
+- class/function
+- relevant implementation
+- test covering it
+- manual verification status
+
+Do not assume the Phase 5 dossier is correct.
+
+==================================================
+3. WEB OVERLAY - REAL CREATOR EXPERIENCE
+==================================================
+
+Verify that a creator can:
+
+ADD WEB OVERLAY
+
+ENTER REAL URL
+
+LOAD WEBSITE
+
+SEE WEBSITE IN STUDIO
+
+SCROLL WEBSITE
+
+ZOOM WEBSITE
+
+MOVE OVERLAY
+
+RESIZE OVERLAY
+
+ROTATE OVERLAY
+
+CROP OVERLAY
+
+CHANGE MASK
+
+CHANGE OPACITY
+
+LOCK OVERLAY
+
+The resulting webpage must actually appear in the broadcast composite.
+
+No placeholder-only implementation.
+
+==================================================
+4. WEB GESTURE ARBITRATION
+==================================================
+
+This is critical.
+
+The creator must be able to distinguish:
+
+WEBPAGE SCROLL
+from
+OVERLAY MOVE
+from
+OVERLAY SCALE
+from
+OVERLAY ROTATION
+from
+CROP
+
+Do not allow one gesture to accidentally perform another operation.
+
+Implement a deterministic gesture state machine.
+
+Example:
+
+IDLE
+WEB_SCROLL
+MOVE
+SCALE
+ROTATE
+CROP
+INSPECT
+
+Transitions must be tested.
+
+==================================================
+5. WEB OVERLAY EDITOR
+==================================================
+
+Build a professional editor.
+
+Selected web overlay should display:
+
+--------------------------------
+Selected: Browser
+--------------------------------
+
+[ Edit ]
+
+Position
+X ______
+Y ______
+
+Scale
+[--------?----]
+
+Rotation
+[--------?----]
+
+Opacity
+[--------?----]
+
+Web Zoom
+[--------?----]
+
+Crop
+[ Edit Crop ]
+
+Mask
+? Rectangle
+? Rounded
+? Circle
+
+[ Lock ]
+
+[ Reload ]
+
+[ Back ] [ Forward ]
+
+[ Reset ]
+--------------------------------
+
+Everything here is creator-only.
+
+==================================================
+6. CROP EDITOR
+==================================================
+
+Implement a visual crop editor.
+
+Show the actual web overlay.
+
+Display four crop handles:
+
+?Ŀ
+                
+?     CONTENT    ?
+                
+?
+
+Dragging handles changes:
+
+left
+top
+right
+bottom
+
+Crop preview must update immediately.
+
+Reset must restore the original region.
+
+==================================================
+7. LAYER PANEL
+==================================================
+
+Implement and manually verify:
+
+LAYERS
+
+? Browser
+? Subscriber Counter
+? Facecam
+? Goal
+? Text
+? Game
+
+Each row supports:
+
+SHOW/HIDE
+LOCK/UNLOCK
+MOVE UP
+MOVE DOWN
+DUPLICATE
+DELETE
+
+Ordering must be controlled by BroadcastSceneManager.
+
+==================================================
+8. CREATOR HUD
+==================================================
+
+During an actual live stream display:
+
+? LIVE
+?? VIEWERS
+?? CHAT
+?? MIC
+?? CAMERA
+? PAUSE
+? MORE
+
+The HUD must remain creator-only.
+
+Capture a broadcast frame proving the HUD is absent.
+
+==================================================
+9. MICROPHONE
+==================================================
+
+Do not implement fake mute.
+
+Verify:
+
+MIC ON
+
+audio packets contain audio
+
+MUTE
+
+audio capture is muted
+
+PTS remains continuous
+
+UNMUTE
+
+audio resumes
+
+Record measurable evidence.
+
+==================================================
+10. CAMERA
+==================================================
+
+Verify actual Facecam PIP behavior.
+
+Test:
+
+CAMERA OFF
+
+no camera texture
+
+CAMERA ON
+
+camera texture enters BROADCAST_COMPOSITE
+
+HUD camera button itself must never enter broadcast.
+
+==================================================
+11. CHAT
+==================================================
+
+Creator-only YouTube Live Chat must support:
+
+- receiving messages
+- scrolling
+- auto-scroll
+- pause auto-scroll while manually scrolling
+- resume auto-scroll
+- unread count
+- sending reply
+- reconnect
+- disconnected state
+
+Chat must never appear in RTMP output unless the creator explicitly adds a separate broadcast chat widget.
+
+==================================================
+12. SUBSCRIBER COUNTER
+==================================================
+
+Verify actual subscriber data flow.
+
+States:
+
+LOADING
+
+LIVE VALUE
+
+NETWORK FAILURE
+
+CACHED VALUE
+
+RETRY
+
+UPDATED VALUE
+
+Do not hard-code demonstration values such as:
+
+12.5K
+
+unless explicitly in a preview/demo mode.
+
+==================================================
+13. STREAM CONNECTION STATE
+==================================================
+
+Implement truthful states:
+
+READY
+STARTING
+LIVE
+RECONNECTING
+PAUSED
+STOPPING
+STOPPED
+ERROR
+
+Never show:
+
+LIVE
+
+when RTMP is disconnected.
+
+Never create duplicate:
+
+MediaProjection
+encoder
+audio recorder
+RTMP connection
+foreground service
+
+==================================================
+14. RECONNECT
+==================================================
+
+Perform an actual disconnect test.
+
+LIVE
+
+NETWORK FAILURE
+
+RECONNECTING
+
+RTMP RESTORED
+
+LIVE
+
+Record:
+
+disconnect time
+reconnect time
+number of reconnect attempts
+whether encoder was duplicated
+whether timestamps remained valid
+
+==================================================
+15. BACKGROUND TEST
+==================================================
+
+Perform:
+
+START LIVE
+
+HOME BUTTON
+
+wait
+
+RETURN
+
+Broadcast must continue.
+
+Then:
+
+START LIVE
+
+SCREEN LOCK
+
+wait
+
+UNLOCK
+
+Verify stream state.
+
+==================================================
+16. PROCESS DEATH
+==================================================
+
+Test process interruption.
+
+Before:
+
+Scene:
+Browser
+Subscriber
+Text
+Facecam
+
+Kill/recreate process.
+
+Verify scene configuration survives.
+
+Do not claim process-death support merely because SharedPreferences serialization exists.
+
+Actually test it.
+
+==================================================
+17. PERFORMANCE
+==================================================
+
+Measure instead of estimating.
+
+Report:
+
+Actual FPS
+Dropped frames
+Encoder latency
+Average bitrate
+Peak bitrate
+A/V delta
+GC events
+Heap before stream
+Heap after stream
+Heap after 5 minutes
+WebView count
+WebView released count
+GL texture count
+GL textures released
+
+No "estimated frame count."
+
+==================================================
+18. MEMORY LEAK TEST
+==================================================
+
+Perform:
+
+ADD WEB
+LOAD
+DELETE
+ADD WEB
+LOAD
+DELETE
+
+Repeat at least 10 times.
+
+Verify:
+
+WebView instances do not accumulate.
+
+Also test:
+
+scene switch
+stream stop
+activity recreation
+app restart
+
+No persistent WebView leak.
+
+==================================================
+19. BROADCAST ISOLATION TEST
+==================================================
+
+During LIVE display:
+
+CREATOR HUD
+CHAT
+DIAGNOSTICS
+INSPECTOR
+LAYER PANEL
+
+Capture the actual RTMP output.
+
+Verify:
+
+HUD = ABSENT
+CHAT = ABSENT
+DIAGNOSTICS = ABSENT
+INSPECTOR = ABSENT
+LAYER PANEL = ABSENT
+
+Broadcast must contain only:
+
+GAME/SCREEN
++
+BROADCAST OVERLAYS
+
+==================================================
+20. MEDIA PROJECTION
+==================================================
+
+Do not change the working Android 14+/15 MediaProjection architecture without a documented blocker.
+
+Verify the system consent flow.
+
+Verify full-display capture.
+
+Verify creator-only HUD does not become part of the capture.
+
+==================================================
+21. ACCESSIBILITY
+==================================================
+
+Audit:
+
+48dp touch targets
+TalkBack descriptions
+button labels
+slider descriptions
+crop handles
+layer controls
+chat controls
+HUD controls
+
+Record actual findings.
+
+==================================================
+22. RESPONSIVE UI
+==================================================
+
+Test:
+
+Pixel 8
+small phone
+large phone
+
+Verify:
+
+No clipping
+No overlapping
+No unreachable controls
+No bottom-sheet obstruction
+No HUD outside screen
+
+==================================================
+23. SECURITY
+==================================================
+
+Search source, logs, generated reports and configs.
+
+Confirm zero:
+
+stream keys
+OAuth tokens
+Bearer tokens
+API secrets
+
+Use:
+
+[REDACTED]
+
+Add automated regression tests.
+
+==================================================
+24. TEST SUITE
+==================================================
+
+Never delete previous tests.
+
+Current baseline:
+
+218 JVM
+31 connected
+
+Add Phase 6 tests for:
+
+gesture arbitration
+web lifecycle
+web cleanup
+crop
+rotation
+layer ordering
+HUD isolation
+chat isolation
+mic state
+camera state
+reconnect
+stream state machine
+process recreation
+credential redaction
+
+Report exact numbers.
+
+==================================================
+25. REAL RTMP ACCEPTANCE
+==================================================
+
+Perform a genuine live broadcast.
+
+Scene must contain:
+
+GAME
++
+REAL WEBPAGE
++
+CROP
++
+ROTATION
++
+SUBSCRIBER WIDGET
++
+TEXT
+
+During broadcast:
+
+OPEN HUD
+OPEN CHAT
+MUTE
+UNMUTE
+PAUSE
+RESUME
+
+Then inspect the actual recorded FLV.
+
+==================================================
+26. REQUIRED ARTIFACTS
+==================================================
+
+Generate:
+
+FEATURE_AUDIT_PHASE6.md
+PHASE6_IMPLEMENTATION_PLAN.md
+PHASE6_VERIFICATION_REPORT.md
+
+Evidence:
+
+screenshots/phase6/
+tools/phase6/
+
+Include:
+
+RTMP FLV
+metrics JSON
+screenshots
+test reports
+performance data
+
+==================================================
+27. FINAL REPORT FORMAT
+==================================================
+
+Do NOT write:
+
+"100% complete"
+
+unless every acceptance requirement has actual evidence.
+
+Use:
+
+PASS
+CONDITIONAL
+NOT VERIFIED
+FAIL
+
+for every gate.
+
+==================================================
+28. ARCHITECTURE PROTECTION
+==================================================
+
+DO NOT rewrite:
+
+BroadcastSceneManager
+RTMP muxing architecture
+MediaCodec architecture
+Keystore encryption
+MediaProjection architecture
+
+unless a genuine defect is found.
+
+If modification becomes necessary:
+
+1. Document blocker.
+2. Explain why existing architecture cannot satisfy requirement.
+3. Propose minimal change.
+4. Add regression tests.
+5. Verify real RTMP behavior.
+
+==================================================
+29. GIT
+==================================================
+
+Do not commit until:
+
+tests pass
+manual verification is complete
+artifacts exist
+working tree is reviewed
+
+Then create:
+
+feat(v11): complete production creator acceptance
+
+Return exact commit hash.
+
+==================================================
+FINAL PRINCIPLE
+==================================================
+
+FAIRY LIVE is not finished because:
+
+"the code compiles."
+
+It is finished only when a real creator can:
+
+ADD WEBSITE
+ SCROLL
+ ZOOM
+ CROP
+ ROTATE
+ RESIZE
+ POSITION
+ LOCK
+ STREAM
+
+while simultaneously:
+
+OPEN CHAT
+MUTE MIC
+TOGGLE CAMERA
+PAUSE
+RESUME
+MONITOR STREAM
+
+and the viewer receives ONLY:
+
+GAME
++
+INTENDED BROADCAST OVERLAYS
+
+The creator controls remain completely private.
+
+BEGIN NOW:
+
+PHASE 6 - FORENSIC PROJECT AUDIT
+```
+
+### One important correction
+
+I would also tell Hermes **not to chase APK size as a primary goal anymore**. A 2.3 MB APK is nice, but for a streaming app the more important production metrics are:
+
+**stability  memory  actual FPS  dropped frames  A/V sync  reconnect reliability  battery/thermal behavior  creator UX.**
+
+That's where Phase 6 should focus.

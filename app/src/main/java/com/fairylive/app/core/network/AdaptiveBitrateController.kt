@@ -35,20 +35,33 @@ data class BitrateDecision(
  * conservative step-up recovery with hysteresis, and anti-oscillation cooldowns.
  */
 class AdaptiveBitrateController(
-    val ladderKbps: IntArray = intArrayOf(1200, 800, 500, 300),
+    ladderKbps: IntArray = intArrayOf(1200, 800, 500, 300),
     val cooldownMs: Long = 3000L,
     val hysteresisRequiredHealthyWindows: Int = 3
 ) {
+    var ladderKbps: IntArray = ladderKbps
+        private set
+
     init {
-        require(ladderKbps.isNotEmpty()) { "Bitrate ladder must not be empty" }
+        require(this.ladderKbps.isNotEmpty()) { "Bitrate ladder must not be empty" }
         // Verify ladder is in descending order
-        for (i in 0 until ladderKbps.size - 1) {
-            require(ladderKbps[i] > ladderKbps[i + 1]) { "Bitrate ladder must be strictly descending" }
+        for (i in 0 until this.ladderKbps.size - 1) {
+            require(this.ladderKbps[i] > this.ladderKbps[i + 1]) { "Bitrate ladder must be strictly descending" }
         }
     }
 
-    val maxBitrateKbps: Int = ladderKbps.first()
-    val minBitrateKbps: Int = ladderKbps.last()
+    val maxBitrateKbps: Int get() = ladderKbps.first()
+    val minBitrateKbps: Int get() = ladderKbps.last()
+
+    fun updateLadder(newLadder: IntArray) {
+        require(newLadder.isNotEmpty()) { "Bitrate ladder must not be empty" }
+        for (i in 0 until newLadder.size - 1) {
+            require(newLadder[i] > newLadder[i + 1]) { "Bitrate ladder must be strictly descending" }
+        }
+        this.ladderKbps = newLadder
+        this.currentTierIndex = 0
+        this.thermalCeilingTierIndex = 0
+    }
 
     var currentTierIndex: Int = 0
         private set
@@ -98,6 +111,9 @@ class AdaptiveBitrateController(
      * Initializes controller with a base target bitrate.
      */
     fun initialize(initialBitrateKbps: Int, nowElapsedMs: Long = SystemClock.elapsedRealtime()) {
+        if (initialBitrateKbps > 0 && Math.abs(ladderKbps.first() - initialBitrateKbps) > 200) {
+            updateLadder(createLadder(initialBitrateKbps))
+        }
         val closestIndex = findClosestTierIndex(initialBitrateKbps)
         currentTierIndex = closestIndex
         lastDecisionTimeMs = nowElapsedMs
@@ -253,5 +269,15 @@ class AdaptiveBitrateController(
 
     companion object {
         private const val TAG = "AdaptiveBitrateCtrl"
+
+        fun createLadder(targetBitrateKbps: Int): IntArray {
+            val t = targetBitrateKbps.coerceIn(300, 10000)
+            return intArrayOf(
+                t,
+                (t * 0.75).toInt().coerceAtLeast(300),
+                (t * 0.50).toInt().coerceAtLeast(250),
+                (t * 0.30).toInt().coerceAtLeast(200)
+            ).distinct().sortedDescending().toIntArray()
+        }
     }
 }

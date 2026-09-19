@@ -45,7 +45,7 @@ class HardwareVideoEncoderTest {
 
         assertEquals(1280, config.alignedWidth)
         assertEquals(720, config.alignedHeight)
-        assertEquals(2200, config.bitrateKbps)
+        assertEquals(2500, config.bitrateKbps)
         assertEquals(30, config.fps)
         assertEquals(MediaFormat.MIMETYPE_VIDEO_AVC, config.mimeType)
     }

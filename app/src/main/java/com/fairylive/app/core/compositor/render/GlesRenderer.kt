@@ -55,6 +55,7 @@ class GlesRenderer {
     private var cameraSurface: Surface? = null
     private var facecamProgram: Int = 0
 
+    private val captureTexMatrix = FloatArray(16)
     private val cameraTexMatrix = FloatArray(16)
     private val cameraModelMatrix = FloatArray(16)
     private var lastCameraTimestampNanos: Long = -1L
@@ -66,6 +67,8 @@ class GlesRenderer {
     private var encoderSurface: Surface? = null
     private var streamWidth: Int = 0
     private var streamHeight: Int = 0
+    private var captureSourceWidth: Int = 0
+    private var captureSourceHeight: Int = 0
     private var assetManager: android.content.res.AssetManager? = null
     var context: android.content.Context? = null
 
@@ -76,14 +79,23 @@ class GlesRenderer {
     // Fullscreen quad (2D, 2 verts each) — NDC position + UV
     private val quadVerts = directBuffer(floatArrayOf(-1f, -1f, 1f, -1f, -1f, 1f, 1f, 1f))
     private val quadUvs = directBuffer(floatArrayOf(0f, 1f, 1f, 1f, 0f, 0f, 1f, 0f))
+    private var captureQuadUvs: FloatBuffer = directBuffer(floatArrayOf(0f, 0f, 1f, 0f, 0f, 1f, 1f, 1f))
+    private var captureQuadVerts: FloatBuffer = directBuffer(floatArrayOf(-1f, -1f, 1f, -1f, -1f, 1f, 1f, 1f))
+    private var captureGeometryState: com.fairylive.app.core.capture.model.CaptureGeometryState =
+        com.fairylive.app.core.capture.model.CaptureGeometryState()
+    @Volatile
+    private var isCaptureVisible: Boolean = true
 
-    // Single overlay quad (bottom-left origin for the transform math) — 4 corners, 6 indices
+    val currentGeometryState: com.fairylive.app.core.capture.model.CaptureGeometryState
+        get() = captureGeometryState
+
+    // Single overlay quad (-0.5..0.5) centered at origin for center-pivot scale & rotation
     private val overlayVerts = directBuffer(
         floatArrayOf(
-            0f, 0f,
-            1f, 0f,
-            0f, 1f,
-            1f, 1f
+            -0.5f, -0.5f,
+             0.5f, -0.5f,
+            -0.5f,  0.5f,
+             0.5f,  0.5f
         )
     )
     private val overlayUvs = directBuffer(
@@ -197,8 +209,9 @@ class GlesRenderer {
             }, renderHandler)
         }
         captureSurface = Surface(captureSurfaceTexture)
+        android.opengl.Matrix.setIdentityM(captureTexMatrix, 0)
 
-        captureProgram = createProgram(VERTEX_SHADER, CAPTURE_FRAGMENT)
+        captureProgram = createProgram(CAPTURE_VERTEX_SHADER, CAPTURE_FRAGMENT)
         overlayProgram = createProgram(OVERLAY_VERTEX_SHADER, OVERLAY_FRAGMENT)
         gifStreamPlayer = GifStreamPlayer(assets)
 
@@ -217,9 +230,68 @@ class GlesRenderer {
 
         GLES20.glClearColor(0f, 0f, 0f, 1f)
         initialized = true
+        this.captureSourceWidth = width
+        this.captureSourceHeight = height
+        updateCaptureQuad()
 
         Log.i(TAG, "Renderer initialized: ${width}x${height}, captureSurface=$captureSurface, cameraSurface=$cameraSurface")
         return captureSurface!!
+    }
+
+    private fun updateCaptureQuad() {
+        if (streamWidth <= 0 || streamHeight <= 0 || captureSourceWidth <= 0 || captureSourceHeight <= 0) {
+            return
+        }
+
+        val state = com.fairylive.app.core.capture.model.CaptureGeometryState.calculate(
+            sourceWidth = captureSourceWidth,
+            sourceHeight = captureSourceHeight,
+            outputWidth = streamWidth,
+            outputHeight = streamHeight,
+            rotation = 0,
+            visibility = isCaptureVisible
+        )
+        this.captureGeometryState = state
+
+        val uLeft = state.cropLeft
+        val uRight = 1.0f - state.cropRight
+        val vBottom = state.cropBottom
+        val vTop = 1.0f - state.cropTop
+
+        // Symmetrical center crop UV coordinates
+        val uvs = floatArrayOf(
+            uLeft,  vBottom,
+            uRight, vBottom,
+            uLeft,  vTop,
+            uRight, vTop
+        )
+        captureQuadUvs = directBuffer(uvs)
+
+        // In landscape gaming mode, quad fills full [-1, 1] canvas (scale=1.0)
+        // In portrait mode, pillarbox quad width by scale
+        val scaleX = if (state.isLandscape) 1.0f else state.scale
+        val scaleY = 1.0f
+
+        val verts = floatArrayOf(
+            -scaleX, -scaleY,
+             scaleX, -scaleY,
+            -scaleX,  scaleY,
+             scaleX,  scaleY
+        )
+        captureQuadVerts = directBuffer(verts)
+        Log.i(TAG, "[CAPTURE-CHAIN] Capture quad updated: source=${captureSourceWidth}x${captureSourceHeight} (aspect=${state.sourceAspectRatio}), output=${streamWidth}x${streamHeight} (aspect=${state.outputAspectRatio}), crop=[L=${state.cropLeft}, R=${state.cropRight}, T=${state.cropTop}, B=${state.cropBottom}], scale=$scaleX, visible=${state.visibility}")
+    }
+
+    /**
+     * Updates visibility state when app switches in/out of foreground.
+     * When visible = true, triggers geometry re-evaluation to prevent stale dimensions.
+     */
+    fun onVisibilityChanged(visible: Boolean) {
+        this.isCaptureVisible = visible
+        Log.i(TAG, "[CAPTURE-CHAIN] GlesRenderer visibility changed: $visible")
+        if (visible) {
+            updateCaptureQuad()
+        }
     }
 
     /** Exposes the camera preview input surface for Facecam capture. */
@@ -249,6 +321,7 @@ class GlesRenderer {
         if (!initialized) return false
         return try {
             st.updateTexImage()
+            st.getTransformMatrix(captureTexMatrix)
             val currentTs = st.timestamp
             val isDifferent = (currentTs != 0L && currentTs != lastCaptureTimestampNanos) || force
             if (isDifferent) {
@@ -261,6 +334,19 @@ class GlesRenderer {
             Log.w(TAG, "consumeNewFrame skipped: ${e.message}")
             false
         }
+    }
+
+    /**
+     * Updates capture source dimensions on orientation change or task resize.
+     * The broadcast canvas (streamWidth x streamHeight) remains fixed to the encoder target.
+     */
+    fun updateDimensions(width: Int, height: Int) {
+        if (!initialized) return
+        this.captureSourceWidth = width
+        this.captureSourceHeight = height
+        captureSurfaceTexture?.setDefaultBufferSize(width, height)
+        updateCaptureQuad()
+        Log.i(TAG, "[CAPTURE-CHAIN] GlesRenderer capture dimensions updated: ${width}x${height}, canvas remains ${streamWidth}x${streamHeight}")
     }
 
     /**
@@ -443,11 +529,16 @@ class GlesRenderer {
 
         val posLoc = GLES20.glGetAttribLocation(captureProgram, "aPosition")
         val uvLoc = GLES20.glGetAttribLocation(captureProgram, "aTexCoord")
+        val uTexMatrixLoc = GLES20.glGetUniformLocation(captureProgram, "uTexMatrix")
+
         GLES20.glEnableVertexAttribArray(posLoc)
         GLES20.glEnableVertexAttribArray(uvLoc)
-        GLES20.glVertexAttribPointer(posLoc, 2, GLES20.GL_FLOAT, false, 0, quadVerts)
-        GLES20.glVertexAttribPointer(uvLoc, 2, GLES20.GL_FLOAT, false, 0, quadUvs)
+        GLES20.glVertexAttribPointer(posLoc, 2, GLES20.GL_FLOAT, false, 0, captureQuadVerts)
+        GLES20.glVertexAttribPointer(uvLoc, 2, GLES20.GL_FLOAT, false, 0, captureQuadUvs)
         GLES20.glUniform1i(GLES20.glGetUniformLocation(captureProgram, "uTexture"), 0)
+        if (uTexMatrixLoc >= 0) {
+            GLES20.glUniformMatrix4fv(uTexMatrixLoc, 1, false, captureTexMatrix, 0)
+        }
 
         GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4)
 
@@ -470,17 +561,18 @@ class GlesRenderer {
         } else {
             null
         }
-        val needsUpload = layer.textureHandle == 0 || (isGif && gifFrame?.second == true)
+        val needsUpload = layer.textureHandle == 0 || (isGif && gifFrame?.second == true) || layer.dirty
         if (needsUpload) {
             val bitmap = gifFrame?.first ?: resolveLayerBitmap(layer, resources)
             if (bitmap != null) {
-                if (isGif && layer.textureHandle != 0) {
+                if ((isGif || layer.dirty) && layer.textureHandle != 0) {
                     GLES20.glDeleteTextures(1, intArrayOf(layer.textureHandle), 0)
                 }
                 layer.textureHandle = uploadBitmap(bitmap)
                 resources.trackTexture(layer.textureHandle)
                 layer.sourceWidth = bitmap.width
                 layer.sourceHeight = bitmap.height
+                layer.dirty = false
             } else {
                 return // resource failed to load — skip this layer
             }
@@ -751,6 +843,17 @@ class GlesRenderer {
             void main() {
                 gl_Position = aPosition;
                 vTexCoord = aTexCoord;
+            }
+        """
+
+        private const val CAPTURE_VERTEX_SHADER = """
+            attribute vec4 aPosition;
+            attribute vec2 aTexCoord;
+            uniform mat4 uTexMatrix;
+            varying vec2 vTexCoord;
+            void main() {
+                gl_Position = aPosition;
+                vTexCoord = (uTexMatrix * vec4(aTexCoord, 0.0, 1.0)).xy;
             }
         """
 

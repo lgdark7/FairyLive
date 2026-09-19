@@ -10,6 +10,7 @@ import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.net.InetSocketAddress
 import java.net.Socket
+import java.net.SocketTimeoutException
 import java.net.URI
 
 data class RtmpEndpoint(
@@ -71,6 +72,8 @@ data class RtmpEndpoint(
     }
 }
 
+class RtmpPublishRejectedException(message: String) : IllegalStateException(message)
+
 /**
  * Native, zero-dependency RTMP client.
  * Manages Handshake, Connect, CreateStream, Publish, and multiplexed chunk delivery.
@@ -82,6 +85,7 @@ class RtmpClient(
     private var socket: Socket? = null
     private var chunkWriter: RtmpChunkWriter? = null
     private var chunkReader: RtmpChunkReader? = null
+    private var readThread: Thread? = null
 
     var publishStreamId: Int = 1
         private set
@@ -97,6 +101,7 @@ class RtmpClient(
     var onStateChangedListener: ((RtmpConnectionState) -> Unit)? = null
 
     fun connect(endpoint: RtmpEndpoint) {
+        com.fairylive.app.core.lifecycle.StreamLifecycleDiagnostics.rtmpConnecting(endpoint.tcUrl, endpoint.streamKey)
         onStateChangedListener?.invoke(RtmpConnectionState.CONNECTING)
         Log.i(TAG, "Connecting to RTMP: ${endpoint.host}:${endpoint.port}/${endpoint.appName}")
 
@@ -125,6 +130,7 @@ class RtmpClient(
         Log.i(TAG, "STAGE-TRACE: RTMP_HANDSHAKE_STARTED")
         RtmpHandshake.execute(inStream, outStream)
         Log.i(TAG, "STAGE-TRACE: RTMP_HANDSHAKE_COMPLETE")
+        com.fairylive.app.core.lifecycle.StreamLifecycleDiagnostics.rtmpHandshakeComplete()
 
         val writer = RtmpChunkWriter(outStream, chunkSize = 128)
         val reader = RtmpChunkReader(inStream, inChunkSize = 128)
@@ -142,6 +148,7 @@ class RtmpClient(
         // Wait for connect result
         waitForConnectResult(reader)
         Log.i(TAG, "STAGE-TRACE: RTMP_CONNECT_ACCEPTED")
+        com.fairylive.app.core.lifecycle.StreamLifecycleDiagnostics.rtmpConnected()
 
         // 4. CreateStream Command
         onStateChangedListener?.invoke(RtmpConnectionState.CREATING_STREAM)
@@ -155,10 +162,18 @@ class RtmpClient(
         // 5. Publish Command
         Log.i(TAG, "STAGE-TRACE: RTMP_PUBLISH [streamKeyLength=${endpoint.streamKey.length}]")
         sendPublishCommand(writer, assignedStreamId, endpoint.streamKey)
+
+        // Wait for publish result / onStatus
+        waitForPublishResult(reader)
+
         this.isConnected = true
         this.isPublishing = true
+        com.fairylive.app.core.lifecycle.StreamLifecycleDiagnostics.rtmpPublishStarted()
         onStateChangedListener?.invoke(RtmpConnectionState.PUBLISHING)
         Log.i(TAG, "STAGE-TRACE: YOUTUBE_STREAM_RECEIVING [Stream ID: $assignedStreamId]")
+
+        // Start background incoming message reader to handle pings and keep socket healthy
+        startIncomingMessageReader()
     }
 
     private fun sendConnectCommand(writer: RtmpChunkWriter, endpoint: RtmpEndpoint) {
@@ -271,6 +286,108 @@ class RtmpClient(
         )
     }
 
+    private fun waitForPublishResult(reader: RtmpChunkReader) {
+        val startTime = System.currentTimeMillis()
+        while (System.currentTimeMillis() - startTime < timeoutMs) {
+            val msg = try {
+                reader.readNextMessage()
+            } catch (_: SocketTimeoutException) {
+                Log.w(TAG, "SocketTimeout waiting for publish onStatus, continuing to stream")
+                return
+            }
+            Log.i(TAG, "STAGE-TRACE: Post-publish msg type=${msg.messageTypeId}, csid=${msg.csid}, len=${msg.payload.size}")
+            if (msg.messageTypeId == 20) { // Command message
+                val inStream = ByteArrayInputStream(msg.payload)
+                val cmdName = Amf0Codec.readValue(inStream) as? String
+                val txId = Amf0Codec.readValue(inStream) as? Double
+                Amf0Codec.readValue(inStream) // null command object
+                val infoObj = Amf0Codec.readValue(inStream) as? Map<*, *>
+
+                Log.i(TAG, "STAGE-TRACE: RTMP publish response: cmd=$cmdName, txId=$txId, info=$infoObj")
+
+                val code = infoObj?.get("code") as? String
+                val level = infoObj?.get("level") as? String
+
+                if (code == "NetStream.Publish.Start" || level == "status") {
+                    Log.i(TAG, "STAGE-TRACE: RTMP_PUBLISH_ACCEPTED ($code)")
+                    return
+                } else if (code == "NetStream.Publish.BadName" || code == "NetStream.Publish.Denied" || code == "NetStream.Publish.Rejected" || level == "error") {
+                    val desc = infoObj?.get("description") as? String ?: code ?: "Publish rejected"
+                    throw RtmpPublishRejectedException("RTMP publish rejected by server: $code ($desc)")
+                }
+            } else if (msg.messageTypeId == 1) { // Set Chunk Size from server
+                val newChunkSize = ((msg.payload[0].toInt() and 0x7F) shl 24) or
+                        ((msg.payload[1].toInt() and 0xFF) shl 16) or
+                        ((msg.payload[2].toInt() and 0xFF) shl 8) or
+                        (msg.payload[3].toInt() and 0xFF)
+                Log.i(TAG, "STAGE-TRACE: Server Set Chunk Size: $newChunkSize")
+                reader.inChunkSize = newChunkSize
+            } else if (msg.messageTypeId == 4) { // User Control Message
+                val eventType = ((msg.payload[0].toInt() and 0xFF) shl 8) or (msg.payload[1].toInt() and 0xFF)
+                Log.i(TAG, "STAGE-TRACE: User Control message: eventType=$eventType")
+            }
+        }
+        Log.w(TAG, "Timeout waiting for publish onStatus, continuing to stream")
+    }
+
+    private fun startIncomingMessageReader() {
+        val reader = chunkReader ?: return
+        val sock = socket ?: return
+        readThread = Thread({
+            Log.i(TAG, "RTMP incoming message reader started")
+            while (isConnected && !sock.isClosed) {
+                try {
+                    val msg = reader.readNextMessage()
+                    when (msg.messageTypeId) {
+                        1 -> { // Set Chunk Size
+                            val newChunkSize = ((msg.payload[0].toInt() and 0x7F) shl 24) or
+                                    ((msg.payload[1].toInt() and 0xFF) shl 16) or
+                                    ((msg.payload[2].toInt() and 0xFF) shl 8) or
+                                    (msg.payload[3].toInt() and 0xFF)
+                            Log.i(TAG, "Server Set Chunk Size: $newChunkSize")
+                            reader.inChunkSize = newChunkSize
+                        }
+                        4 -> { // User Control Message
+                            val eventType = ((msg.payload[0].toInt() and 0xFF) shl 8) or (msg.payload[1].toInt() and 0xFF)
+                            if (eventType == 6 && msg.payload.size >= 6) { // Ping Request
+                                val respPayload = ByteArray(6)
+                                respPayload[0] = 0x00
+                                respPayload[1] = 0x07 // Event 7 = Ping Response
+                                System.arraycopy(msg.payload, 2, respPayload, 2, 4)
+                                synchronized(this) {
+                                    chunkWriter?.writeMessage(
+                                        csid = 2,
+                                        messageTypeId = 4,
+                                        messageStreamId = 0,
+                                        timestampMs = 0L,
+                                        payload = respPayload
+                                    )
+                                }
+                                Log.i(TAG, "Responded to RTMP Ping Request (Event 6 -> 7)")
+                            }
+                        }
+                        20 -> { // Command Message
+                            val inStream = ByteArrayInputStream(msg.payload)
+                            val cmdName = Amf0Codec.readValue(inStream) as? String
+                            Log.i(TAG, "Received incoming RTMP command during streaming: $cmdName")
+                        }
+                    }
+                } catch (_: SocketTimeoutException) {
+                    // Normal timeout when no incoming message, keep waiting
+                } catch (e: Exception) {
+                    if (isConnected) {
+                        Log.w(TAG, "RTMP incoming message reader terminated: ${e.message}")
+                    }
+                    break
+                }
+            }
+            Log.i(TAG, "RTMP incoming message reader stopped")
+        }, "FairyRtmpReader").apply {
+            isDaemon = true
+            start()
+        }
+    }
+
     /**
      * Serializes and pushes an FLV packet onto the RTMP chunk stream.
      */
@@ -283,24 +400,31 @@ class RtmpClient(
             else -> 3
         }
 
-        writer.writeMessage(
-            csid = csid,
-            messageTypeId = packet.packetType,
-            messageStreamId = publishStreamId,
-            timestampMs = packet.timestampMs,
-            payload = packet.payload
-        )
+        synchronized(this) {
+            writer.writeMessage(
+                csid = csid,
+                messageTypeId = packet.packetType,
+                messageStreamId = publishStreamId,
+                timestampMs = packet.timestampMs,
+                payload = packet.payload
+            )
+        }
     }
 
     fun close() {
         isPublishing = false
         isConnected = false
         try {
+            readThread?.interrupt()
+        } catch (_: Exception) {}
+        readThread = null
+        try {
             socket?.close()
         } catch (_: Exception) {}
         socket = null
         chunkWriter = null
         chunkReader = null
+        com.fairylive.app.core.lifecycle.StreamLifecycleDiagnostics.rtmpDisconnected()
         onStateChangedListener?.invoke(RtmpConnectionState.IDLE)
     }
 

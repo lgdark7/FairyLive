@@ -32,6 +32,7 @@ class HardwareVideoEncoder {
     private val isDraining = AtomicBoolean(false)
 
     private var frameListener: EncodedFrameListener? = null
+    var onSpsPpsAvailable: ((ByteArray, ByteArray) -> Unit)? = null
 
     @Volatile
     var isEncoding: Boolean = false
@@ -114,6 +115,13 @@ class HardwareVideoEncoder {
         isPaused = false
         isDraining.set(true)
 
+        com.fairylive.app.core.lifecycle.StreamLifecycleDiagnostics.encoderStarted(
+            currentConfig?.alignedWidth ?: 0,
+            currentConfig?.alignedHeight ?: 0,
+            currentConfig?.fps ?: 0,
+            currentConfig?.mimeType ?: ""
+        )
+
         val thread = Thread({ drainLoop() }, "FairyEncoderDrainThread").apply {
             priority = Thread.MAX_PRIORITY
             start()
@@ -140,6 +148,20 @@ class HardwareVideoEncoder {
                 MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> {
                     val newFormat = codec.outputFormat
                     Log.i(TAG, "Encoder output format changed: $newFormat")
+                    try {
+                        val spsBuf = newFormat.getByteBuffer("csd-0")
+                        val ppsBuf = newFormat.getByteBuffer("csd-1")
+                        if (spsBuf != null && ppsBuf != null) {
+                            val sps = ByteArray(spsBuf.remaining())
+                            spsBuf.get(sps)
+                            val pps = ByteArray(ppsBuf.remaining())
+                            ppsBuf.get(pps)
+                            Log.i(TAG, "Extracted SPS (${sps.size}B) and PPS (${pps.size}B) from MediaFormat csd-0/csd-1")
+                            onSpsPpsAvailable?.invoke(sps, pps)
+                        }
+                    } catch (e: Exception) {
+                        Log.w(TAG, "Failed to extract SPS/PPS from outputFormat", e)
+                    }
                 }
                 MediaCodec.INFO_TRY_AGAIN_LATER -> {
                     // Timeout, keep polling
@@ -188,6 +210,9 @@ class HardwareVideoEncoder {
                 keyframesEncodedCount++
             }
 
+            if (framesEncodedCount == 1L) {
+                com.fairylive.app.core.lifecycle.StreamLifecycleDiagnostics.firstVideoFrame(frame.presentationTimeUs)
+            }
             val now = SystemClock.elapsedRealtime()
             val diff = now - lastMetricsCalcTime
             if (framesEncodedCount == 1L || diff >= 1000L) {
@@ -301,6 +326,7 @@ class HardwareVideoEncoder {
         isEncoding = false
         isPaused = false
 
+        com.fairylive.app.core.lifecycle.StreamLifecycleDiagnostics.encoderStopped()
         EncoderStateNotifier.updateState(EncoderState.IDLE)
         EncoderStateNotifier.updateMetrics(
             EncoderStateNotifier.currentMetrics.copy(

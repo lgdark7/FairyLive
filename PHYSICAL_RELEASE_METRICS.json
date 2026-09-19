@@ -1,0 +1,66 @@
+{
+  "project": "FAIRY LIVE",
+  "version": "1.2.1",
+  "versionCode": 121,
+  "verdict": "PASS",
+  "date": "2026-09-19",
+  "physical_device": {
+    "model": "Google Pixel 6a (bluejay)",
+    "serial": "26081JEGR07015",
+    "android_version": "17 (API 37)",
+    "build_id": "CP2A.260705.006",
+    "soc": "Google Tensor (Exynos)",
+    "hardware_encoder": "c2.exynos.h264.encoder",
+    "apk_installed": "app-release-v1.2.1.apk",
+    "debuggable": false,
+    "ram_pss_kb": 106122,
+    "battery_level_pct": 57,
+    "battery_temp_c": 40.1
+  },
+  "youtube_studio_live_verification": {
+    "chrome_pid": 11548,
+    "status": "LIVE",
+    "health": "Excellent",
+    "player_active": true,
+    "session_1_duration": "1:36",
+    "session_2_duration": "1:58",
+    "chat_connected": true,
+    "avc_sequence_header_ts_0": true,
+    "aac_sequence_header_ts_0": true,
+    "sps_pps_csd_extracted": true
+  },
+  "lifecycle_verification": {
+    "total_gates": 19,
+    "gates_passed": 19,
+    "stop_reason": "STOP_REASON_USER",
+    "clean_teardown": true,
+    "immediate_restart_session_2": true
+  },
+  "gameplay_verification": {
+    "target_package": "com.dts.freefiremax",
+    "content_recording_session": "RECORD_CONTENT_TASK",
+    "game_resolution": "2400x1080",
+    "broadcast_resolution": "1920x1080",
+    "dynamic_landscape_matrix": true,
+    "ui_leakage_detected": false
+  },
+  "streaming_metrics": {
+    "target_ingest": "rtmp://a.rtmp.youtube.com:1935/live2",
+    "assigned_stream_id": 1,
+    "audio_sample_rate": 44100,
+    "audio_channels": 1,
+    "video_packets_sent": 1468,
+    "audio_packets_sent": 2374,
+    "audio_drops": 0,
+    "video_drops": 0,
+    "pts_monotonic": true,
+    "dynamic_abr_active": true
+  },
+  "creator_controls": {
+    "floating_hud_collapsed_by_default": true,
+    "floating_hud_expand_collapse": true,
+    "floating_hud_isolated": true,
+    "live_chat_bottom_sheet_isolated": true,
+    "mic_mute_zeroes_pcm": true
+  }
+}
