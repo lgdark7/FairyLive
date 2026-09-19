@@ -1,13 +1,30 @@
 package com.fairylive.app.core.capture.model
 
 /**
+ * Scaling policy for adapting device screen aspect ratio to stream canvas.
+ */
+enum class ScaleMode {
+    /**
+     * Preserves 100% of the game screen and HUD with zero cropping.
+     * Fits the entire source into the broadcast canvas, dynamically letterboxing or pillarboxing
+     * to ensure no buttons, minimaps, or controls are sliced off.
+     */
+    FIT,
+
+    /**
+     * Symmetrically crops edges so the video fills 100% of the canvas without bars.
+     */
+    FILL
+}
+
+/**
  * Immutable atomic snapshot of screen capture geometry and transformation parameters.
  *
  * Tracks the complete spatial relationship between:
  * - The raw Android capture source (e.g. Free Fire MAX at 2400x1080, 20:9)
  * - The VirtualDisplay buffer dimensions
- * - The broadcast canvas / encoder output (e.g. 1920x1080, 16:9)
- * - Symmetrical crop offsets to eliminate letterboxing/pillarboxing for gaming
+ * - The broadcast canvas / encoder output (e.g. 1920x1080 or 1280x720, 16:9)
+ * - Dynamic scaling (scaleX, scaleY) and crop offsets
  * - SurfaceTexture transform matrix and visibility lifecycle
  */
 data class CaptureGeometryState(
@@ -17,11 +34,14 @@ data class CaptureGeometryState(
     val outputHeight: Int = 0,
     val rotation: Int = 0,
     val scale: Float = 1.0f,
+    val scaleX: Float = 1.0f,
+    val scaleY: Float = 1.0f,
     val cropLeft: Float = 0.0f,
     val cropRight: Float = 0.0f,
     val cropTop: Float = 0.0f,
     val cropBottom: Float = 0.0f,
     val visibility: Boolean = true,
+    val scaleMode: ScaleMode = ScaleMode.FILL,
     val timestampMs: Long = System.currentTimeMillis()
 ) {
     val sourceAspectRatio: Float
@@ -43,18 +63,17 @@ data class CaptureGeometryState(
 
     companion object {
         /**
-         * Calculates deterministic symmetrical crop parameters to map [sourceWidth] x [sourceHeight]
+         * Calculates deterministic scaling and crop parameters to map [sourceWidth] x [sourceHeight]
          * to [outputWidth] x [outputHeight].
          *
-         * Production Gaming Policy:
-         * - For landscape sources wider than 16:9 (e.g. 2400x1080 20:9 -> 1920x1080 16:9):
-         *   Symmetrically crops excess horizontal pixels (e.g. 240px from left, 240px from right)
-         *   so the game fills 100% of the 16:9 canvas with ZERO stretching, ZERO squashing,
-         *   and ZERO black letterbox bars.
-         * - For landscape sources narrower than 16:9 (e.g. 16:10 or 4:3):
-         *   Symmetrically crops excess vertical pixels to fill 16:9 canvas.
-         * - For portrait sources (sourceWidth < sourceHeight):
-         *   Pillarboxes to preserve full portrait content without cutting off controls.
+         * When [scaleMode] is [ScaleMode.FIT]:
+         * - Zero pixels are cropped.
+         * - If source is wider than output (e.g. 20:9 -> 16:9), it scales height to letterbox centered,
+         *   guaranteeing 100% of game buttons (Start, Vault, HUD, chat) are visible.
+         * - If source is narrower (portrait or 4:3), it pillarboxes width centered.
+         *
+         * When [scaleMode] is [ScaleMode.FILL] (legacy default):
+         * - Excess edges are symmetrically cropped to fill 100% of the canvas without bars.
          */
         fun calculate(
             sourceWidth: Int,
@@ -62,7 +81,8 @@ data class CaptureGeometryState(
             outputWidth: Int,
             outputHeight: Int,
             rotation: Int = 0,
-            visibility: Boolean = true
+            visibility: Boolean = true,
+            scaleMode: ScaleMode = ScaleMode.FILL
         ): CaptureGeometryState {
             if (sourceWidth <= 0 || sourceHeight <= 0 || outputWidth <= 0 || outputHeight <= 0) {
                 return CaptureGeometryState(
@@ -71,7 +91,8 @@ data class CaptureGeometryState(
                     outputWidth = outputWidth,
                     outputHeight = outputHeight,
                     rotation = rotation,
-                    visibility = visibility
+                    visibility = visibility,
+                    scaleMode = scaleMode
                 )
             }
 
@@ -82,39 +103,40 @@ data class CaptureGeometryState(
             var cropR = 0.0f
             var cropT = 0.0f
             var cropB = 0.0f
-            var scale = 1.0f
+            var sX = 1.0f
+            var sY = 1.0f
 
-            if (sourceWidth >= sourceHeight) {
-                // Landscape gaming mode
+            if (scaleMode == ScaleMode.FIT) {
+                // FIT MODE: 100% of screen is displayed, zero cropping
                 if (sourceAspect >= outputAspect) {
-                    // Source is wider than output (e.g. 20:9 -> 16:9)
-                    // Visible fraction of width = outputAspect / sourceAspect
-                    // e.g. (16/9) / (20/9) = 16/20 = 0.80 -> crop 10% on each side
-                    val visibleWidthFraction = outputAspect / sourceAspect
-                    val cropX = ((1.0f - visibleWidthFraction) / 2.0f).coerceIn(0.0f, 0.49f)
-                    cropL = cropX
-                    cropR = cropX
-                    cropT = 0.0f
-                    cropB = 0.0f
-                    scale = 1.0f
+                    // Source is wider than canvas (e.g. 20:9 / 2400x1080 -> 16:9 / 1280x720)
+                    // Full width fits edge-to-edge; scale down height with symmetrical letterbox bars
+                    sX = 1.0f
+                    sY = (outputAspect / sourceAspect).coerceIn(0.05f, 1.0f)
                 } else {
-                    // Source is narrower than output (e.g. 4:3 -> 16:9)
-                    val visibleHeightFraction = sourceAspect / outputAspect
-                    val cropY = ((1.0f - visibleHeightFraction) / 2.0f).coerceIn(0.0f, 0.49f)
-                    cropL = 0.0f
-                    cropR = 0.0f
-                    cropT = cropY
-                    cropB = cropY
-                    scale = 1.0f
+                    // Source is narrower than canvas (e.g. 9:20 portrait or 4:3 tablet -> 16:9)
+                    // Full height fits top-to-bottom; scale down width with symmetrical pillarbox bars
+                    sX = (sourceAspect / outputAspect).coerceIn(0.05f, 1.0f)
+                    sY = 1.0f
                 }
             } else {
-                // Portrait mode: pillarbox to preserve full screen height
-                val scaleX = sourceAspect / outputAspect
-                scale = scaleX
-                cropL = 0.0f
-                cropR = 0.0f
-                cropT = 0.0f
-                cropB = 0.0f
+                // FILL MODE: Symmetrical crop to fill 100% of canvas
+                if (sourceWidth >= sourceHeight) {
+                    if (sourceAspect >= outputAspect) {
+                        val visibleWidthFraction = outputAspect / sourceAspect
+                        val cropX = ((1.0f - visibleWidthFraction) / 2.0f).coerceIn(0.0f, 0.49f)
+                        cropL = cropX
+                        cropR = cropX
+                    } else {
+                        val visibleHeightFraction = sourceAspect / outputAspect
+                        val cropY = ((1.0f - visibleHeightFraction) / 2.0f).coerceIn(0.0f, 0.49f)
+                        cropT = cropY
+                        cropB = cropY
+                    }
+                } else {
+                    val scalePortrait = (sourceAspect / outputAspect).coerceIn(0.05f, 1.0f)
+                    sX = scalePortrait
+                }
             }
 
             return CaptureGeometryState(
@@ -123,12 +145,15 @@ data class CaptureGeometryState(
                 outputWidth = outputWidth,
                 outputHeight = outputHeight,
                 rotation = rotation,
-                scale = scale,
+                scale = sX,
+                scaleX = sX,
+                scaleY = sY,
                 cropLeft = cropL,
                 cropRight = cropR,
                 cropTop = cropT,
                 cropBottom = cropB,
-                visibility = visibility
+                visibility = visibility,
+                scaleMode = scaleMode
             )
         }
     }

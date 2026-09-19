@@ -50,6 +50,9 @@ class MainActivity : AppCompatActivity(), StreamStateNotifier.Listener {
     override fun onDestroy() {
         super.onDestroy()
         StreamStateNotifier.removeListener(this)
+        hudManager?.dismiss()
+        hudManager = null
+        StreamerFloatingHudManager.dismissAll()
     }
 
     private fun setupNavigation() {

@@ -37,6 +37,30 @@ class V122CaptureAndBitrateParityUnitTest {
     }
 
     @Test
+    fun test01b_deterministicScaleModeFit_20to9() {
+        val geometry = CaptureGeometryState.calculate(
+            sourceWidth = 2400,
+            sourceHeight = 1080,
+            outputWidth = 1920,
+            outputHeight = 1080,
+            scaleMode = com.fairylive.app.core.capture.model.ScaleMode.FIT
+        )
+
+        assertTrue(geometry.isLandscape)
+        // Zero cropping in FIT mode
+        assertEquals(0.0f, geometry.cropLeft, 0.001f)
+        assertEquals(0.0f, geometry.cropRight, 0.001f)
+        assertEquals(0.0f, geometry.cropTop, 0.001f)
+        assertEquals(0.0f, geometry.cropBottom, 0.001f)
+        assertEquals(1.0f, geometry.scaleX, 0.001f)
+        // Letterboxed vertically to preserve full 20:9 aspect ratio
+        val expectedScaleY = (1920f / 1080f) / (2400f / 1080f) // 1920 / 2400 = 0.80
+        assertEquals(expectedScaleY, geometry.scaleY, 0.001f)
+        assertEquals(2400f, geometry.visibleSourceWidth, 0.1f)
+        assertEquals(1080f, geometry.visibleSourceHeight, 0.1f)
+    }
+
+    @Test
     fun test02_deterministicGamingCropPolicy_4to3() {
         // 4:3 source (e.g. 1440x1080)
         // Output: 1920x1080 (16:9)

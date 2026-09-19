@@ -30,6 +30,12 @@ object OverlayCoordinateConverter {
         val normSourceX = sourceX / geometry.sourceWidth.toFloat()
         val normSourceY = sourceY / geometry.sourceHeight.toFloat()
 
+        if (geometry.scaleMode == com.fairylive.app.core.capture.model.ScaleMode.FIT) {
+            val outNormX = (0.5f + (normSourceX - 0.5f) * geometry.scaleX).coerceIn(0f, 1f)
+            val outNormY = (0.5f + (normSourceY - 0.5f) * geometry.scaleY).coerceIn(0f, 1f)
+            return Pair(outNormX, outNormY)
+        }
+
         if (geometry.isLandscape && geometry.cropLeft + geometry.cropRight > 0f) {
             // Symmetrical horizontal crop applied to fill 16:9
             val visibleSpanX = 1.0f - geometry.cropLeft - geometry.cropRight
@@ -62,6 +68,12 @@ object OverlayCoordinateConverter {
     ): Pair<Float, Float> {
         if (geometry.sourceWidth <= 0 || geometry.sourceHeight <= 0) {
             return Pair(0f, 0f)
+        }
+
+        if (geometry.scaleMode == com.fairylive.app.core.capture.model.ScaleMode.FIT) {
+            val normSourceX = if (geometry.scaleX > 0f) ((normOutX - 0.5f) / geometry.scaleX) + 0.5f else normOutX
+            val normSourceY = if (geometry.scaleY > 0f) ((normOutY - 0.5f) / geometry.scaleY) + 0.5f else normOutY
+            return Pair(normSourceX.coerceIn(0f, 1f) * geometry.sourceWidth, normSourceY.coerceIn(0f, 1f) * geometry.sourceHeight)
         }
 
         if (geometry.isLandscape && geometry.cropLeft + geometry.cropRight > 0f) {

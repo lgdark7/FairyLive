@@ -98,6 +98,13 @@ class GlesRenderer {
     @Volatile
     private var isCaptureVisible: Boolean = true
 
+    var scaleMode: com.fairylive.app.core.capture.model.ScaleMode =
+        com.fairylive.app.core.capture.model.ScaleMode.FIT
+        set(value) {
+            field = value
+            updateCaptureQuad()
+        }
+
     val currentGeometryState: com.fairylive.app.core.capture.model.CaptureGeometryState
         get() = captureGeometryState
 
@@ -273,7 +280,8 @@ class GlesRenderer {
             outputWidth = streamWidth,
             outputHeight = streamHeight,
             rotation = 0,
-            visibility = isCaptureVisible
+            visibility = isCaptureVisible,
+            scaleMode = scaleMode
         )
         this.captureGeometryState = state
 
@@ -282,7 +290,7 @@ class GlesRenderer {
         val vBottom = state.cropBottom
         val vTop = 1.0f - state.cropTop
 
-        // Symmetrical center crop UV coordinates
+        // Symmetrical UV coordinates
         val uvs = floatArrayOf(
             uLeft,  vBottom,
             uRight, vBottom,
@@ -291,10 +299,9 @@ class GlesRenderer {
         )
         captureQuadUvs = directBuffer(uvs)
 
-        // In landscape gaming mode, quad fills full [-1, 1] canvas (scale=1.0)
-        // In portrait mode, pillarbox quad width by scale
-        val scaleX = if (state.isLandscape) 1.0f else state.scale
-        val scaleY = 1.0f
+        // Dynamic scaleX and scaleY from state
+        val scaleX = state.scaleX
+        val scaleY = state.scaleY
 
         val verts = floatArrayOf(
             -scaleX, -scaleY,
@@ -303,7 +310,7 @@ class GlesRenderer {
              scaleX,  scaleY
         )
         captureQuadVerts = directBuffer(verts)
-        Log.i(TAG, "[CAPTURE-CHAIN] Capture quad updated: source=${captureSourceWidth}x${captureSourceHeight} (aspect=${state.sourceAspectRatio}), output=${streamWidth}x${streamHeight} (aspect=${state.outputAspectRatio}), crop=[L=${state.cropLeft}, R=${state.cropRight}, T=${state.cropTop}, B=${state.cropBottom}], scale=$scaleX, visible=${state.visibility}")
+        Log.i(TAG, "[CAPTURE-CHAIN] Capture quad updated: source=${captureSourceWidth}x${captureSourceHeight} (aspect=${state.sourceAspectRatio}), output=${streamWidth}x${streamHeight} (aspect=${state.outputAspectRatio}), mode=$scaleMode, scale=[X=$scaleX, Y=$scaleY], crop=[L=${state.cropLeft}, R=${state.cropRight}, T=${state.cropTop}, B=${state.cropBottom}], visible=${state.visibility}")
     }
 
     /**

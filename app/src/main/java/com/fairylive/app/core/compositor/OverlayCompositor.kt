@@ -196,6 +196,15 @@ class OverlayCompositor(
     }
 
     /**
+     * Updates scaling mode (FIT vs FILL) on renderer.
+     */
+    fun setScaleMode(mode: com.fairylive.app.core.capture.model.ScaleMode) {
+        renderHandler?.post {
+            renderer.scaleMode = mode
+        }
+    }
+
+    /**
      * Propagates capture visibility lifecycle changes to the renderer.
      */
     fun onVisibilityChanged(visible: Boolean) {

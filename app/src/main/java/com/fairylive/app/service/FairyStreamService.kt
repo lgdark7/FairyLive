@@ -238,6 +238,16 @@ class FairyStreamService : Service() {
                     soundAsset = "asset://alert_chime.wav"
                 )
             }
+            ACTION_SET_SCALE_MODE -> {
+                val modeName = intent?.getStringExtra(EXTRA_SCALE_MODE) ?: com.fairylive.app.core.capture.model.ScaleMode.FIT.name
+                val mode = try {
+                    com.fairylive.app.core.capture.model.ScaleMode.valueOf(modeName)
+                } catch (_: Exception) {
+                    com.fairylive.app.core.capture.model.ScaleMode.FIT
+                }
+                overlayCompositor.setScaleMode(mode)
+                Log.i("FairyStreamService", "Scale mode updated to $mode")
+            }
         }
 
         return START_STICKY
@@ -340,8 +350,8 @@ class FairyStreamService : Service() {
             return
         }
 
-        val rawW = intent.getIntExtra(EXTRA_WIDTH, 1080).coerceIn(320, 1920)
-        val rawH = intent.getIntExtra(EXTRA_HEIGHT, 1920).coerceIn(240, 1920)
+        val rawW = intent.getIntExtra(EXTRA_WIDTH, 1080).coerceIn(320, 3840)
+        val rawH = intent.getIntExtra(EXTRA_HEIGHT, 1920).coerceIn(240, 3840)
         val width = (rawW / 2) * 2
         val height = (rawH / 2) * 2
         val dpi = intent.getIntExtra(EXTRA_DPI, 420).coerceIn(120, 640)
@@ -419,6 +429,7 @@ class FairyStreamService : Service() {
             if (enableCompositor) {
                 try {
                     captureSurface = overlayCompositor.start(encoderSurface, encW, encH, fps)
+                    overlayCompositor.updateDimensions(width, height)
                     val app = applicationContext as? com.fairylive.app.FairyLiveApplication
                     val activeScene = app?.sceneManager?.activeScene
                     if (activeScene != null) {
@@ -455,8 +466,8 @@ class FairyStreamService : Service() {
 
             captureEngine.start(
                 projection,
-                encW,
-                encH,
+                width,
+                height,
                 dpi,
                 customSurface = captureSurface,
                 captureSource = settings?.captureSource ?: com.fairylive.app.core.settings.CaptureSource.SINGLE_APP,
@@ -747,8 +758,26 @@ class FairyStreamService : Service() {
         CaptureStateNotifier.updateState(CaptureState.IDLE)
         AudioStateNotifier.updateState(AudioCaptureState.IDLE)
         StreamTelemetryNotifier.updateState(RtmpConnectionState.IDLE)
+        mainHandler.post {
+            floatingHudManager?.dismiss()
+            floatingHudManager = null
+            com.fairylive.app.ui.hud.StreamerFloatingHudManager.dismissAll()
+        }
         if (activeService === this) {
             activeService = null
+        }
+    }
+
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        super.onTaskRemoved(rootIntent)
+        Log.i("FairyStreamService", "onTaskRemoved: User closed/swiped app from recents")
+        mainHandler.post {
+            floatingHudManager?.dismiss()
+            floatingHudManager = null
+            com.fairylive.app.ui.hud.StreamerFloatingHudManager.dismissAll()
+        }
+        if (!videoEncoder.isEncoding && !captureEngine.isCapturing) {
+            stopStreamService()
         }
     }
 
@@ -882,9 +911,11 @@ class FairyStreamService : Service() {
         const val ACTION_SWITCH_FACECAM = "com.fairylive.app.action.SWITCH_FACECAM"
         const val ACTION_UPDATE_FACECAM = "com.fairylive.app.action.UPDATE_FACECAM"
         const val ACTION_SWITCH_SCENE = "com.fairylive.app.action.SWITCH_SCENE"
+        const val ACTION_SET_SCALE_MODE = "com.fairylive.app.action.SET_SCALE_MODE"
 
         const val EXTRA_SCENE_ID = "extra_scene_id"
         const val EXTRA_TRANSITION = "extra_transition"
+        const val EXTRA_SCALE_MODE = "extra_scale_mode"
 
         const val EXTRA_ENABLE_FACECAM = "extra_enable_facecam"
         const val EXTRA_FACECAM_X = "extra_facecam_x"
@@ -1091,6 +1122,14 @@ class FairyStreamService : Service() {
                 action = ACTION_SWITCH_SCENE
                 putExtra(EXTRA_SCENE_ID, sceneId)
                 putExtra(EXTRA_TRANSITION, transitionType)
+            }
+            context.startService(intent)
+        }
+
+        fun setScaleMode(context: Context, mode: com.fairylive.app.core.capture.model.ScaleMode) {
+            val intent = Intent(context, FairyStreamService::class.java).apply {
+                action = ACTION_SET_SCALE_MODE
+                putExtra(EXTRA_SCALE_MODE, mode.name)
             }
             context.startService(intent)
         }
