@@ -814,12 +814,27 @@ class BroadcastPreviewView @JvmOverloads constructor(
                         var deg = Math.toDegrees(rad).toFloat() + 90f // +90 because handle is at top
                         deg = ((deg % 360f) + 360f) % 360f
 
+                        // Subtle 3.5-degree snap to cardinal angles (0, 90, 180, 270)
+                        val cardinalAngles = floatArrayOf(0f, 90f, 180f, 270f, 360f)
+                        for (cardinal in cardinalAngles) {
+                            if (Math.abs(deg - cardinal) < 3.5f) {
+                                deg = cardinal % 360f
+                                break
+                            }
+                        }
+
                         if (selId != "facecam") {
                             val overlay = elem ?: return false
                             val updated = overlay.copy(rotationDegrees = deg)
                             val updatedScene = scene.copy(
                                 overlayElements = scene.overlayElements.map { if (it.id == selId) updated else it }
                             )
+                            setScene(updatedScene)
+                            interactionListener?.onElementRotated(selId, deg)
+                        } else {
+                            val fc = scene.facecamConfig
+                            val updatedFc = fc.copy(rotationDegrees = deg)
+                            val updatedScene = scene.copy(facecamConfig = updatedFc)
                             setScene(updatedScene)
                             interactionListener?.onElementRotated(selId, deg)
                         }
@@ -875,27 +890,27 @@ class BroadcastPreviewView @JvmOverloads constructor(
                         var newX = (origX + deltaNormX).coerceIn(0f, 1f - elemW)
                         var newY = (origY + deltaNormY).coerceIn(0f, 1f - elemH)
 
-                        // Center & Margin Snapping
+                        // Subtle Center & Margin Snapping: 0.010f threshold (prevents sticky/jumping glitches)
                         val centerX = newX + elemW / 2f
-                        if (Math.abs(centerX - 0.5f) < 0.025f) {
+                        if (Math.abs(centerX - 0.5f) < 0.010f) {
                             newX = 0.5f - elemW / 2f
                             snapGuideVerticalX = 0.5f * w
-                        } else if (Math.abs(newX - 0.05f) < 0.02f) {
+                        } else if (Math.abs(newX - 0.05f) < 0.008f) {
                             newX = 0.05f
                             snapGuideVerticalX = 0.05f * w
-                        } else if (Math.abs((newX + elemW) - 0.95f) < 0.02f) {
+                        } else if (Math.abs((newX + elemW) - 0.95f) < 0.008f) {
                             newX = 0.95f - elemW
                             snapGuideVerticalX = 0.95f * w
                         }
 
                         val centerY = newY + elemH / 2f
-                        if (Math.abs(centerY - 0.5f) < 0.025f) {
+                        if (Math.abs(centerY - 0.5f) < 0.010f) {
                             newY = 0.5f - elemH / 2f
                             snapGuideHorizontalY = 0.5f * h
-                        } else if (Math.abs(newY - 0.05f) < 0.02f) {
+                        } else if (Math.abs(newY - 0.05f) < 0.008f) {
                             newY = 0.05f
                             snapGuideHorizontalY = 0.05f * h
-                        } else if (Math.abs((newY + elemH) - 0.95f) < 0.02f) {
+                        } else if (Math.abs((newY + elemH) - 0.95f) < 0.008f) {
                             newY = 0.95f - elemH
                             snapGuideHorizontalY = 0.95f * h
                         }
@@ -912,17 +927,91 @@ class BroadcastPreviewView @JvmOverloads constructor(
                     }
 
                     GestureState.RESIZE -> {
+                        val rot = elem?.rotationDegrees ?: (if (selId == "facecam") scene.facecamConfig.rotationDegrees else 0f)
+                        val localDelta = unrotateDelta(dx, dy, rot)
+                        val localNormX = localDelta.x / w
+                        val localNormY = localDelta.y / h
+
                         if (selId == "facecam") {
                             val fc = scene.facecamConfig
-                            val newW = (fc.normalizedWidth + deltaNormX).coerceIn(0.08f, 0.8f)
-                            val newH = (fc.normalizedHeight + deltaNormY).coerceIn(0.08f, 0.8f)
-                            interactionListener?.onFacecamTransformed(fc.normalizedX, fc.normalizedY, newW, newH)
+                            val curX = fc.normalizedX
+                            val curY = fc.normalizedY
+                            val curW = fc.normalizedWidth
+                            val curH = fc.normalizedHeight
+
+                            when (activeCorner) {
+                                0 -> { // Top-Left
+                                    val delta = (localNormX + localNormY) / 2f
+                                    val newW = (curW - delta).coerceIn(0.08f, 0.8f)
+                                    val newH = (curH - delta).coerceIn(0.08f, 0.8f)
+                                    val newX = (curX + (curW - newW)).coerceIn(0f, 1f - newW)
+                                    val newY = (curY + (curH - newH)).coerceIn(0f, 1f - newH)
+                                    interactionListener?.onFacecamTransformed(newX, newY, newW, newH)
+                                }
+                                1 -> { // Top-Right
+                                    val delta = (localNormX - localNormY) / 2f
+                                    val newW = (curW + delta).coerceIn(0.08f, 0.8f)
+                                    val newH = (curH + delta).coerceIn(0.08f, 0.8f)
+                                    val newY = (curY + (curH - newH)).coerceIn(0f, 1f - newH)
+                                    interactionListener?.onFacecamTransformed(curX, newY, newW, newH)
+                                }
+                                2 -> { // Bottom-Right
+                                    val delta = (localNormX + localNormY) / 2f
+                                    val newW = (curW + delta).coerceIn(0.08f, 0.8f)
+                                    val newH = (curH + delta).coerceIn(0.08f, 0.8f)
+                                    interactionListener?.onFacecamTransformed(curX, curY, newW, newH)
+                                }
+                                3 -> { // Bottom-Left
+                                    val delta = (-localNormX + localNormY) / 2f
+                                    val newW = (curW + delta).coerceIn(0.08f, 0.8f)
+                                    val newH = (curH + delta).coerceIn(0.08f, 0.8f)
+                                    val newX = (curX + (curW - newW)).coerceIn(0f, 1f - newW)
+                                    interactionListener?.onFacecamTransformed(newX, curY, newW, newH)
+                                }
+                                else -> {
+                                    val newW = (curW + localNormX).coerceIn(0.08f, 0.8f)
+                                    val newH = (curH + localNormY).coerceIn(0.08f, 0.8f)
+                                    interactionListener?.onFacecamTransformed(curX, curY, newW, newH)
+                                }
+                            }
                         } else {
                             val overlay = elem ?: return false
-                            val currentH = if (overlay.normalizedHeight > 0f) overlay.normalizedHeight else overlay.normalizedWidth * 0.4f
-                            val newW = (overlay.normalizedWidth + deltaNormX).coerceIn(0.05f, 0.95f)
-                            val newH = (currentH + deltaNormY).coerceIn(0.03f, 0.95f)
-                            interactionListener?.onElementTransformed(selId, overlay.normalizedX, overlay.normalizedY, newW, newH)
+                            val curX = overlay.normalizedX
+                            val curY = overlay.normalizedY
+                            val curW = overlay.normalizedWidth
+                            val curH = if (overlay.normalizedHeight > 0f) overlay.normalizedHeight else overlay.normalizedWidth * 0.4f
+
+                            when (activeCorner) {
+                                0 -> { // Top-Left
+                                    val newW = (curW - localNormX).coerceIn(0.05f, 0.95f)
+                                    val newH = (curH - localNormY).coerceIn(0.03f, 0.95f)
+                                    val newX = (curX + (curW - newW)).coerceIn(0f, 1f - newW)
+                                    val newY = (curY + (curH - newH)).coerceIn(0f, 1f - newH)
+                                    interactionListener?.onElementTransformed(selId, newX, newY, newW, newH)
+                                }
+                                1 -> { // Top-Right
+                                    val newW = (curW + localNormX).coerceIn(0.05f, 0.95f)
+                                    val newH = (curH - localNormY).coerceIn(0.03f, 0.95f)
+                                    val newY = (curY + (curH - newH)).coerceIn(0f, 1f - newH)
+                                    interactionListener?.onElementTransformed(selId, curX, newY, newW, newH)
+                                }
+                                2 -> { // Bottom-Right
+                                    val newW = (curW + localNormX).coerceIn(0.05f, 0.95f)
+                                    val newH = (curH + localNormY).coerceIn(0.03f, 0.95f)
+                                    interactionListener?.onElementTransformed(selId, curX, curY, newW, newH)
+                                }
+                                3 -> { // Bottom-Left
+                                    val newW = (curW - localNormX).coerceIn(0.05f, 0.95f)
+                                    val newH = (curH + localNormY).coerceIn(0.03f, 0.95f)
+                                    val newX = (curX + (curW - newW)).coerceIn(0f, 1f - newW)
+                                    interactionListener?.onElementTransformed(selId, newX, curY, newW, newH)
+                                }
+                                else -> {
+                                    val newW = (curW + localNormX).coerceIn(0.05f, 0.95f)
+                                    val newH = (curH + localNormY).coerceIn(0.03f, 0.95f)
+                                    interactionListener?.onElementTransformed(selId, curX, curY, newW, newH)
+                                }
+                            }
                         }
                         lastTouchX = touchX
                         lastTouchY = touchY

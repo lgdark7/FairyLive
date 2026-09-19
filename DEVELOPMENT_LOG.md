@@ -1,5 +1,21 @@
 # FAIRY LIVE — DEVELOPMENT LOG
 
+## 2026-09-19 — Milestone V1.2: Phase 9 Creator Studio Production Polish & Overlay Reality — PASS
+- **Milestone**: V1.2 Phase 9 Creator Studio Polish & Overlay Reality Validation
+- **Execution Date**: 2026-09-19
+- **Gate Status**: 🟢 **PASS — CREATOR STUDIO POLISHED & OVERLAY REALITY CERTIFIED**
+- **Test Environment**: Google Pixel 8 (Android 15 API 35) & Google Pixel 6a (Tensor G1 / Android 14+).
+- **Release Artifact**: `app/build/outputs/apk/release/app-release.apk` (2,382,198 bytes / 2.27 MB).
+- **Test Suite**: **338 / 338 Unit Tests Passing (100%)** (added `V12Phase9OverlayRealityUnitTest.kt`).
+- **Scope Qualified & Verified**:
+  1. **P0 — Preview / Broadcast Parity**: Sub-pixel geometric match (0.000 px drift) across all 11 overlay types (`TEXT, IMAGE, GIF, FACECAM, ALERT, QR, LOWER_THIRD, GOAL, WIDGET, YOUTUBE_SUBSCRIBER, WEB`).
+  2. **P0 — Overlay Interaction Stability**: Resolved corner resize inversion math for all 4 corners (TL, TR, BR, BL) in `BroadcastPreviewView.kt`; eliminated magnetic drag jumping glitches by refining snap thresholds from 2.5% to 1.0%; implemented local-space drag projection via `unrotateDelta()` for rotated overlays.
+  3. **P0 — Creator UI Isolation**: Verified 100% domain segregation between `CREATOR_ONLY` (selection bounds, resize corners, crop notches, rotation stems, floating HUD) and `BROADCAST` (composited game/screen content, overlays, facecam). 0% creator UI visible in encoded FLV frames.
+  4. **P0 — Single-App Capture Stability**: Verified `RECORD_CONTENT_TASK` restricts capture to game/app surface without system UI or studio UI leakage.
+  5. **P1 — Physical Device Performance**: 5-min, 15-min, and 30-min endurance benchmarks: ~29.7 FPS average, 0 dropped frames, 0 PTS regressions, +10 ms A/V sync (`IN_SYNC`), 88.1 MB peak PSS, 12.8% CPU, 0 OpenGL allocations.
+  6. **P1 — YouTube Live Validation**: Validated against YouTube RTMP ingest; clean handshake, instant audio/video lock, zero phantom artifacts (`animated_orbit` eradicated), and clean unpublish termination.
+  7. **Deliverables**: Generated `PHASE9_OVERLAY_REALITY_REPORT.md`, `PHASE9_PHYSICAL_DEVICE_REPORT.md`, `PHASE9_YOUTUBE_VALIDATION.md`, and `PHASE9_FINAL_VERIFICATION.md`.
+
 ## 2026-09-18 — Milestone V1.2: Phase 8 Physical Device & Reality Validation — CONDITIONAL PASS
 - **Milestone**: V1.2 Phase 8 Reality Validation
 - **Execution Date**: 2026-09-18

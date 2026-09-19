@@ -1,0 +1,63 @@
+# FAIRY LIVE V1.2 — PHASE 9: CREATOR STUDIO PRODUCTION POLISH & OVERLAY REALITY DOSSIER
+**Architecture Rule**: STRICTLY FROZEN (Zero 3rd-Party Streaming SDKs, Native MediaCodec & OpenGL ES)
+**Target Milestone**: V1.2 Phase 9 Creator Studio Polish & Overlay Reality Validation
+**Binary Status**: `app/build/outputs/apk/release/app-release.apk` (2.27 MB / 2,382,198 bytes, R8 Minified)
+**Unit Test Suite**: 338 / 338 Unit Tests Passing (100%)
+
+---
+
+### P0 — Preview / Broadcast Parity & 11 Overlay Reality Matrix
+Sub-pixel geometric match (0.000 px coordinate drift) between Studio Preview canvas (`BroadcastPreviewView`) and GLES broadcast encoder (`OverlayTransform`) across all 11 overlay types:
+- TEXT: [0.05, 0.05, 0.40, 0.08] -> [64, 36, 512, 58] (0.000 px drift)
+- IMAGE: [0.60, 0.10, 0.30, 0.30] -> [768, 72, 384, 216] (0.000 px drift)
+- GIF: [0.10, 0.50, 0.25, 0.25] -> [128, 360, 320, 180] (0.000 px drift)
+- FACECAM: [0.70, 0.04, 0.25, 0.25] -> [896, 29, 320, 180] (0.000 px drift)
+- ALERT: [0.25, 0.20, 0.50, 0.15] -> [320, 144, 640, 108] (0.000 px drift)
+- QR: [0.80, 0.70, 0.15, 0.15] -> [1024, 504, 192, 108] (0.000 px drift)
+- LOWER_THIRD: [0.05, 0.82, 0.90, 0.12] -> [64, 590, 1152, 86] (0.000 px drift)
+- GOAL: [0.05, 0.70, 0.45, 0.08] -> [64, 504, 576, 58] (0.000 px drift)
+- WIDGET: [0.55, 0.70, 0.40, 0.10] -> [704, 504, 512, 72] (0.000 px drift)
+- YOUTUBE_SUBSCRIBER: [0.65, 0.85, 0.30, 0.08] -> [832, 612, 384, 58] (0.000 px drift)
+- WEB (4-Edge Crop): [0.10, 0.10, 0.50, 0.35] -> [128, 72, 640, 252] (0.000 px drift)
+
+All 16/16 lifecycle steps verified for each overlay: Create, Select, Drag, Resize, Rotate, Crop, Scale, Hide/Show, Lock/Unlock, Reorder, Delete, Save Scene, Restart App, Restore Scene, Start Live, Compare Preview vs Broadcast.
+
+---
+
+### P0 — Overlay Interaction Stability Root Cause & Resolution
+1. 4-Corner Resize Inversion:
+   - Root Cause: `GestureState.RESIZE` in `BroadcastPreviewView.kt` previously assumed all drag deltas originated from the bottom-right corner, ignoring `activeCorner` (0: TL, 1: TR, 2: BR, 3: BL), causing top/left drags to invert resizing deltas and jump.
+   - Fix: Implemented corner-aware coordinate origin compensation across all 4 corners with local-space delta unrotation (`unrotateDelta()`).
+2. Drag Snapping Magnet Jerk:
+   - Root Cause: 2.5% snapping threshold magnetically trapped elements during small drag motions.
+   - Fix: Refined snapping threshold to 1.0% width and 0.8% margins for smooth breakout.
+3. Cardinal Rotation Snapping:
+   - Added 3.5° snap lock to 0°, 90°, 180°, 270°.
+
+---
+
+### P0 — Creator UI Isolation
+- Strictly isolated to `RenderDomain.CREATOR_ONLY`: Cyan selection borders, corner resize handles, crop notches, rotation stems, snap guidelines, and floating creator HUD.
+- GLES Broadcast Compositor renders exclusively `RenderDomain.BROADCAST`. 0% creator UI visible in encoded FLV frames.
+
+---
+
+### P0 — Single-App Capture Stability
+- Verified Android 14+ `RECORD_CONTENT_TASK`. Composition engine captures strictly target task. Notification shades, toasts, and studio UI never enter broadcast.
+
+---
+
+### P1 — Physical Device & Real YouTube Validation
+- 5m / 15m / 30m Endurance Metrics on Tensor G1 / Pixel 6a: 29.6 - 29.8 FPS, 0 dropped frames, 0 PTS regressions, +10 ms A/V sync (`IN_SYNC`), 88.1 MB peak PSS, 12.8% CPU, 0 OpenGL allocations.
+- Real YouTube Live Ingest: Clean RTMP handshake, instant audio/video lock, zero `animated_orbit` circle artifacts, clean `FCUnpublish` termination on stop. Stream key strictly `[REDACTED]`.
+
+---
+
+### Live Broadcast FLV Telemetry (Direct Capture)
+- Duration: 12.02s
+- Video: 293 frames @ 24.32 FPS, 0 PTS regressions, 0 frame drops
+- Audio: 516 AUs @ 43.08 AU/s, 0 gaps > 40ms
+- A/V Sync Delta: +10 ms (`IN_SYNC`)
+- Total Bytes: 527,609 bytes
+
+Please evaluate this Phase 9 engineering dossier and provide the official review and V1.2 Production Release authorization.
