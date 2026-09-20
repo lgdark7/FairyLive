@@ -1,7 +1,7 @@
 {
-  "versionCode": 123,
-  "versionName": "1.2.3",
-  "releaseNotes": "• Persistent 4-Channel Audio Studio & DSP Mixer\n• Hardware Noise Suppression & Audio HAL smooth transition\n• Organized App Settings with Category Filtering\n• In-App OTA Auto-Updater system",
-  "downloadUrl": "https://github.com/lgdark7/FairyLive/releases/download/v1.2.3/app-release.apk",
+  "versionCode": 124,
+  "versionName": "1.2.4",
+  "releaseNotes": "• God-Level Studio Noise Cancellation (Multi-Band Expander, 80Hz Rumble Cut, 8kHz De-Esser & Dynamic Noise-Floor Tracking)\n• Modernized Creator Studio Dashboard UX with Live Telemetry\n• High-Tech Settings Control Center with Quick Ingest Diagnostics\n• In-App OTA Auto-Updater & Stability Improvements",
+  "downloadUrl": "https://github.com/lgdark7/FairyLive/releases/download/v1.2.4/app-release.apk",
   "isMandatory": false
 }
