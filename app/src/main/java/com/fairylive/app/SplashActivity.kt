@@ -1,33 +1,33 @@
 package com.fairylive.app
 
 import android.content.Intent
-import android.net.Uri
 import android.os.Bundle
 import android.util.Log
 import android.view.View
 import android.widget.TextView
-import android.widget.VideoView
 import androidx.appcompat.app.AppCompatActivity
-import java.io.File
-import java.io.FileOutputStream
+import com.fairylive.app.ui.splash.FairySplashFlowView
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * SplashActivity presents the seamless 9-second branded logo-drawing animation
- * for Fairy Live on a pure black backdrop.
+ * for Fairy Live on a deep nocturnal violet (#130E22) backdrop.
  *
- * Tapping anywhere or letting the intro finish transitions smoothly to MainActivity.
+ * Driven by hardware-accelerated GPU canvas (FairySplashFlowView), running at
+ * native 60/120 FPS with zero decoder black flashes, zero flicker, and fluid parametric flow.
+ *
+ * Tapping anywhere or clicking "ENTER STUDIO ›" transitions smoothly to MainActivity.
  */
 class SplashActivity : AppCompatActivity() {
 
-    private var videoView: VideoView? = null
+    private var splashFlowView: FairySplashFlowView? = null
     private val isNavigating = AtomicBoolean(false)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_splash)
 
-        videoView = findViewById(R.id.splashVideoView)
+        splashFlowView = findViewById(R.id.splashFlowView)
         val btnSkip = findViewById<TextView>(R.id.btnSkipSplash)
         val root = findViewById<View>(R.id.splashRoot)
 
@@ -39,54 +39,12 @@ class SplashActivity : AppCompatActivity() {
             navigateToMain()
         }
 
-        setupAndPlaySplashVideo()
-    }
-
-    private fun setupAndPlaySplashVideo() {
-        try {
-            val videoFile = getAssetFile("fairy_splash_intro.mp4")
-            if (videoFile != null && videoFile.exists()) {
-                val uri = Uri.fromFile(videoFile)
-                videoView?.setVideoURI(uri)
-                videoView?.setOnPreparedListener { mp ->
-                    mp.isLooping = false
-                    mp.start()
-                    Log.i(TAG, "Splash video started playing (duration: ${mp.duration}ms)")
-                }
-                videoView?.setOnCompletionListener {
-                    Log.i(TAG, "Splash video completed 9s sequence -> navigating to MainActivity")
-                    navigateToMain()
-                }
-                videoView?.setOnErrorListener { _, what, extra ->
-                    Log.w(TAG, "Splash video playback error: what=$what extra=$extra")
-                    navigateToMain()
-                    true
-                }
-            } else {
-                Log.w(TAG, "Splash video asset not found, proceeding directly")
-                navigateToMain()
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Error initializing splash video", e)
+        splashFlowView?.onAnimationCompleteListener = {
+            Log.i(TAG, "Splash 9s sequence completed -> smoothly transitioning to MainActivity")
             navigateToMain()
         }
-    }
 
-    private fun getAssetFile(assetName: String): File? {
-        return try {
-            val file = File(cacheDir, assetName)
-            if (!file.exists() || file.length() == 0L) {
-                assets.open(assetName).use { input ->
-                    FileOutputStream(file).use { output ->
-                        input.copyTo(output)
-                    }
-                }
-            }
-            file
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to copy asset $assetName to cache", e)
-            null
-        }
+        splashFlowView?.startAnimation()
     }
 
     private fun navigateToMain() {
@@ -95,7 +53,7 @@ class SplashActivity : AppCompatActivity() {
         }
 
         try {
-            videoView?.stopPlayback()
+            splashFlowView?.stopAnimation()
         } catch (_: Exception) {}
 
         val intent = Intent(this, MainActivity::class.java).apply {
@@ -106,12 +64,20 @@ class SplashActivity : AppCompatActivity() {
         overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)
     }
 
+    override fun onPause() {
+        super.onPause()
+        splashFlowView?.pauseAnimation()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        splashFlowView?.resumeAnimation()
+    }
+
     override fun onDestroy() {
         super.onDestroy()
-        try {
-            videoView?.stopPlayback()
-        } catch (_: Exception) {}
-        videoView = null
+        splashFlowView?.stopAnimation()
+        splashFlowView = null
     }
 
     companion object {

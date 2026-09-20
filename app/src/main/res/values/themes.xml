@@ -1,30 +1,31 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <!-- M15-H Theme Definition -->
-    <style name="Theme.FairyLive" parent="Theme.MaterialComponents.Light.NoActionBar">
+    <!-- Fairy Live Master Nocturnal Violet Theme Definition -->
+    <style name="Theme.FairyLive" parent="Theme.MaterialComponents.NoActionBar">
         <item name="colorPrimary">@color/accent_primary</item>
         <item name="colorPrimaryVariant">@color/accent_primary_variant</item>
         <item name="colorOnPrimary">@color/text_on_dark</item>
 
-        <item name="colorSecondary">@color/text_primary</item>
-        <item name="colorSecondaryVariant">@color/text_secondary</item>
-        <item name="colorOnSecondary">@color/bg_primary</item>
+        <item name="colorSecondary">@color/accent_primary_variant</item>
+        <item name="colorSecondaryVariant">@color/accent_primary</item>
+        <item name="colorOnSecondary">@color/text_primary</item>
 
-        <item name="android:statusBarColor">@color/bg_primary</item>
-        <item name="android:windowLightStatusBar" tools:targetApi="m">true</item>
+        <item name="colorSurface">@color/bg_surface</item>
+        <item name="colorOnSurface">@color/text_primary</item>
+
+        <item name="android:statusBarColor">@color/bg_surface</item>
+        <item name="android:windowLightStatusBar" tools:targetApi="m">false</item>
         <item name="android:navigationBarColor">@color/bg_surface</item>
-        <item name="android:windowLightNavigationBar" tools:targetApi="o_mr1">true</item>
+        <item name="android:windowLightNavigationBar" tools:targetApi="o_mr1">false</item>
         <item name="android:windowBackground">@color/bg_primary</item>
 
         <item name="bottomSheetDialogTheme">@style/Theme.FairyLive.BottomSheetDialog</item>
     </style>
 
-
-
     <style name="Theme.FairyLive.Splash" parent="Theme.MaterialComponents.NoActionBar">
-        <item name="android:windowBackground">#000000</item>
-        <item name="android:statusBarColor">#000000</item>
-        <item name="android:navigationBarColor">#000000</item>
+        <item name="android:windowBackground">@color/bg_primary</item>
+        <item name="android:statusBarColor">@color/bg_primary</item>
+        <item name="android:navigationBarColor">@color/bg_primary</item>
         <item name="android:windowLightStatusBar" tools:targetApi="m">false</item>
         <item name="android:windowLightNavigationBar" tools:targetApi="o_mr1">false</item>
         <item name="android:windowFullscreen">true</item>

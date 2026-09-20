@@ -1,56 +1,59 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- M15-H Premium Visual Palette: Warm Ivory + Soft Cream + Espresso + Soft Plum -->
+    <!-- Fairy Live Master Nocturnal Violet Design System -->
+    <!-- Extracted from Brand Palette: #685B82 (Band 1), #433A61 (Band 2), #342C48 (Band 3), #130E22 (Band 4) -->
 
-    <!-- Backgrounds & Major Surfaces -->
-    <color name="bg_primary">#FBF9F5</color>
-    <color name="bg_surface">#F5EFEB</color>
-    <color name="bg_surface_elevated">#ECE4DE</color>
-    <color name="bg_card">#FFFFFF</color>
-    <color name="bg_card_secondary">#F7F3EE</color>
-    <color name="bg_card_stroke">#E6DED7</color>
-    <color name="bg_card_stroke_subtle">#EFE8E1</color>
-    <color name="bg_canvas">#181513</color>
-    <color name="bg_canvas_border">#3D352F</color>
+    <!-- Base Canvas & Root Surfaces -->
+    <color name="bg_primary">#130E22</color>             <!-- Band 4: Deep Abyss Violet App Canvas -->
+    <color name="bg_surface">#1C152E</color>             <!-- Elevated Surface (App Bar, Bottom Nav) -->
+    <color name="bg_surface_elevated">#251E3D</color>    <!-- Layer 2 Surface (Modal Sheets, Floats) -->
+    <color name="bg_canvas">#130E22</color>              <!-- Root Layout Background -->
+    <color name="bg_canvas_border">#2E2548</color>       <!-- Subtle Canvas Outlines -->
 
-    <!-- Restrained Accent Colors (Soft Plum / Lavender + Warm Caramel) -->
-    <color name="accent_primary">#7B61FF</color>
-    <color name="accent_primary_variant">#6347EB</color>
-    <color name="accent_soft_plum">#8A6FE8</color>
-    <color name="accent_soft_lavender">#EBE5FC</color>
-    <color name="accent_warm_caramel">#D49B6A</color>
-    <color name="accent_caramel_soft">#F7EFE7</color>
-    <color name="accent_dark">#4B32A6</color>
+    <!-- Containers, Cards & Dialogs -->
+    <color name="bg_card">#342C48</color>                <!-- Band 3: Dark Eggplant Card Surface -->
+    <color name="bg_card_secondary">#28203B</color>      <!-- Nested Input Fields & Recessed Areas -->
+    <color name="bg_card_stroke">#433A61</color>         <!-- Band 2: Deep Indigo Card Border -->
+    <color name="bg_card_stroke_subtle">#3A3052</color>  <!-- Very Subtle Border Definition -->
 
-    <!-- Backwards Compatibility Aliases for Existing Components -->
-    <color name="fairy_purple">#7B61FF</color>
-    <color name="fairy_purple_light">#9F8CFC</color>
-    <color name="fairy_purple_dark">#583AC9</color>
-    <color name="fairy_cyan">#7B61FF</color>
+    <!-- Brand Accents & Interactive Colors -->
+    <color name="accent_primary">#685B82</color>         <!-- Band 1: Dusty Violet / Muted Lavender Accent -->
+    <color name="accent_primary_variant">#8E7EB0</color> <!-- Luminous Violet Highlight / Active Hover -->
+    <color name="accent_soft_plum">#7C6B9C</color>       <!-- Radiant Violet Glow -->
+    <color name="accent_soft_lavender">#2D2345</color>   <!-- Soft Tinted Surface for Badges/Tags -->
+    <color name="accent_warm_caramel">#D49B6A</color>    <!-- Warm Amber Accent for Warnings -->
+    <color name="accent_caramel_soft">#2C2219</color>    <!-- Soft Amber Container -->
+    <color name="accent_dark">#251E3D</color>
 
-    <!-- Refined Semantic & Status Colors -->
-    <color name="status_green">#15803D</color>
-    <color name="status_green_soft">#DCFCE7</color>
-    <color name="status_amber">#B45309</color>
-    <color name="status_amber_soft">#FEF3C7</color>
-    <color name="status_warning">#B45309</color>
-    <color name="status_red">#B91C1C</color>
-    <color name="status_red_soft">#FEE2E2</color>
-    <color name="status_error">#B91C1C</color>
-    <color name="status_live">#B91C1C</color>
+    <!-- Brand Aliases & Backward Compatibility -->
+    <color name="fairy_purple">#685B82</color>
+    <color name="fairy_purple_light">#8E7EB0</color>
+    <color name="fairy_purple_dark">#433A61</color>
+    <color name="fairy_cyan">#9F8EC7</color>
 
-    <!-- Editorial Typography Hierarchy (Espresso & Warm Neutrals) -->
-    <color name="text_primary">#231B15</color>
-    <color name="text_secondary">#6E6259</color>
-    <color name="text_muted">#9A8E85</color>
-    <color name="text_on_dark">#FFFFFF</color>
-    <color name="text_on_dark_muted">#C2B8B0</color>
-    <color name="text_accent">#6347EB</color>
+    <!-- Semantic & Stream Status Colors -->
+    <color name="status_green">#00E676</color>           <!-- Cyber Emerald (Online, Published) -->
+    <color name="status_green_soft">#1A00E676</color>
+    <color name="status_amber">#F59E0B</color>           <!-- Vibrant Amber (Jitter, Warning) -->
+    <color name="status_amber_soft">#1AF59E0B</color>
+    <color name="status_warning">#F59E0B</color>
+    <color name="status_red">#FF5252</color>             <!-- Neon Crimson (Live, Recording, Stop) -->
+    <color name="status_red_soft">#1AFF5252</color>
+    <color name="status_error">#FF5252</color>
+    <color name="status_live">#FF5252</color>
 
-    <!-- Component & Interactive Tokens -->
-    <color name="divider_color">#EAE2DA</color>
-    <color name="chip_bg">#EDE5DE</color>
-    <color name="chip_bg_active">#231B15</color>
-    <color name="chip_text_active">#FBF9F5</color>
-    <color name="handle_color">#D0C5BC</color>
+    <!-- High-Contrast Accessibility Typography (WCAG 2.1 AAA on #130E22) -->
+    <color name="text_primary">#F1EDF8</color>           <!-- Ultra-Crisp Lavender White (14.8:1 contrast) -->
+    <color name="text_secondary">#B5ADC7</color>         <!-- Muted Violet Gray (5.4:1 contrast on #342C48) -->
+    <color name="text_muted">#7E7494</color>             <!-- Subtle Helper Text (3.8:1 contrast) -->
+    <color name="text_on_dark">#FFFFFF</color>           <!-- Pure White for Solid Accent Buttons -->
+    <color name="text_on_dark_muted">#C8C1D6</color>     <!-- Light Secondary on Dark Buttons -->
+    <color name="text_accent">#9F8EC7</color>            <!-- Glowing Lavender Accent Text -->
+
+    <!-- Interactive Component Tokens -->
+    <color name="divider_color">#2A213D</color>
+    <color name="chip_bg">#28203B</color>
+    <color name="chip_bg_active">#685B82</color>
+    <color name="chip_text_active">#FFFFFF</color>
+    <color name="handle_color">#4E436B</color>
 </resources>

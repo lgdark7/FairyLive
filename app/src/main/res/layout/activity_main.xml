@@ -103,7 +103,7 @@
         android:background="@color/bg_surface"
         app:itemIconTint="@color/nav_item_color"
         app:itemTextColor="@color/nav_item_color"
-        app:itemRippleColor="#1A6366F1"
+        app:itemRippleColor="#26685B82"
         app:labelVisibilityMode="labeled"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"

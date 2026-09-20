@@ -11,7 +11,7 @@
         android:layout_height="4dp"
         android:layout_gravity="center_horizontal"
         android:layout_marginBottom="12dp"
-        android:background="#CCCCCC" />
+        android:background="@color/handle_color" />
 
     <RelativeLayout
         android:layout_width="match_parent"
@@ -23,7 +23,7 @@
             android:layout_height="wrap_content"
             android:layout_alignParentStart="true"
             android:text="💬 Live Chat (Creator Only)"
-            android:textColor="#231B15"
+            android:textColor="@color/text_primary"
             android:textSize="18sp"
             android:textStyle="bold" />
 
@@ -31,11 +31,11 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_alignParentEnd="true"
-            android:background="#E0F2FE"
+            android:background="@color/accent_soft_lavender"
             android:paddingHorizontal="8dp"
             android:paddingVertical="2dp"
             android:text="YouTube Live"
-            android:textColor="#0369A1"
+            android:textColor="@color/accent_primary_variant"
             android:textSize="11sp"
             android:textStyle="bold" />
     </RelativeLayout>
@@ -44,7 +44,7 @@
     <ScrollView
         android:layout_width="match_parent"
         android:layout_height="220dp"
-        android:background="#F8F6F0"
+        android:background="@color/bg_card_secondary"
         android:padding="8dp">
 
         <LinearLayout
@@ -58,7 +58,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginBottom="6dp"
                 android:text="System: Connected to YouTube Live Chat session."
-                android:textColor="#888888"
+                android:textColor="@color/text_muted"
                 android:textSize="12sp"
                 android:textStyle="italic" />
 
@@ -67,7 +67,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginBottom="6dp"
                 android:text="AlexG: Let's go! Looking super clean 🔥"
-                android:textColor="#231B15"
+                android:textColor="@color/text_primary"
                 android:textSize="14sp" />
 
             <TextView
@@ -75,7 +75,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginBottom="6dp"
                 android:text="Priya_Playz: Audio is crisp and zero lag!"
-                android:textColor="#231B15"
+                android:textColor="@color/text_primary"
                 android:textSize="14sp" />
         </LinearLayout>
     </ScrollView>
@@ -95,8 +95,9 @@
             android:layout_weight="1"
             android:background="@drawable/bg_grid_card"
             android:hint="Reply as streamer..."
+            android:textColorHint="@color/text_muted"
             android:padding="10dp"
-            android:textColor="#231B15"
+            android:textColor="@color/text_primary"
             android:textSize="14sp" />
 
         <Button
