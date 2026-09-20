@@ -23,6 +23,16 @@
     </style>
 
 
+    <style name="Theme.FairyLive.Splash" parent="Theme.MaterialComponents.NoActionBar">
+        <item name="android:windowBackground">#000000</item>
+        <item name="android:colorBackground">#000000</item>
+        <item name="android:statusBarColor">#000000</item>
+        <item name="android:navigationBarColor">#000000</item>
+        <item name="android:windowLightStatusBar" tools:targetApi="m">false</item>
+        <item name="android:windowLightNavigationBar" tools:targetApi="o_mr1">false</item>
+        <item name="android:windowFullscreen">true</item>
+    </style>
+
     <style name="FairyBottomSheetStyle" parent="Widget.MaterialComponents.BottomSheet.Modal">
         <item name="android:background">@drawable/bg_bottom_sheet</item>
         <item name="behavior_peekHeight">280dp</item>

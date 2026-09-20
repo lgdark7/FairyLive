@@ -192,7 +192,9 @@ def main():
                     frame += glint * mask * 95.0
 
                 frame = np.clip(frame, 0, 255).astype(np.uint8)
+                frame[frame < 14] = 0
 
+            frame[frame < 14] = 0
             proc.stdin.write(frame.tobytes())
             total_frames_rendered += 1
 
