@@ -434,9 +434,10 @@ class SettingsFragment : Fragment() {
                 binding.etServerUrl.isEnabled = true
             }
             StreamDestination.LOCAL_TEST -> {
-                binding.rbDestLocalTest.isChecked = true
-                binding.etServerUrl.setText(settings.serverUrl)
-                binding.etServerUrl.isEnabled = true
+                // If legacy local test was saved, migrate to YouTube Live in production app
+                binding.rbDestYoutube.isChecked = true
+                binding.etServerUrl.setText(StreamDestination.YOUTUBE.defaultUrl)
+                binding.etServerUrl.isEnabled = false
             }
         }
 
@@ -469,7 +470,6 @@ class SettingsFragment : Fragment() {
         val selectedDestination = when (binding.rgDestination.checkedRadioButtonId) {
             R.id.rb_dest_youtube -> StreamDestination.YOUTUBE
             R.id.rb_dest_custom -> StreamDestination.CUSTOM_RTMP
-            R.id.rb_dest_local_test -> StreamDestination.LOCAL_TEST
             else -> StreamDestination.YOUTUBE
         }
 

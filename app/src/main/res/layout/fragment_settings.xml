@@ -289,7 +289,8 @@
                         android:buttonTint="@color/accent_primary"
                         android:text="🧪 Local Test Server (127.0.0.1:19350 - Dev Only)"
                         android:textColor="@color/text_muted"
-                        android:textSize="12sp" />
+                        android:textSize="12sp"
+                        android:visibility="gone" />
                 </RadioGroup>
 
                 <!-- Ingest Server URL -->
