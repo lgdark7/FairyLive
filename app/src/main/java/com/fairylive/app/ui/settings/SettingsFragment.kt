@@ -1,5 +1,7 @@
 package com.fairylive.app.ui.settings
 
+import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
@@ -13,6 +15,7 @@ import com.fairylive.app.core.capability.model.StreamProfile
 import com.fairylive.app.core.settings.StreamDestination
 import com.fairylive.app.core.settings.StreamSettings
 import com.fairylive.app.databinding.FragmentSettingsBinding
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 
 class SettingsFragment : Fragment() {
 
@@ -62,9 +65,74 @@ class SettingsFragment : Fragment() {
             (activity as? MainActivity)?.openDiagnostics()
         }
 
+        binding.rowAboutApp.setOnClickListener {
+            showAboutDialog()
+        }
+
+        binding.rowYoutubeTerms.setOnClickListener {
+            openWebUrl("https://www.youtube.com/t/terms")
+        }
+
+        binding.rowGooglePrivacy.setOnClickListener {
+            openWebUrl("https://policies.google.com/privacy")
+        }
+
+        binding.rowFairyPrivacy.setOnClickListener {
+            showPrivacyDisclosureDialog()
+        }
+
         binding.btnSave.setOnClickListener {
             saveFields(showFeedback = true)
         }
+    }
+
+    private fun openWebUrl(url: String) {
+        try {
+            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+            startActivity(intent)
+        } catch (e: Exception) {
+            Toast.makeText(requireContext(), "Unable to open link: $url", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun showAboutDialog() {
+        MaterialAlertDialogBuilder(requireContext())
+            .setTitle("About Fairy Live")
+            .setMessage(
+                "FAIRY LIVE v1.2.2\n\n" +
+                "A lightweight, pure Kotlin Native live-streaming application built for Android creators.\n\n" +
+                "• Architecture: 100% Android Hardware MediaCodec + GLES20/30\n" +
+                "• Zero third-party streaming SDKs (APK < 10 MB)\n" +
+                "• Strict YouTube Live RTMP Ingestion Compliance\n" +
+                "• Dynamic Adaptive Bitrate & Symmetrical Game Cropping\n\n" +
+                "Developed with ❤️ for mobile creators."
+            )
+            .setPositiveButton("OK", null)
+            .show()
+    }
+
+    private fun showPrivacyDisclosureDialog() {
+        MaterialAlertDialogBuilder(requireContext())
+            .setTitle("Privacy & Data Safety Disclosures")
+            .setMessage(
+                "FAIRY LIVE is engineered with a strict privacy-first architecture:\n\n" +
+                "1. Screen Capture (MediaProjection):\n" +
+                "   • Used solely to capture and stream the selected game surface to your chosen RTMP ingest server.\n" +
+                "   • Single-App mode isolates broadcast to the game task, hiding private notifications and background apps.\n" +
+                "   • Zero screen recordings or frames are stored or analyzed.\n\n" +
+                "2. Microphone & Audio Recording:\n" +
+                "   • Captures voice commentary and internal game audio for live mixing.\n" +
+                "   • Audio is encoded into AAC-LC directly in RAM; no audio files are saved.\n\n" +
+                "3. Camera Access:\n" +
+                "   • Used only for the optional creator facecam overlay rendered locally in real-time.\n\n" +
+                "4. Stream Keys & Security:\n" +
+                "   • Your YouTube Stream Key is stored strictly on your local device.\n" +
+                "   • Plaintext keys are never logged, transmitted to telemetry, or shared.\n\n" +
+                "5. YouTube API Services Compliance:\n" +
+                "   • By streaming to YouTube or using YouTube integration features, you agree to be bound by the YouTube Terms of Service (youtube.com/t/terms) and Google Privacy Policy (policies.google.com/privacy)."
+            )
+            .setPositiveButton("I Understand", null)
+            .show()
     }
 
     override fun onPause() {
