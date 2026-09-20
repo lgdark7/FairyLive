@@ -38,6 +38,7 @@ import com.fairylive.app.core.stream.model.RtmpConnectionState
 import com.fairylive.app.core.stream.model.StreamTelemetry
 import com.fairylive.app.databinding.FragmentDashboardBinding
 import com.fairylive.app.service.FairyStreamService
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 
 class DashboardFragment : Fragment(),
     StreamStateNotifier.Listener,
@@ -276,21 +277,43 @@ class DashboardFragment : Fragment(),
             }
         }
 
-        // Shortcuts
+        // Shortcuts & Cards
         binding.cardStreamPreview.setOnClickListener {
-            (activity as? MainActivity)?.navigateToStudio()
+            binding.btnGoLive.performClick()
         }
 
-        binding.rowShortcutDestination.setOnClickListener {
-            (activity as? MainActivity)?.navigateToSettings()
+        binding.cardGridLiveChat.setOnClickListener {
+            showLiveChatDialog()
         }
 
         binding.rowShortcutStudio.setOnClickListener {
             (activity as? MainActivity)?.navigateToStudio()
         }
 
+        binding.cardGridAnalytics.setOnClickListener {
+            (activity as? MainActivity)?.openDiagnostics()
+        }
+
         binding.rowShortcutSettings.setOnClickListener {
             (activity as? MainActivity)?.navigateToSettings()
+        }
+
+        binding.rowShortcutDestination.setOnClickListener {
+            (activity as? MainActivity)?.navigateToSettings()
+        }
+
+        binding.btnHeaderNotification.setOnClickListener {
+            val isLive = StreamStateNotifier.currentState.isActive
+            val msg = if (isLive) "Broadcasting live to YouTube!" else "All systems ready. Tap Start Streaming to go live."
+            Toast.makeText(requireContext(), msg, Toast.LENGTH_SHORT).show()
+        }
+
+        binding.cardRecentActivity.setOnClickListener {
+            binding.btnGoLive.performClick()
+        }
+
+        binding.btnRecentActivityPlay.setOnClickListener {
+            binding.btnGoLive.performClick()
         }
 
         binding.btnDismissError.setOnClickListener {
@@ -309,24 +332,58 @@ class DashboardFragment : Fragment(),
         }
     }
 
-    private fun updateSceneUI(scene: BroadcastScene) {
-        if (_binding == null) return
-        binding.tvPreviewSceneName.text = "Scene: ${scene.name}"
-        binding.tvCardSceneBadge.text = scene.name
-        val count = scene.overlayElements.size
-        binding.tvPreviewOverlaysSummary.text = if (count == 0) {
-            "No overlays active • Tap to customize"
-        } else {
-            "$count overlay layers active • Tap to edit"
+    private fun showLiveChatDialog() {
+        val app = requireActivity().application as FairyLiveApplication
+        val settings = app.settingsRepository.loadSettings(app.deviceCapability.recommendedProfile)
+        val currentUrl = settings.youtubeLiveUrl
+
+        val input = android.widget.EditText(requireContext()).apply {
+            hint = "e.g. https://youtube.com/live/xxxx or @Channel"
+            setText(currentUrl)
+            setSingleLine(true)
+            setTextColor(ContextCompat.getColor(context, R.color.text_primary))
+            setHintTextColor(ContextCompat.getColor(context, R.color.text_muted))
+            setBackgroundResource(R.drawable.bg_input_field)
+            val pad = (14 * resources.displayMetrics.density).toInt()
+            setPadding(pad, pad, pad, pad)
         }
 
-        val app = requireContext().applicationContext as FairyLiveApplication
-        val settings = app.settingsRepository.loadSettings(app.deviceCapability.recommendedProfile)
-        binding.tvShortcutDestinationSubtext.text = if (settings.serverUrl.isNotEmpty()) {
-            settings.serverUrl
-        } else {
-            "Not configured • Tap to set RTMP endpoint"
+        val container = android.widget.FrameLayout(requireContext()).apply {
+            val padH = (20 * resources.displayMetrics.density).toInt()
+            val padV = (10 * resources.displayMetrics.density).toInt()
+            setPadding(padH, padV, padH, padV)
+            addView(input)
         }
+
+        MaterialAlertDialogBuilder(requireContext())
+            .setTitle("YouTube Live Chat")
+            .setMessage("Enter your YouTube Live Stream URL, Video ID, or Channel Handle to enable real-time floating chat:")
+            .setView(container)
+            .setPositiveButton("Connect Chat") { _, _ ->
+                val newUrl = input.text.toString().trim()
+                app.settingsRepository.setYouTubeLiveUrl(newUrl)
+                if (newUrl.isNotEmpty()) {
+                    com.fairylive.app.core.youtube.YouTubeLiveIntegrationService.startLiveChatPolling(newUrl)
+                    Toast.makeText(requireContext(), "Connected to YouTube Live Chat!", Toast.LENGTH_SHORT).show()
+                } else {
+                    com.fairylive.app.core.youtube.YouTubeLiveIntegrationService.stopLiveChatPolling()
+                    Toast.makeText(requireContext(), "Live chat disconnected", Toast.LENGTH_SHORT).show()
+                }
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun updateSceneUI(scene: BroadcastScene) {
+        if (_binding == null) return
+        binding.tvCardSceneBadge.text = scene.name
+        val count = scene.overlayElements.size
+        val isLive = StreamStateNotifier.currentState.isActive
+        if (!isLive) {
+            binding.tvPreviewSceneName.text = "Start Streaming"
+            binding.tvPreviewOverlaysSummary.text = "Turn your gameplay into a story."
+        }
+        binding.tvShortcutDestinationSubtext.text = "1080p 60fps • 2h ago"
     }
 
     private fun updateCameraControls() {
@@ -373,10 +430,13 @@ class DashboardFragment : Fragment(),
                 binding.viewStatusDot.backgroundTintList = ColorStateList.valueOf(ContextCompat.getColor(ctx, R.color.status_red))
                 binding.tvReadinessLabel.text = "Stream interrupted"
 
-                binding.btnGoLive.text = "● Retry Broadcast"
+                binding.btnGoLive.setIconResource(R.drawable.ic_warning)
+                binding.btnGoLive.text = ""
                 binding.btnGoLive.backgroundTintList = ColorStateList.valueOf(ContextCompat.getColor(ctx, R.color.status_red))
                 binding.btnGoLive.isEnabled = true
 
+                binding.tvPreviewSceneName.text = "Stream Stopped"
+                binding.tvPreviewOverlaysSummary.text = "Tap to retry broadcast"
                 binding.tvDashboardTimer.visibility = View.GONE
             }
             StreamState.STREAMING -> {
@@ -388,10 +448,13 @@ class DashboardFragment : Fragment(),
                 binding.viewStatusDot.backgroundTintList = ColorStateList.valueOf(ContextCompat.getColor(ctx, R.color.status_green))
                 binding.tvReadinessLabel.text = "Broadcasting live"
 
-                binding.btnGoLive.text = "■ Stop Broadcast"
+                binding.btnGoLive.setIconResource(R.drawable.ic_stop)
+                binding.btnGoLive.text = ""
                 binding.btnGoLive.backgroundTintList = ColorStateList.valueOf(ContextCompat.getColor(ctx, R.color.status_red))
                 binding.btnGoLive.isEnabled = true
 
+                binding.tvPreviewSceneName.text = "Broadcasting Live"
+                binding.tvPreviewOverlaysSummary.text = "Streaming live to YouTube"
                 binding.tvDashboardTimer.visibility = View.VISIBLE
             }
             StreamState.STARTING -> {
@@ -401,12 +464,15 @@ class DashboardFragment : Fragment(),
                 binding.tvDashboardStatusPill.setTextColor(ContextCompat.getColor(ctx, R.color.accent_primary))
 
                 binding.viewStatusDot.backgroundTintList = ColorStateList.valueOf(ContextCompat.getColor(ctx, R.color.accent_primary))
-                binding.tvReadinessLabel.text = "Connecting to RTMP ingest..."
+                binding.tvReadinessLabel.text = "Connecting..."
 
-                binding.btnGoLive.text = "Connecting..."
+                binding.btnGoLive.setIconResource(R.drawable.ic_stream)
+                binding.btnGoLive.text = ""
                 binding.btnGoLive.backgroundTintList = ColorStateList.valueOf(ContextCompat.getColor(ctx, R.color.accent_primary))
                 binding.btnGoLive.isEnabled = false
 
+                binding.tvPreviewSceneName.text = "Connecting..."
+                binding.tvPreviewOverlaysSummary.text = "Establishing RTMP handshake"
                 binding.tvDashboardTimer.visibility = View.GONE
             }
             StreamState.STOPPING -> {
@@ -416,27 +482,33 @@ class DashboardFragment : Fragment(),
                 binding.tvDashboardStatusPill.setTextColor(ContextCompat.getColor(ctx, R.color.status_amber))
 
                 binding.viewStatusDot.backgroundTintList = ColorStateList.valueOf(ContextCompat.getColor(ctx, R.color.status_amber))
-                binding.tvReadinessLabel.text = "Wrapping up broadcast..."
+                binding.tvReadinessLabel.text = "Wrapping up..."
 
-                binding.btnGoLive.text = "Stopping..."
+                binding.btnGoLive.setIconResource(R.drawable.ic_stream)
+                binding.btnGoLive.text = ""
                 binding.btnGoLive.backgroundTintList = ColorStateList.valueOf(ContextCompat.getColor(ctx, R.color.status_amber))
                 binding.btnGoLive.isEnabled = false
 
+                binding.tvPreviewSceneName.text = "Stopping..."
+                binding.tvPreviewOverlaysSummary.text = "Wrapping up broadcast"
                 binding.tvDashboardTimer.visibility = View.GONE
             }
             else -> {
-                binding.tvStreamStatusHeadline.text = "Good evening 👋"
-                binding.tvStreamStatusSubtext.text = "Balanced HD • 720p 30fps • Low Latency"
+                binding.tvStreamStatusHeadline.text = "Good Evening"
+                binding.tvStreamStatusSubtext.text = "Ready to stream?"
                 binding.tvDashboardStatusPill.text = "Ready"
                 binding.tvDashboardStatusPill.setTextColor(ContextCompat.getColor(ctx, R.color.accent_primary))
 
                 binding.viewStatusDot.backgroundTintList = ColorStateList.valueOf(ContextCompat.getColor(ctx, R.color.status_green))
                 binding.tvReadinessLabel.text = "Ready to go live"
 
-                binding.btnGoLive.text = "Start Live"
+                binding.btnGoLive.setIconResource(R.drawable.ic_arrow_forward)
+                binding.btnGoLive.text = ""
                 binding.btnGoLive.backgroundTintList = ColorStateList.valueOf(ContextCompat.getColor(ctx, R.color.accent_primary))
                 binding.btnGoLive.isEnabled = true
 
+                binding.tvPreviewSceneName.text = "Start Streaming"
+                binding.tvPreviewOverlaysSummary.text = "Turn your gameplay into a story."
                 binding.tvDashboardTimer.visibility = View.GONE
             }
         }
