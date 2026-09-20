@@ -67,7 +67,8 @@ data class StreamSettings(
             captureSource: CaptureSource = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) CaptureSource.SINGLE_APP else CaptureSource.ENTIRE_SCREEN,
             serverUrl: String = "",
             streamKey: String = "",
-            youtubeLiveUrl: String = ""
+            youtubeLiveUrl: String = "",
+            micEnabled: Boolean = true
         ): StreamSettings {
             val effectiveUrl = if (serverUrl.isNotBlank()) {
                 serverUrl
@@ -86,7 +87,7 @@ data class StreamSettings(
                 fps = profile.fps,
                 videoBitrateKbps = profile.videoBitrateKbps,
                 audioBitrateKbps = profile.audioBitrateKbps,
-                micEnabled = true,
+                micEnabled = micEnabled,
                 youtubeLiveUrl = youtubeLiveUrl
             )
         }

@@ -13,9 +13,9 @@
         android:orientation="vertical"
         android:paddingHorizontal="16dp"
         android:paddingTop="16dp"
-        android:paddingBottom="32dp">
+        android:paddingBottom="36dp">
 
-        <!-- Title & Subtitle -->
+        <!-- Header: Title & Subtitle -->
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -56,7 +56,7 @@
                     android:focusable="true"
                     android:paddingHorizontal="14dp"
                     android:paddingVertical="7dp"
-                    android:text="All"
+                    android:text="🌟 All"
                     android:textColor="@color/text_on_dark"
                     android:textSize="12sp"
                     android:textStyle="bold" />
@@ -109,7 +109,7 @@
                     android:textSize="12sp"
                     android:textStyle="bold" />
 
-                <!-- Chip: Audio & Camera -->
+                <!-- Chip: Audio -->
                 <TextView
                     android:id="@+id/chip_audio"
                     android:layout_width="wrap_content"
@@ -125,7 +125,23 @@
                     android:textSize="12sp"
                     android:textStyle="bold" />
 
-                <!-- Chip: Advanced -->
+                <!-- Chip: Camera & Overlays -->
+                <TextView
+                    android:id="@+id/chip_camera"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="8dp"
+                    android:background="@drawable/bg_chip_unselected"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:paddingHorizontal="14dp"
+                    android:paddingVertical="7dp"
+                    android:text="📸 Camera"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="12sp"
+                    android:textStyle="bold" />
+
+                <!-- Chip: Advanced / System -->
                 <TextView
                     android:id="@+id/chip_advanced"
                     android:layout_width="wrap_content"
@@ -136,7 +152,7 @@
                     android:focusable="true"
                     android:paddingHorizontal="14dp"
                     android:paddingVertical="7dp"
-                    android:text="⚙️ Advanced"
+                    android:text="⚙️ System"
                     android:textColor="@color/text_secondary"
                     android:textSize="12sp"
                     android:textStyle="bold" />
@@ -208,7 +224,7 @@
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="Stream Destination"
+                            android:text="Stream Destination &amp; Credentials"
                             android:textColor="@color/text_primary"
                             android:textSize="16sp"
                             android:textStyle="bold" />
@@ -217,7 +233,7 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="2dp"
-                            android:text="RTMP ingest server, stream key &amp; chat"
+                            android:text="RTMP ingest server, stream key &amp; chat URL"
                             android:textColor="@color/text_secondary"
                             android:textSize="12sp" />
                     </LinearLayout>
@@ -229,7 +245,7 @@
                     android:layout_marginVertical="14dp"
                     android:background="@color/divider_color" />
 
-                <!-- Destination Selector -->
+                <!-- Broadcast Platform Selector -->
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
@@ -251,7 +267,7 @@
                         android:layout_height="wrap_content"
                         android:buttonTint="@color/accent_primary"
                         android:checked="true"
-                        android:text="YouTube Live (rtmp://a.rtmp.youtube.com/live2)"
+                        android:text="🔴 YouTube Live (rtmp://a.rtmp.youtube.com/live2)"
                         android:textColor="@color/text_primary"
                         android:textSize="13sp" />
 
@@ -261,10 +277,9 @@
                         android:layout_height="wrap_content"
                         android:layout_marginTop="4dp"
                         android:buttonTint="@color/accent_primary"
-                        android:text="Custom RTMP Destination"
+                        android:text="🌐 Custom RTMP Destination"
                         android:textColor="@color/text_primary"
-                        android:textSize="13sp"
-                        android:visibility="gone" />
+                        android:textSize="13sp" />
 
                     <RadioButton
                         android:id="@+id/rb_dest_local_test"
@@ -272,27 +287,27 @@
                         android:layout_height="wrap_content"
                         android:layout_marginTop="4dp"
                         android:buttonTint="@color/accent_primary"
-                        android:text="Local Test Server (127.0.0.1:19350 - Dev Only)"
+                        android:text="🧪 Local Test Server (127.0.0.1:19350 - Dev Only)"
                         android:textColor="@color/text_muted"
-                        android:textSize="12sp"
-                        android:visibility="gone" />
+                        android:textSize="12sp" />
                 </RadioGroup>
 
-                <!-- Server URL -->
+                <!-- Ingest Server URL -->
                 <TextView
                     android:id="@+id/tv_label_server_url"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="YouTube Ingest URL"
                     android:textColor="@color/text_secondary"
-                    android:textSize="12sp" />
+                    android:textSize="12sp"
+                    android:textStyle="bold" />
 
                 <EditText
                     android:id="@+id/et_server_url"
                     android:layout_width="match_parent"
                     android:layout_height="44dp"
                     android:layout_marginTop="4dp"
-                    android:background="@drawable/bg_control_icon_button"
+                    android:background="@drawable/bg_input_field"
                     android:hint="rtmp://a.rtmp.youtube.com/live2"
                     android:inputType="textUri"
                     android:paddingHorizontal="12dp"
@@ -300,49 +315,102 @@
                     android:textColorHint="@color/text_muted"
                     android:textSize="13sp" />
 
-                <!-- Stream Key -->
+                <!-- YouTube Stream Key -->
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="12dp"
                     android:text="YouTube Stream Key"
                     android:textColor="@color/text_secondary"
-                    android:textSize="12sp" />
+                    android:textSize="12sp"
+                    android:textStyle="bold" />
 
-                <EditText
-                    android:id="@+id/et_stream_key"
+                <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="44dp"
                     android:layout_marginTop="4dp"
-                    android:background="@drawable/bg_control_icon_button"
-                    android:hint="Paste stream key (required)"
-                    android:inputType="textPassword"
-                    android:paddingHorizontal="12dp"
-                    android:textColor="@color/text_primary"
-                    android:textColorHint="@color/text_muted"
-                    android:textSize="13sp" />
+                    android:background="@drawable/bg_input_field"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal"
+                    android:paddingHorizontal="6dp">
 
-                <!-- Live Chat URL -->
+                    <EditText
+                        android:id="@+id/et_stream_key"
+                        android:layout_width="0dp"
+                        android:layout_height="match_parent"
+                        android:layout_weight="1"
+                        android:background="@null"
+                        android:hint="Paste stream key (required)"
+                        android:inputType="textPassword"
+                        android:paddingHorizontal="6dp"
+                        android:textColor="@color/text_primary"
+                        android:textColorHint="@color/text_muted"
+                        android:textSize="13sp" />
+
+                    <!-- Eye Toggle Button (Show/Hide) -->
+                    <ImageView
+                        android:id="@+id/btn_toggle_key_visibility"
+                        android:layout_width="32dp"
+                        android:layout_height="32dp"
+                        android:background="?attr/selectableItemBackgroundBorderless"
+                        android:clickable="true"
+                        android:focusable="true"
+                        android:padding="6dp"
+                        android:src="@drawable/ic_visibility"
+                        app:tint="@color/text_secondary" />
+
+                    <!-- Quick Paste Button -->
+                    <ImageView
+                        android:id="@+id/btn_paste_stream_key"
+                        android:layout_width="32dp"
+                        android:layout_height="32dp"
+                        android:layout_marginStart="4dp"
+                        android:background="?attr/selectableItemBackgroundBorderless"
+                        android:clickable="true"
+                        android:focusable="true"
+                        android:padding="6dp"
+                        android:src="@drawable/ic_paste"
+                        app:tint="@color/accent_primary_variant" />
+                </LinearLayout>
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:text="🔒 Stored locally with AES-256-GCM hardware encryption. Never logged or shared."
+                    android:textColor="@color/text_muted"
+                    android:textSize="11sp" />
+
+                <!-- Live Chat URL / Video ID -->
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="12dp"
-                    android:text="YouTube Live URL / Video ID / @Handle (For Live Chat)"
+                    android:text="YouTube Live URL / Video ID / @Handle"
                     android:textColor="@color/text_secondary"
-                    android:textSize="12sp" />
+                    android:textSize="12sp"
+                    android:textStyle="bold" />
 
                 <EditText
                     android:id="@+id/et_youtube_live_chat_url"
                     android:layout_width="match_parent"
                     android:layout_height="44dp"
                     android:layout_marginTop="4dp"
-                    android:background="@drawable/bg_control_icon_button"
+                    android:background="@drawable/bg_input_field"
                     android:hint="e.g. @MyChannel or youtube.com/live/xxx"
                     android:inputType="textUri"
                     android:paddingHorizontal="12dp"
                     android:textColor="@color/text_primary"
                     android:textColorHint="@color/text_muted"
                     android:textSize="13sp" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:text="Used for the floating live chat overlay &amp; real-time viewer interaction."
+                    android:textColor="@color/text_muted"
+                    android:textSize="11sp" />
 
             </LinearLayout>
         </androidx.cardview.widget.CardView>
@@ -395,7 +463,7 @@
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="Capture Source"
+                            android:text="Capture Mode &amp; Privacy"
                             android:textColor="@color/text_primary"
                             android:textSize="16sp"
                             android:textStyle="bold" />
@@ -404,7 +472,7 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="2dp"
-                            android:text="Choose game capture or full screen mode"
+                            android:text="Choose isolated game capture or full screen mode"
                             android:textColor="@color/text_secondary"
                             android:textSize="12sp" />
                     </LinearLayout>
@@ -421,6 +489,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content">
 
+                    <!-- Single App / Game -->
                     <RadioButton
                         android:id="@+id/rb_capture_single_app"
                         android:layout_width="match_parent"
@@ -429,17 +498,39 @@
                         android:checked="true"
                         android:text="Single App / Game (Android 14+ Privacy Safe)"
                         android:textColor="@color/text_primary"
-                        android:textSize="13sp" />
+                        android:textSize="13sp"
+                        android:textStyle="bold" />
 
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="32dp"
+                        android:layout_marginTop="2dp"
+                        android:layout_marginBottom="8dp"
+                        android:text="🛡️ Only streams the chosen game surface. Automatically hides incoming notifications, WhatsApp messages, banking apps, and phone calls from your stream."
+                        android:textColor="@color/text_muted"
+                        android:textSize="11sp" />
+
+                    <!-- Entire Screen -->
                     <RadioButton
                         android:id="@+id/rb_capture_entire_screen"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="6dp"
+                        android:layout_marginTop="4dp"
                         android:buttonTint="@color/accent_primary"
                         android:text="Entire Screen (All apps &amp; notifications)"
                         android:textColor="@color/text_primary"
-                        android:textSize="13sp" />
+                        android:textSize="13sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="32dp"
+                        android:layout_marginTop="2dp"
+                        android:text="Captures the full device screen surface without app isolation. Good for tutorials and switching between multiple games."
+                        android:textColor="@color/text_muted"
+                        android:textSize="11sp" />
                 </RadioGroup>
 
             </LinearLayout>
@@ -514,11 +605,13 @@
                     android:layout_marginVertical="14dp"
                     android:background="@color/divider_color" />
 
+                <!-- Video Profiles -->
                 <RadioGroup
                     android:id="@+id/rg_profiles"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content">
 
+                    <!-- Low Profile -->
                     <RadioButton
                         android:id="@+id/rb_profile_low"
                         android:layout_width="match_parent"
@@ -526,34 +619,98 @@
                         android:buttonTint="@color/accent_primary"
                         android:text="Low-End Safe (480p @ 24fps • 1.2 Mbps)"
                         android:textColor="@color/text_primary"
-                        android:textSize="13sp" />
+                        android:textSize="13sp"
+                        android:textStyle="bold" />
 
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="32dp"
+                        android:layout_marginTop="1dp"
+                        android:layout_marginBottom="8dp"
+                        android:text="Zero thermal throttling, battery-saver mode for 2GB–4GB RAM phones."
+                        android:textColor="@color/text_muted"
+                        android:textSize="11sp" />
+
+                    <!-- Balanced Profile -->
                     <RadioButton
                         android:id="@+id/rb_profile_balanced"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="6dp"
+                        android:layout_marginTop="4dp"
                         android:buttonTint="@color/accent_primary"
                         android:text="Balanced HD (720p @ 30fps • 2.5 Mbps • Recommended)"
                         android:textColor="@color/text_primary"
-                        android:textSize="13sp" />
+                        android:textSize="13sp"
+                        android:textStyle="bold" />
 
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="32dp"
+                        android:layout_marginTop="1dp"
+                        android:layout_marginBottom="8dp"
+                        android:text="Optimal balance of sharp 720p visuals, 60ms latency, and YouTube stability."
+                        android:textColor="@color/text_muted"
+                        android:textSize="11sp" />
+
+                    <!-- High Profile -->
                     <RadioButton
                         android:id="@+id/rb_profile_high"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="6dp"
+                        android:layout_marginTop="4dp"
                         android:buttonTint="@color/accent_primary"
                         android:text="High Quality (1080p @ 60fps • 4.5 Mbps)"
                         android:textColor="@color/text_primary"
-                        android:textSize="13sp" />
+                        android:textSize="13sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="32dp"
+                        android:layout_marginTop="1dp"
+                        android:text="Ultra-crisp 60fps broadcast for high-speed Wi-Fi and flagship Snapdragon/Tensor devices."
+                        android:textColor="@color/text_muted"
+                        android:textSize="11sp" />
                 </RadioGroup>
+
+                <!-- Video Profile Summary Pill -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="14dp"
+                    android:background="@drawable/bg_input_field"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal"
+                    android:paddingHorizontal="12dp"
+                    android:paddingVertical="8dp">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Active Spec: "
+                        android:textColor="@color/text_secondary"
+                        android:textSize="12sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/tv_video_profile_summary"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="720p @ 30fps • 2.5 Mbps • H.264 Hardware"
+                        android:textColor="@color/accent_primary_variant"
+                        android:textSize="12sp"
+                        android:textStyle="bold" />
+                </LinearLayout>
 
             </LinearLayout>
         </androidx.cardview.widget.CardView>
 
         <!-- ============================================================ -->
-        <!-- CATEGORY 4: AUDIO & CAMERA -->
+        <!-- CATEGORY 4: AUDIO STUDIO & SOUND -->
         <!-- ============================================================ -->
         <androidx.cardview.widget.CardView
             android:id="@+id/card_category_audio"
@@ -600,7 +757,7 @@
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="Audio &amp; Camera Hardware"
+                            android:text="Audio Studio &amp; Sound Pipeline"
                             android:textColor="@color/text_primary"
                             android:textSize="16sp"
                             android:textStyle="bold" />
@@ -609,7 +766,7 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="2dp"
-                            android:text="Microphone mixing &amp; picture-in-picture facecam"
+                            android:text="Multi-channel mixer, hardware noise suppression &amp; DSP"
                             android:textColor="@color/text_secondary"
                             android:textSize="12sp" />
                     </LinearLayout>
@@ -637,7 +794,7 @@
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="Microphone Capture"
+                            android:text="Device Microphone"
                             android:textColor="@color/text_primary"
                             android:textSize="14sp"
                             android:textStyle="bold" />
@@ -646,7 +803,7 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="1dp"
-                            android:text="Stream voice audio mixed with game audio"
+                            android:text="Stream voice commentary mixed with game audio"
                             android:textColor="@color/text_secondary"
                             android:textSize="12sp" />
                     </LinearLayout>
@@ -666,7 +823,7 @@
                     android:layout_marginVertical="12dp"
                     android:background="@color/divider_color" />
 
-                <!-- Facecam Row -->
+                <!-- Hardware Noise Suppressor Switch -->
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
@@ -682,7 +839,7 @@
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="Facecam PIP"
+                            android:text="Hardware Noise Suppressor"
                             android:textColor="@color/text_primary"
                             android:textSize="14sp"
                             android:textStyle="bold" />
@@ -691,7 +848,194 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="1dp"
-                            android:text="Render front camera overlay on stream"
+                            android:text="OS driver acoustic filter (cuts room &amp; fan noise)"
+                            android:textColor="@color/text_secondary"
+                            android:textSize="12sp" />
+                    </LinearLayout>
+
+                    <androidx.appcompat.widget.SwitchCompat
+                        android:id="@+id/switch_hardware_ns"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:checked="true"
+                        app:thumbTint="@color/accent_primary"
+                        app:trackTint="@color/bg_surface" />
+                </LinearLayout>
+
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:layout_marginVertical="12dp"
+                    android:background="@color/divider_color" />
+
+                <!-- Studio DSP Noise Gate Switch -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Studio DSP Noise Gate &amp; Rumble Cut"
+                            android:textColor="@color/text_primary"
+                            android:textSize="14sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="1dp"
+                            android:text="Downward expander cuts residual hiss &amp; handling vibration"
+                            android:textColor="@color/text_secondary"
+                            android:textSize="12sp" />
+                    </LinearLayout>
+
+                    <androidx.appcompat.widget.SwitchCompat
+                        android:id="@+id/switch_dsp_noise_gate"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:checked="true"
+                        app:thumbTint="@color/accent_primary"
+                        app:trackTint="@color/bg_surface" />
+                </LinearLayout>
+
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:layout_marginVertical="14dp"
+                    android:background="@color/divider_color" />
+
+                <!-- Launch Audio Studio Button -->
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btn_open_audio_studio"
+                    android:layout_width="match_parent"
+                    android:layout_height="48dp"
+                    android:backgroundTint="@color/bg_surface_elevated"
+                    android:text="🎚 Open Audio Studio (4-Channel Mixer)"
+                    android:textAllCaps="false"
+                    android:textColor="@color/text_primary"
+                    android:textSize="13sp"
+                    android:textStyle="bold"
+                    app:cornerRadius="14dp"
+                    app:strokeColor="@color/accent_primary"
+                    app:strokeWidth="1dp" />
+
+                <TextView
+                    android:id="@+id/tv_audio_studio_status"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:gravity="center"
+                    android:text="Mic: 90% • Game: 80% • Master: 100% • Preset: GAMING"
+                    android:textColor="@color/accent_primary_variant"
+                    android:textSize="11sp" />
+
+            </LinearLayout>
+        </androidx.cardview.widget.CardView>
+
+        <!-- ============================================================ -->
+        <!-- CATEGORY 5: CAMERA & VISUAL OVERLAYS -->
+        <!-- ============================================================ -->
+        <androidx.cardview.widget.CardView
+            android:id="@+id/card_category_camera"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            app:cardBackgroundColor="@color/bg_card"
+            app:cardCornerRadius="20dp"
+            app:cardElevation="1dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <!-- Category Header -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <FrameLayout
+                        android:layout_width="42dp"
+                        android:layout_height="42dp"
+                        android:background="@drawable/bg_grid_icon_circle">
+
+                        <ImageView
+                            android:layout_width="22dp"
+                            android:layout_height="22dp"
+                            android:layout_gravity="center"
+                            android:src="@drawable/ic_camera"
+                            app:tint="@color/accent_primary_variant" />
+                    </FrameLayout>
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="12dp"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Camera &amp; Visual Overlays"
+                            android:textColor="@color/text_primary"
+                            android:textSize="16sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="2dp"
+                            android:text="Facecam PIP, floating HUD logo &amp; badges"
+                            android:textColor="@color/text_secondary"
+                            android:textSize="12sp" />
+                    </LinearLayout>
+                </LinearLayout>
+
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:layout_marginVertical="14dp"
+                    android:background="@color/divider_color" />
+
+                <!-- Facecam PIP Row -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Facecam Picture-in-Picture (PIP)"
+                            android:textColor="@color/text_primary"
+                            android:textSize="14sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="1dp"
+                            android:text="Render front camera overlay on live broadcast"
                             android:textColor="@color/text_secondary"
                             android:textSize="12sp" />
                     </LinearLayout>
@@ -705,11 +1049,104 @@
                         app:trackTint="@color/bg_surface" />
                 </LinearLayout>
 
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:layout_marginVertical="12dp"
+                    android:background="@color/divider_color" />
+
+                <!-- Smart Mic Silence HUD Alert Row -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Smart In-Game Mic Silenced Alert"
+                            android:textColor="@color/text_primary"
+                            android:textSize="14sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="1dp"
+                            android:text="Persistent warning indicator when in-game mic mutes stream"
+                            android:textColor="@color/text_secondary"
+                            android:textSize="12sp" />
+                    </LinearLayout>
+
+                    <androidx.appcompat.widget.SwitchCompat
+                        android:id="@+id/switch_hud_mic_alert"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:checked="true"
+                        app:thumbTint="@color/accent_primary"
+                        app:trackTint="@color/bg_surface" />
+                </LinearLayout>
+
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:layout_marginVertical="12dp"
+                    android:background="@color/divider_color" />
+
+                <!-- Floating Fairy Access Logo Info Row -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Floating Fairy Access Logo"
+                            android:textColor="@color/text_primary"
+                            android:textSize="14sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="1dp"
+                            android:text="48dp circular overlay over full-screen games for 1-tap controls"
+                            android:textColor="@color/text_secondary"
+                            android:textSize="12sp" />
+                    </LinearLayout>
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:background="@drawable/bg_scene_chip"
+                        android:paddingHorizontal="10dp"
+                        android:paddingVertical="4dp"
+                        android:text="Always Active"
+                        android:textColor="@color/status_green"
+                        android:textSize="11sp"
+                        android:textStyle="bold" />
+                </LinearLayout>
+
             </LinearLayout>
         </androidx.cardview.widget.CardView>
 
         <!-- ============================================================ -->
-        <!-- CATEGORY 5: ADVANCED & SYSTEM -->
+        <!-- CATEGORY 6: SYSTEM, DIAGNOSTICS & STORAGE -->
         <!-- ============================================================ -->
         <androidx.cardview.widget.CardView
             android:id="@+id/card_category_advanced"
@@ -756,7 +1193,7 @@
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="System &amp; Diagnostics"
+                            android:text="System, Diagnostics &amp; Storage"
                             android:textColor="@color/text_primary"
                             android:textSize="16sp"
                             android:textStyle="bold" />
@@ -765,7 +1202,7 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="2dp"
-                            android:text="Hardware encoders, live telemetry &amp; app version"
+                            android:text="Hardware encoders, live telemetry &amp; config reset"
                             android:textColor="@color/text_secondary"
                             android:textSize="12sp" />
                     </LinearLayout>
@@ -775,6 +1212,55 @@
                     android:layout_width="match_parent"
                     android:layout_height="1dp"
                     android:layout_marginVertical="14dp"
+                    android:background="@color/divider_color" />
+
+                <!-- Creator Channel Name Row -->
+                <LinearLayout
+                    android:id="@+id/row_creator_profile"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:background="?attr/selectableItemBackground"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal"
+                    android:paddingVertical="10dp">
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Creator Channel Name"
+                            android:textColor="@color/text_primary"
+                            android:textSize="14sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:id="@+id/tv_creator_name_summary"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="1dp"
+                            android:text="Tap to edit streamer handle &amp; alias"
+                            android:textColor="@color/text_secondary"
+                            android:textSize="12sp" />
+                    </LinearLayout>
+
+                    <ImageView
+                        android:layout_width="18dp"
+                        android:layout_height="18dp"
+                        android:src="@drawable/ic_chevron_right"
+                        app:tint="@color/text_muted" />
+                </LinearLayout>
+
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:layout_marginVertical="8dp"
                     android:background="@color/divider_color" />
 
                 <!-- Diagnostics Row -->
@@ -807,7 +1293,7 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="1dp"
-                            android:text="Codec capability, memory &amp; RTMP latency metrics"
+                            android:text="Codec capability, RAM telemetry &amp; RTMP latency metrics"
                             android:textColor="@color/text_secondary"
                             android:textSize="12sp" />
                     </LinearLayout>
@@ -822,10 +1308,106 @@
                 <View
                     android:layout_width="match_parent"
                     android:layout_height="1dp"
-                    android:layout_marginVertical="10dp"
+                    android:layout_marginVertical="8dp"
                     android:background="@color/divider_color" />
 
-                <!-- About Row -->
+                <!-- Reset Settings to Defaults Row -->
+                <LinearLayout
+                    android:id="@+id/row_reset_defaults"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:background="?attr/selectableItemBackground"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal"
+                    android:paddingVertical="10dp">
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Reset Settings to Defaults"
+                            android:textColor="@color/text_primary"
+                            android:textSize="14sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="1dp"
+                            android:text="Restore 720p Balanced, YouTube Ingest &amp; default audio gains"
+                            android:textColor="@color/text_secondary"
+                            android:textSize="12sp" />
+                    </LinearLayout>
+
+                    <ImageView
+                        android:layout_width="18dp"
+                        android:layout_height="18dp"
+                        android:src="@drawable/ic_refresh"
+                        app:tint="@color/accent_primary_variant" />
+                </LinearLayout>
+
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:layout_marginVertical="8dp"
+                    android:background="@color/divider_color" />
+
+                <!-- Clear Stream Key & Credentials Row -->
+                <LinearLayout
+                    android:id="@+id/row_clear_credentials"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:background="?attr/selectableItemBackground"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal"
+                    android:paddingVertical="10dp">
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Clear Stored Stream Key"
+                            android:textColor="@color/status_red"
+                            android:textSize="14sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="1dp"
+                            android:text="Securely purge key from local AES-256 storage"
+                            android:textColor="@color/text_secondary"
+                            android:textSize="12sp" />
+                    </LinearLayout>
+
+                    <ImageView
+                        android:layout_width="18dp"
+                        android:layout_height="18dp"
+                        android:src="@drawable/ic_chevron_right"
+                        app:tint="@color/status_red" />
+                </LinearLayout>
+
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:layout_marginVertical="8dp"
+                    android:background="@color/divider_color" />
+
+                <!-- About App Row -->
                 <LinearLayout
                     android:id="@+id/row_about_app"
                     android:layout_width="match_parent"
@@ -855,7 +1437,7 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="1dp"
-                            android:text="v1.2.2 Release • Pure Kotlin Native • 0 Third-Party Deps"
+                            android:text="v1.2.3 Release • Pure Kotlin Native • 0 Third-Party Deps"
                             android:textColor="@color/text_secondary"
                             android:textSize="12sp" />
                     </LinearLayout>
@@ -871,7 +1453,7 @@
         </androidx.cardview.widget.CardView>
 
         <!-- ============================================================ -->
-        <!-- CATEGORY 6: LEGAL & COMPLIANCE -->
+        <!-- CATEGORY 7: LEGAL & COMPLIANCE -->
         <!-- ============================================================ -->
         <androidx.cardview.widget.CardView
             android:id="@+id/card_category_legal"
@@ -918,7 +1500,7 @@
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="Legal &amp; Compliance"
+                            android:text="Legal, Safety &amp; Compliance"
                             android:textColor="@color/text_primary"
                             android:textSize="16sp"
                             android:textStyle="bold" />
@@ -927,7 +1509,7 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="2dp"
-                            android:text="YouTube ToS, Google Privacy &amp; Data Safety"
+                            android:text="YouTube ToS, Google Privacy &amp; Data Safety Disclosures"
                             android:textColor="@color/text_secondary"
                             android:textSize="12sp" />
                     </LinearLayout>
@@ -1093,7 +1675,11 @@
             android:textSize="15sp"
             android:textStyle="bold"
             app:cornerRadius="16dp"
-            app:elevation="2dp" />
+            app:elevation="2dp"
+            app:icon="@drawable/ic_check_circle"
+            app:iconGravity="textStart"
+            app:iconPadding="8dp"
+            app:iconTint="@color/text_on_dark" />
 
     </LinearLayout>
 </ScrollView>
