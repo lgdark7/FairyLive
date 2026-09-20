@@ -258,17 +258,6 @@ class DashboardFragment : Fragment(),
             projectionLauncher.launch(captureIntent)
         }
 
-        // Floating Hub Quick Launch
-        binding.btnFloatingHub.setOnClickListener {
-            toggleFloatingHub()
-        }
-
-        // Audio Studio Bottom Sheet
-        binding.btnAudioStudio.setOnClickListener {
-            val audioStudio = com.fairylive.app.ui.audio.AudioStudioBottomSheetDialog()
-            audioStudio.show(parentFragmentManager, com.fairylive.app.ui.audio.AudioStudioBottomSheetDialog.TAG)
-        }
-
         // Camera Quick Toggle
         binding.btnToggleCamera.setOnClickListener {
             val ctx = requireContext()
@@ -475,33 +464,6 @@ class DashboardFragment : Fragment(),
                 }
             }
             .show()
-    }
-
-    private fun toggleFloatingHub() {
-        val ctx = requireContext()
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(ctx)) {
-            MaterialAlertDialogBuilder(ctx)
-                .setTitle("Floating Hub Permission")
-                .setMessage("Fairy Live needs 'Display over other apps' permission so you can control your stream and audio with the floating Fairy button while playing games.")
-                .setPositiveButton("Grant Permission") { _, _ ->
-                    val intent = Intent(
-                        Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                        Uri.parse("package:${ctx.packageName}")
-                    )
-                    startActivity(intent)
-                }
-                .setNegativeButton("Cancel", null)
-                .show()
-            return
-        }
-
-        if (com.fairylive.app.ui.hud.StreamerFloatingHudManager.hasActiveInstance()) {
-            com.fairylive.app.ui.hud.StreamerFloatingHudManager.dismissAll()
-            Toast.makeText(ctx, "Floating Hub hidden", Toast.LENGTH_SHORT).show()
-        } else {
-            com.fairylive.app.ui.hud.StreamerFloatingHudManager(ctx)
-            Toast.makeText(ctx, "Floating Hub activated! Look for the Fairy logo on your screen", Toast.LENGTH_SHORT).show()
-        }
     }
 
     private fun isPackageInstalled(pkg: String): Boolean {

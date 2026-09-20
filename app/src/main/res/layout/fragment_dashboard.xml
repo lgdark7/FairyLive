@@ -582,53 +582,6 @@
             </LinearLayout>
         </LinearLayout>
 
-        <!-- Studio Quick Controls (Floating Hub, Audio Studio, Camera & Mic) -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="12dp"
-            android:gravity="center_vertical"
-            android:orientation="horizontal">
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btn_floating_hub"
-                style="@style/Widget.MaterialComponents.Button.OutlinedButton"
-                android:layout_width="0dp"
-                android:layout_height="48dp"
-                android:layout_marginEnd="8dp"
-                android:layout_weight="1"
-                android:text="Floating Hub"
-                android:textAllCaps="false"
-                android:textColor="@color/text_primary"
-                android:textSize="13sp"
-                app:cornerRadius="16dp"
-                app:icon="@drawable/ic_fairy_logo"
-                app:iconGravity="textStart"
-                app:iconPadding="8dp"
-                app:iconTint="@null"
-                app:strokeColor="@color/accent_primary"
-                app:strokeWidth="1dp" />
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btn_audio_studio"
-                style="@style/Widget.MaterialComponents.Button.OutlinedButton"
-                android:layout_width="0dp"
-                android:layout_height="48dp"
-                android:layout_marginStart="8dp"
-                android:layout_weight="1"
-                android:text="Audio Studio"
-                android:textAllCaps="false"
-                android:textColor="@color/text_primary"
-                android:textSize="13sp"
-                app:cornerRadius="16dp"
-                app:icon="@drawable/ic_mic"
-                app:iconGravity="textStart"
-                app:iconPadding="8dp"
-                app:iconTint="@color/accent_primary"
-                app:strokeColor="@color/bg_card_stroke"
-                app:strokeWidth="1dp" />
-        </LinearLayout>
-
         <!-- Quick Camera & Mic Pill Toggles -->
         <LinearLayout
             android:layout_width="match_parent"

@@ -178,24 +178,21 @@ class StreamerFloatingHudManager(private val context: Context) {
         val expandedControls = view.findViewById<View>(R.id.hudExpandedControls)
         val btnChat = view.findViewById<ImageButton>(R.id.hudBtnChat)
         val btnMic = view.findViewById<ImageButton>(R.id.hudBtnMic)
+        val btnMixer = view.findViewById<ImageButton>(R.id.hudBtnMixer)
         val btnCamera = view.findViewById<ImageButton>(R.id.hudBtnCamera)
         val btnPause = view.findViewById<ImageButton>(R.id.hudBtnPause)
         val btnMore = view.findViewById<ImageButton>(R.id.hudBtnMore)
         val liveStatus = view.findViewById<TextView>(R.id.hudLiveStatus)
 
-        fun updateExpandedState() {
-            expandedControls?.visibility = if (isExpanded) View.VISIBLE else View.GONE
-            btnToggle?.setImageResource(
-                if (isExpanded) android.R.drawable.ic_menu_close_clear_cancel
-                else android.R.drawable.ic_menu_manage
-            )
-        }
-
         btnToggle?.setOnClickListener {
             isExpanded = !isExpanded
-            updateExpandedState()
+            applyExpandedState(view)
         }
-        updateExpandedState()
+        applyExpandedState(view)
+
+        btnMixer?.setOnClickListener {
+            showAudioMixerDialog()
+        }
 
         // Ephemeral chat overlay click toggle; long-press opens YouTube connect / full chat sheet
         btnChat?.setOnClickListener {
@@ -927,19 +924,33 @@ class StreamerFloatingHudManager(private val context: Context) {
                             return@setOnTouchListener true
                         } else {
                             isExpanded = !isExpanded
-                            val expandedControls = view.findViewById<View>(R.id.hudExpandedControls)
-                            val btn = view.findViewById<ImageButton>(R.id.hudBtnToggleCollapse)
-                            expandedControls?.visibility = if (isExpanded) View.VISIBLE else View.GONE
-                            btn?.setImageResource(
-                                if (isExpanded) android.R.drawable.ic_menu_close_clear_cancel
-                                else android.R.drawable.ic_menu_manage
-                            )
+                            applyExpandedState(view)
                         }
                     }
                     true
                 }
                 else -> false
             }
+        }
+    }
+
+    private fun applyExpandedState(view: View) {
+        val expandedControls = view.findViewById<View>(R.id.hudExpandedControls)
+        val btn = view.findViewById<ImageButton>(R.id.hudBtnToggleCollapse)
+        expandedControls?.visibility = if (isExpanded) View.VISIBLE else View.GONE
+        if (isExpanded) {
+            view.setBackgroundResource(R.drawable.bg_streamer_hud_pill)
+            val p = dpToPx(4)
+            view.setPadding(p, p, p, p)
+            btn?.setImageResource(android.R.drawable.ic_menu_close_clear_cancel)
+            btn?.imageTintList = android.content.res.ColorStateList.valueOf(android.graphics.Color.WHITE)
+            btn?.contentDescription = "Collapse Stream Controls"
+        } else {
+            view.setBackgroundResource(0)
+            view.setPadding(0, 0, 0, 0)
+            btn?.setImageResource(R.drawable.ic_fairy_logo)
+            btn?.imageTintList = null
+            btn?.contentDescription = "Fairy Live Stream Controls"
         }
     }
 
