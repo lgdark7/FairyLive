@@ -33,6 +33,7 @@ object AudioStudioRepository {
     private const val KEY_MEDIA_MUTED = "media_muted"
 
     private const val KEY_NOISE_GATE = "noise_gate_enabled"
+    private const val KEY_GOD_MODE_NOISE = "god_mode_noise_enabled"
     private const val KEY_AGC = "agc_enabled"
     private const val KEY_COMPRESSOR = "compressor_enabled"
     private const val KEY_LIMITER = "limiter_enabled"
@@ -48,6 +49,7 @@ object AudioStudioRepository {
     @Volatile var isMediaMuted: Boolean = false
 
     @Volatile var isNoiseSuppressionEnabled: Boolean = true
+    @Volatile var isGodModeNoiseEnabled: Boolean = true
     @Volatile var isAgcEnabled: Boolean = false
     @Volatile var isCompressorEnabled: Boolean = true
     @Volatile var isLimiterEnabled: Boolean = true
@@ -70,12 +72,13 @@ object AudioStudioRepository {
             isMediaMuted = prefs.getBoolean(KEY_MEDIA_MUTED, false)
 
             isNoiseSuppressionEnabled = prefs.getBoolean(KEY_NOISE_GATE, true)
+            isGodModeNoiseEnabled = prefs.getBoolean(KEY_GOD_MODE_NOISE, true)
             isAgcEnabled = prefs.getBoolean(KEY_AGC, false)
             isCompressorEnabled = prefs.getBoolean(KEY_COMPRESSOR, true)
             isLimiterEnabled = prefs.getBoolean(KEY_LIMITER, true)
             activePreset = prefs.getString(KEY_PRESET, "GAMING") ?: "GAMING"
             isInitialized = true
-            Log.i(TAG, "Initialized AudioStudioRepository (mic=${micVolume}, game=${gameVolume}, media=${mediaVolume}, master=${masterVolume}, ns=${isNoiseSuppressionEnabled})")
+            Log.i(TAG, "Initialized AudioStudioRepository (mic=${micVolume}, game=${gameVolume}, media=${mediaVolume}, master=${masterVolume}, ns=${isNoiseSuppressionEnabled}, godModeNs=${isGodModeNoiseEnabled})")
         } catch (e: Exception) {
             Log.w(TAG, "Failed to load AudioStudio prefs: ${e.message}")
         }
@@ -120,12 +123,14 @@ object AudioStudioRepository {
     fun saveDsp(
         context: Context,
         noiseGate: Boolean? = null,
+        godMode: Boolean? = null,
         agc: Boolean? = null,
         compressor: Boolean? = null,
         limiter: Boolean? = null
     ) {
         init(context)
         noiseGate?.let { isNoiseSuppressionEnabled = it }
+        godMode?.let { isGodModeNoiseEnabled = it }
         agc?.let { isAgcEnabled = it }
         compressor?.let { isCompressorEnabled = it }
         limiter?.let { isLimiterEnabled = it }
@@ -133,6 +138,7 @@ object AudioStudioRepository {
         try {
             val editor = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
             noiseGate?.let { editor.putBoolean(KEY_NOISE_GATE, it) }
+            godMode?.let { editor.putBoolean(KEY_GOD_MODE_NOISE, it) }
             agc?.let { editor.putBoolean(KEY_AGC, it) }
             compressor?.let { editor.putBoolean(KEY_COMPRESSOR, it) }
             limiter?.let { editor.putBoolean(KEY_LIMITER, it) }

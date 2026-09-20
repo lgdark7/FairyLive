@@ -71,6 +71,9 @@ class SettingsFragment : Fragment() {
         binding.btnSave.setOnClickListener {
             saveFields(showFeedback = true)
         }
+        binding.btnSaveHeader.setOnClickListener {
+            saveFields(showFeedback = true)
+        }
     }
 
     override fun onResume() {
@@ -215,6 +218,7 @@ class SettingsFragment : Fragment() {
     private fun setupAudioStudioSection() {
         binding.switchHardwareNs.isChecked = AudioStudioRepository.isNoiseSuppressionEnabled
         binding.switchDspNoiseGate.isChecked = AudioStudioRepository.isNoiseSuppressionEnabled
+        binding.switchGodModeNoise.isChecked = AudioStudioRepository.isGodModeNoiseEnabled
 
         binding.switchHardwareNs.setOnCheckedChangeListener { _, isChecked ->
             AudioStudioRepository.saveDsp(requireContext(), noiseGate = isChecked)
@@ -223,6 +227,11 @@ class SettingsFragment : Fragment() {
 
         binding.switchDspNoiseGate.setOnCheckedChangeListener { _, isChecked ->
             AudioStudioRepository.saveDsp(requireContext(), noiseGate = isChecked)
+            updateAudioStudioStatus()
+        }
+
+        binding.switchGodModeNoise.setOnCheckedChangeListener { _, isChecked ->
+            AudioStudioRepository.saveDsp(requireContext(), godMode = isChecked)
             updateAudioStudioStatus()
         }
 
@@ -240,7 +249,11 @@ class SettingsFragment : Fragment() {
         val gamePercent = (AudioStudioRepository.gameVolume * 100).toInt()
         val masterPercent = (AudioStudioRepository.masterVolume * 100).toInt()
         val preset = AudioStudioRepository.activePreset
-        val nsStatus = if (AudioStudioRepository.isNoiseSuppressionEnabled) "ON" else "OFF"
+        val nsStatus = when {
+            !AudioStudioRepository.isNoiseSuppressionEnabled -> "OFF"
+            AudioStudioRepository.isGodModeNoiseEnabled -> "🔥 GOD-MODE"
+            else -> "ON"
+        }
         binding.tvAudioStudioStatus.text = "Mic: $micPercent% • Game: $gamePercent% • Master: $masterPercent% • DSP: $nsStatus • Preset: $preset"
     }
 

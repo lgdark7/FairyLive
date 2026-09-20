@@ -217,11 +217,13 @@ class AudioStudioBottomSheetDialog : BottomSheetDialogFragment() {
         }
 
         binding.switchNoiseSuppression.isChecked = com.fairylive.app.core.audio.AudioStudioRepository.isNoiseSuppressionEnabled
+        binding.switchGodModeNoise.isChecked = com.fairylive.app.core.audio.AudioStudioRepository.isGodModeNoiseEnabled
         binding.switchAgc.isChecked = com.fairylive.app.core.audio.AudioStudioRepository.isAgcEnabled
         binding.switchCompressor.isChecked = com.fairylive.app.core.audio.AudioStudioRepository.isCompressorEnabled
         binding.switchLimiter.isChecked = com.fairylive.app.core.audio.AudioStudioRepository.isLimiterEnabled
 
         binding.switchNoiseSuppression.setOnCheckedChangeListener(dspListener)
+        binding.switchGodModeNoise.setOnCheckedChangeListener(dspListener)
         binding.switchCompressor.setOnCheckedChangeListener(dspListener)
         binding.switchLimiter.setOnCheckedChangeListener(dspListener)
         binding.switchAgc.setOnCheckedChangeListener(dspListener)
@@ -332,6 +334,7 @@ class AudioStudioBottomSheetDialog : BottomSheetDialogFragment() {
         com.fairylive.app.core.audio.AudioStudioRepository.saveDsp(
             context = context,
             noiseGate = b.switchNoiseSuppression.isChecked,
+            godMode = b.switchGodModeNoise.isChecked,
             agc = b.switchAgc.isChecked,
             compressor = b.switchCompressor.isChecked,
             limiter = b.switchLimiter.isChecked
@@ -339,6 +342,7 @@ class AudioStudioBottomSheetDialog : BottomSheetDialogFragment() {
         FairyStreamService.setAudioDspFilters(
             context = context,
             noiseGate = b.switchNoiseSuppression.isChecked,
+            godMode = b.switchGodModeNoise.isChecked,
             agc = b.switchAgc.isChecked,
             compressor = b.switchCompressor.isChecked,
             limiter = b.switchLimiter.isChecked

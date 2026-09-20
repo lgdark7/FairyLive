@@ -200,4 +200,67 @@ class AudioMixerProcessorTest {
         val firstSample = ((out[1].toInt() shl 8) or (out[0].toInt() and 0xFF)).toShort()
         assertTrue("Output ($firstSample) should approximate 1500 within limiter/filter tolerance", abs(firstSample - 1500) < 50)
     }
+
+    @Test
+    fun testGodModeNoiseCancellationEliminatesAmbientHiss() {
+        val mixer = AudioMixerProcessor()
+        mixer.isNoiseSuppressionEnabled = true
+        mixer.isGodModeNoiseEnabled = true
+        mixer.micVolume = 1.0f
+
+        val numSamples = 512
+        val bytes = numSamples * 2
+
+        // Synthesize steady background hiss (amplitude 100, ~ -50dB)
+        val hissBuffer = ByteArray(bytes)
+        for (i in 0 until bytes - 1 step 2) {
+            val sample = 100.toShort()
+            hissBuffer[i] = (sample.toInt() and 0xFF).toByte()
+            hissBuffer[i + 1] = ((sample.toInt() shr 8) and 0xFF).toByte()
+        }
+
+        val outBuffer = ByteArray(bytes)
+        mixer.processAndMix(hissBuffer, null, outBuffer, bytes, isPaused = false)
+
+        // God-mode soft-knee expander should crush background hiss to near-zero
+        for (i in 0 until bytes - 1 step 2) {
+            val sample = abs(((outBuffer[i + 1].toInt() shl 8) or (outBuffer[i].toInt() and 0xFF)).toShort().toInt())
+            assertTrue("God-Mode noise suppression must drive ambient hiss to near-zero ($sample)", sample <= 10)
+        }
+
+        // Check estimated noise floor tracked
+        assertTrue("Estimated noise floor must be measured in dB", mixer.estimatedNoiseFloorDb < -30.0f)
+    }
+
+    @Test
+    fun testGodModeSpeechPassesThroughCleanly() {
+        val mixer = AudioMixerProcessor()
+        mixer.isNoiseSuppressionEnabled = true
+        mixer.isGodModeNoiseEnabled = true
+        mixer.micVolume = 1.0f
+
+        val numSamples = 1024
+        val bytes = numSamples * 2
+
+        // Synthesize AC speech sine wave (500 Hz tone, amplitude 8000, ~ -12dB)
+        // Note: Human speech is AC; 100Hz HPF blocks DC.
+        val speechBuffer = ByteArray(bytes)
+        for (i in 0 until numSamples) {
+            val angle = 2.0 * Math.PI * 500.0 * (i.toDouble() / 44100.0)
+            val sample = (8000.0 * Math.sin(angle)).toInt().toShort()
+            speechBuffer[i * 2] = (sample.toInt() and 0xFF).toByte()
+            speechBuffer[i * 2 + 1] = ((sample.toInt() shr 8) and 0xFF).toByte()
+        }
+
+        val outBuffer = ByteArray(bytes)
+        mixer.processAndMix(speechBuffer, null, outBuffer, bytes, isPaused = false)
+
+        // Find peak amplitude in the latter half of the buffer after gate opens
+        var peakSample = 0
+        for (i in (numSamples / 2) until numSamples) {
+            val sample = abs(((outBuffer[i * 2 + 1].toInt() shl 8) or (outBuffer[i * 2].toInt() and 0xFF)).toShort().toInt())
+            if (sample > peakSample) peakSample = sample
+        }
+        assertTrue("Active speech (500Hz AC) should pass through gate with peak > 2000 (was $peakSample)", peakSample > 2000)
+    }
 }

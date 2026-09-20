@@ -130,8 +130,9 @@ class AudioCaptureEngine {
         Log.i(TAG, "Media audio muted: $muted")
     }
 
-    fun setDspFilters(noiseGate: Boolean, agc: Boolean, compressor: Boolean, limiter: Boolean) {
+    fun setDspFilters(noiseGate: Boolean, agc: Boolean, compressor: Boolean, limiter: Boolean, godMode: Boolean = true) {
         audioMixer.isNoiseSuppressionEnabled = noiseGate
+        audioMixer.isGodModeNoiseEnabled = godMode
         audioMixer.isAgcEnabled = agc
         audioMixer.isCompressorEnabled = compressor
         audioMixer.isLimiterEnabled = limiter

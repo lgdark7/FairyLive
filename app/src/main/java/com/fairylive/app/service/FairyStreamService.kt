@@ -261,11 +261,12 @@ class FairyStreamService : Service() {
 
                 if (intent != null && intent.hasExtra(EXTRA_DSP_NOISE_GATE)) {
                     val noise = intent.getBooleanExtra(EXTRA_DSP_NOISE_GATE, true)
+                    val godMode = intent.getBooleanExtra(EXTRA_DSP_GOD_MODE_NOISE, com.fairylive.app.core.audio.AudioStudioRepository.isGodModeNoiseEnabled)
                     val agc = intent.getBooleanExtra(EXTRA_DSP_AGC, false)
                     val comp = intent.getBooleanExtra(EXTRA_DSP_COMPRESSOR, true)
                     val lim = intent.getBooleanExtra(EXTRA_DSP_LIMITER, true)
-                    audioPipeline.setDspFilters(noise, agc, comp, lim)
-                    com.fairylive.app.core.audio.AudioStudioRepository.saveDsp(this, noise, agc, comp, lim)
+                    audioPipeline.setDspFilters(noise, agc, comp, lim, godMode)
+                    com.fairylive.app.core.audio.AudioStudioRepository.saveDsp(this, noise, godMode, agc, comp, lim)
                 }
 
                 val presetName = intent?.getStringExtra(EXTRA_AUDIO_PRESET)
@@ -767,7 +768,8 @@ class FairyStreamService : Service() {
             noiseGate = com.fairylive.app.core.audio.AudioStudioRepository.isNoiseSuppressionEnabled,
             agc = com.fairylive.app.core.audio.AudioStudioRepository.isAgcEnabled,
             compressor = com.fairylive.app.core.audio.AudioStudioRepository.isCompressorEnabled,
-            limiter = com.fairylive.app.core.audio.AudioStudioRepository.isLimiterEnabled
+            limiter = com.fairylive.app.core.audio.AudioStudioRepository.isLimiterEnabled,
+            godMode = com.fairylive.app.core.audio.AudioStudioRepository.isGodModeNoiseEnabled
         )
     }
 
@@ -1052,6 +1054,7 @@ class FairyStreamService : Service() {
         const val EXTRA_GAME_MUTED = "extra_game_muted"
         const val EXTRA_MEDIA_MUTED = "extra_media_muted"
         const val EXTRA_DSP_NOISE_GATE = "extra_dsp_noise_gate"
+        const val EXTRA_DSP_GOD_MODE_NOISE = "extra_dsp_god_mode_noise"
         const val EXTRA_DSP_AGC = "extra_dsp_agc"
         const val EXTRA_DSP_COMPRESSOR = "extra_dsp_compressor"
         const val EXTRA_DSP_LIMITER = "extra_dsp_limiter"
@@ -1265,11 +1268,13 @@ class FairyStreamService : Service() {
             noiseGate: Boolean,
             agc: Boolean,
             compressor: Boolean,
-            limiter: Boolean
+            limiter: Boolean,
+            godMode: Boolean = true
         ) {
             val intent = Intent(context, FairyStreamService::class.java).apply {
                 action = ACTION_SET_AUDIO_VOLUMES
                 putExtra(EXTRA_DSP_NOISE_GATE, noiseGate)
+                putExtra(EXTRA_DSP_GOD_MODE_NOISE, godMode)
                 putExtra(EXTRA_DSP_AGC, agc)
                 putExtra(EXTRA_DSP_COMPRESSOR, compressor)
                 putExtra(EXTRA_DSP_LIMITER, limiter)
