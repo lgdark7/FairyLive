@@ -6,14 +6,14 @@
     android:layout_height="match_parent"
     android:background="#000000">
 
-    <!-- 16:9 Centered Double-Buffered TextureView on pure black (#000000) canvas -->
+    <!-- 1:1 Centered Double-Buffered TextureView matching cropped logo screen ratio on pitch black (#000000) canvas -->
     <TextureView
         android:id="@+id/splashTextureView"
         android:layout_width="0dp"
         android:layout_height="0dp"
         android:alpha="0"
         app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintDimensionRatio="16:9"
+        app:layout_constraintDimensionRatio="1:1"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
