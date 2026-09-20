@@ -1,8 +1,0 @@
-[
-  "09-14 12:53:42.576 I/StreamPipeline(30167): ABR Decision: 1200 -> 500 kbps (reason=POOR_NETWORK)",
-  "09-14 12:53:44.582 I/StreamPipeline(30167): STAGE-AUDIT muxedV=97 muxedA=217 sentV=97 sentA=216 drops=0 qEvict=0 deltaEvict=0 keyEvict=0 unbufDrop=0 qDepth=1 elapsed=5.0s muxVfps=19.4 muxAfps=43.4 sentVfps=19.4 sentAfps=43.2 abr=500kbps health=DEGRADED",
-  "09-14 12:53:44.582 I/StreamPipeline(30167): ABR Decision: 500 -> 300 kbps (reason=DEGRADED_LATENCY)",
-  "09-14 12:53:49.594 I/StreamPipeline(30167): STAGE-AUDIT muxedV=146 muxedA=433 sentV=146 sentA=432 drops=0 qEvict=0 deltaEvict=0 keyEvict=0 unbufDrop=0 qDepth=1 elapsed=10.0s muxVfps=14.6 muxAfps=43.2 sentVfps=14.6 sentAfps=43.1 abr=300kbps health=CRITICAL",
-  "09-14 12:53:54.607 I/StreamPipeline(30167): STAGE-AUDIT muxedV=195 muxedA=649 sentV=195 sentA=648 drops=0 qEvict=0 deltaEvict=0 keyEvict=0 unbufDrop=0 qDepth=1 elapsed=15.0s muxVfps=13.0 muxAfps=43.2 sentVfps=13.0 sentAfps=43.1 abr=300kbps health=CRITICAL",
-  "09-14 12:53:59.620 I/StreamPipeline(30167): STAGE-AUDIT muxedV=245 muxedA=865 sentV=245 sentA=864 drops=0 qEvict=0 deltaEvict=0 keyEvict=0 unbufDrop=0 qDepth=1 elapsed=20.0s muxVfps=12.2 muxAfps=43.2 sentVfps=12.2 sentAfps=43.1 abr=300kbps health=CRITICAL"
-]

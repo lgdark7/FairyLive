@@ -28,4 +28,9 @@ tools/*.jpeg
 tools/*.db
 tools/*.pid
 ui_hud*.xml
+dump*.xml
+*.flv
+tools/*.flv
+tools/*.xml
+tools/*.json
 tools/__pycache__/

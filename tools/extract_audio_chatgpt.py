@@ -29,7 +29,7 @@ foreach ($el in $elements) {
     }
 }
 
-$outFile = "C:\\Users\\benny\\Desktop\\FAIRY LIVE\\tools\\chatgpt_phase9_response.txt"
+$outFile = "C:\\Users\\benny\\Desktop\\FAIRY LIVE\\tools\\chatgpt_latest_response_audio.txt"
 [System.IO.File]::WriteAllText($outFile, $fullText)
 Write-Host "Wrote $($fullText.Length) characters to $outFile"
 """
