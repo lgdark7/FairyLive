@@ -40,6 +40,13 @@ class AudioCaptureEngine {
     private var playbackThread: Thread? = null
     private val isCapturing = AtomicBoolean(false)
 
+    private var recordingCallback: Any? = null
+    private var recordingExecutor: java.util.concurrent.ExecutorService? = null
+
+    @Volatile
+    var isMicSilencedBySystem: Boolean = false
+        private set
+
     private var playbackRingBuffer: PcmRingBuffer? = null
 
     val audioMixer = com.fairylive.app.core.audio.dsp.AudioMixerProcessor()
@@ -219,6 +226,41 @@ class AudioCaptureEngine {
 
         // Start main capture & mixing thread
         micRec?.startRecording()
+
+        // Register system AudioRecordingCallback for automatic in-game mic / concurrent capture detection (Android 10+)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && micRec != null) {
+            try {
+                val executor = java.util.concurrent.Executors.newSingleThreadExecutor { r ->
+                    Thread(r, "FairyAudioRecordingCallback").apply { isDaemon = true }
+                }
+                this.recordingExecutor = executor
+                val callback = object : android.media.AudioManager.AudioRecordingCallback() {
+                    override fun onRecordingConfigChanged(configs: List<android.media.AudioRecordingConfiguration>) {
+                        val session = micRec.audioSessionId
+                        var silenced = false
+                        for (c in configs) {
+                            if (c.clientAudioSessionId == session) {
+                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                                    silenced = c.isClientSilenced
+                                }
+                                break
+                            }
+                        }
+                        if (isMicSilencedBySystem != silenced) {
+                            isMicSilencedBySystem = silenced
+                            Log.w(TAG, "AudioRecord client silenced state changed: $silenced (in-game or VoIP mic active)")
+                            AudioStateNotifier.updateMicSilenced(silenced)
+                        }
+                    }
+                }
+                micRec.registerAudioRecordingCallback(executor, callback)
+                this.recordingCallback = callback
+                Log.i(TAG, "Registered AudioRecordingCallback for system mic silence detection (API ${Build.VERSION.SDK_INT})")
+            } catch (e: Exception) {
+                Log.w(TAG, "Could not register AudioRecordingCallback: ${e.message}")
+            }
+        }
+
         val mThread = Thread({ masterCaptureLoop(micRec, ringBuffer) }, "FairyAudioMixerThread").apply {
             priority = Thread.MAX_PRIORITY
             start()
@@ -350,7 +392,8 @@ class AudioCaptureEngine {
                             gameDb = audioMixer.gameDb,
                             masterDb = audioMixer.masterDb,
                             isMuted = (audioMixer.isMicMuted && audioMixer.isGameMuted) || isMuted || isStreamPaused,
-                            isDeviceAudio = playbackRecord != null
+                            isDeviceAudio = playbackRecord != null,
+                            isMicSilencedBySystem = isMicSilencedBySystem
                         )
                     )
                 }
@@ -432,6 +475,20 @@ class AudioCaptureEngine {
 
         playbackRingBuffer?.clear()
         playbackRingBuffer = null
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            val cb = recordingCallback as? android.media.AudioManager.AudioRecordingCallback
+            if (cb != null) {
+                try {
+                    micRecord?.unregisterAudioRecordingCallback(cb)
+                } catch (_: Exception) {}
+            }
+            recordingCallback = null
+            recordingExecutor?.shutdown()
+            recordingExecutor = null
+        }
+        isMicSilencedBySystem = false
+        AudioStateNotifier.updateMicSilenced(false)
 
         AudioStateNotifier.updateState(AudioCaptureState.IDLE)
         AudioStateNotifier.updateMetrics(

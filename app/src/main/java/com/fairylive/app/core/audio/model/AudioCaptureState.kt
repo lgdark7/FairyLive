@@ -28,6 +28,7 @@ data class AudioMetrics(
     val channels: Int = 1,
     val isMuted: Boolean = false,
     val isDeviceAudio: Boolean = false,
+    val isMicSilencedBySystem: Boolean = false,
     val encoderName: String = "",
     val encoderType: EncoderType = EncoderType.UNKNOWN
 ) {

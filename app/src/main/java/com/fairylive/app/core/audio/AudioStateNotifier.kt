@@ -17,8 +17,17 @@ object AudioStateNotifier {
         fun onAudioMetricsUpdated(metrics: AudioMetrics)
     }
 
+    fun interface SilencedStateListener {
+        fun onMicSilencedChanged(isSilenced: Boolean)
+    }
+
     private val stateListeners = CopyOnWriteArrayList<StateListener>()
     private val metricsListeners = CopyOnWriteArrayList<MetricsListener>()
+    private val silencedListeners = CopyOnWriteArrayList<SilencedStateListener>()
+
+    @Volatile
+    var isMicSilencedBySystem: Boolean = false
+        private set
 
     @Volatile
     var currentState: AudioCaptureState = AudioCaptureState.IDLE
@@ -27,6 +36,28 @@ object AudioStateNotifier {
     @Volatile
     var currentMetrics: AudioMetrics = AudioMetrics()
         private set
+
+    fun updateMicSilenced(silenced: Boolean) {
+        if (isMicSilencedBySystem == silenced) return
+        isMicSilencedBySystem = silenced
+        currentMetrics = currentMetrics.copy(isMicSilencedBySystem = silenced)
+        for (listener in silencedListeners) {
+            listener.onMicSilencedChanged(silenced)
+        }
+        for (listener in metricsListeners) {
+            listener.onAudioMetricsUpdated(currentMetrics)
+        }
+    }
+
+    fun addSilencedListener(listener: SilencedStateListener) {
+        if (!silencedListeners.contains(listener)) {
+            silencedListeners.add(listener)
+        }
+    }
+
+    fun removeSilencedListener(listener: SilencedStateListener) {
+        silencedListeners.remove(listener)
+    }
 
     fun updateState(newState: AudioCaptureState) {
         if (currentState == newState) return
@@ -67,7 +98,9 @@ object AudioStateNotifier {
     fun reset() {
         currentState = AudioCaptureState.IDLE
         currentMetrics = AudioMetrics()
+        isMicSilencedBySystem = false
         stateListeners.clear()
         metricsListeners.clear()
+        silencedListeners.clear()
     }
 }

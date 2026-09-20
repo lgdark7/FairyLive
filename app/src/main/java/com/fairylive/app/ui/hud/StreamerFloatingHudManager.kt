@@ -64,8 +64,11 @@ class StreamerFloatingHudManager(private val context: Context) {
     private var hudView: View? = null
 
     private var isMicMuted: Boolean = false
+    private var isMicSilencedBySystem: Boolean = false
     private var isStreamPaused: Boolean = false
     private var isExpanded: Boolean = false
+    private var audioMetricsListener: com.fairylive.app.core.audio.AudioStateNotifier.MetricsListener? = null
+    private var flashJob: Job? = null
 
     // Ephemeral Chat Overlay State
     private var isChatOverlayEnabled: Boolean = false
@@ -110,6 +113,7 @@ class StreamerFloatingHudManager(private val context: Context) {
 
             setupHudControls(view)
             setupOverlayDraggability(view, params, wm)
+            attachAudioMetricsObserver(view)
 
             try {
                 wm.addView(view, params)
@@ -139,6 +143,7 @@ class StreamerFloatingHudManager(private val context: Context) {
 
             setupHudControls(view)
             setupDecorDraggability(view)
+            attachAudioMetricsObserver(view)
 
             decorView.addView(view, params)
             hudView = view
@@ -151,6 +156,12 @@ class StreamerFloatingHudManager(private val context: Context) {
         hideChatOverlay()
         hideAudioMixerDialog()
         hideConnectYouTubeChatDialog()
+        audioMetricsListener?.let {
+            com.fairylive.app.core.audio.AudioStateNotifier.removeMetricsListener(it)
+        }
+        audioMetricsListener = null
+        flashJob?.cancel()
+        flashJob = null
 
         hudView?.let { view ->
             val wm = windowManager
@@ -210,10 +221,7 @@ class StreamerFloatingHudManager(private val context: Context) {
         btnMic?.setOnClickListener {
             isMicMuted = !isMicMuted
             FairyStreamService.toggleMicrophone(context)
-            btnMic.setImageResource(
-                if (isMicMuted) android.R.drawable.ic_lock_silent_mode
-                else android.R.drawable.ic_btn_speak_now
-            )
+            updateMicStatusUi(view)
             displayEphemeralMessage("Microphone", if (isMicMuted) "Voice Muted (Game Audio Active)" else "Microphone Active", isSystem = true)
         }
         btnMic?.setOnLongClickListener {
@@ -952,6 +960,96 @@ class StreamerFloatingHudManager(private val context: Context) {
             btn?.imageTintList = null
             btn?.contentDescription = "Fairy Live Stream Controls"
         }
+        updateMicStatusUi(view)
+    }
+
+    private fun updateMicStatusUi(view: View) {
+        val micSilencedBadge = view.findViewById<TextView>(R.id.hudMicSilencedBadge)
+        val micWarningPill = view.findViewById<TextView>(R.id.hudMicWarningPill)
+        val expandedMicStatus = view.findViewById<TextView>(R.id.hudExpandedMicStatus)
+        val btnMic = view.findViewById<ImageButton>(R.id.hudBtnMic)
+
+        val isProblemState = isMicSilencedBySystem || isMicMuted
+
+        if (isProblemState) {
+            // Persistent warning indicator when mic is silenced by OS/game or muted
+            micSilencedBadge?.visibility = View.VISIBLE
+            micWarningPill?.visibility = if (!isExpanded) View.VISIBLE else View.GONE
+
+            if (isMicSilencedBySystem) {
+                micSilencedBadge?.text = "!"
+                micSilencedBadge?.setBackgroundResource(R.drawable.bg_hud_warning_badge)
+
+                micWarningPill?.text = "⚠️ Game Mic Active (Live Muted)"
+                micWarningPill?.setTextColor(0xFFF59E0B.toInt())
+                micWarningPill?.setBackgroundResource(R.drawable.bg_hud_warning_pill)
+
+                expandedMicStatus?.text = "⚠️ Game Mic Active"
+                expandedMicStatus?.setTextColor(0xFFF59E0B.toInt())
+                expandedMicStatus?.setBackgroundResource(R.drawable.bg_hud_warning_pill)
+            } else {
+                micSilencedBadge?.text = "M"
+                micSilencedBadge?.setBackgroundResource(R.drawable.bg_hud_warning_badge)
+
+                micWarningPill?.text = "🔇 Live Mic Muted"
+                micWarningPill?.setTextColor(0xFF9CA3AF.toInt())
+                micWarningPill?.setBackgroundResource(R.drawable.bg_hud_warning_pill)
+
+                expandedMicStatus?.text = "🔇 Mic Muted"
+                expandedMicStatus?.setTextColor(0xFF9CA3AF.toInt())
+                expandedMicStatus?.setBackgroundResource(R.drawable.bg_hud_warning_pill)
+            }
+            btnMic?.setImageResource(android.R.drawable.ic_lock_silent_mode)
+        } else {
+            // When live mic is healthy & ON: keep collapsed logo completely clean (zero screen clutter)
+            micSilencedBadge?.visibility = View.GONE
+            if (flashJob == null || !flashJob!!.isActive) {
+                micWarningPill?.visibility = View.GONE
+            }
+
+            // Visible inside the expanded toolbar when tapped
+            expandedMicStatus?.text = "🟢 Live Mic Active"
+            expandedMicStatus?.setTextColor(0xFF10B981.toInt())
+            expandedMicStatus?.setBackgroundResource(R.drawable.bg_hud_active_pill)
+            btnMic?.setImageResource(android.R.drawable.ic_btn_speak_now)
+        }
+    }
+
+    private fun flashLiveMicActivePill(view: View) {
+        if (isExpanded) return
+        val pill = view.findViewById<TextView>(R.id.hudMicWarningPill) ?: return
+        flashJob?.cancel()
+        flashJob = coroutineScope.launch(Dispatchers.Main) {
+            pill.text = "🟢 Live Mic Active"
+            pill.setTextColor(0xFF10B981.toInt())
+            pill.setBackgroundResource(R.drawable.bg_hud_active_pill)
+            pill.visibility = View.VISIBLE
+            kotlinx.coroutines.delay(2500)
+            if (!isMicSilencedBySystem && !isMicMuted && !isExpanded) {
+                pill.visibility = View.GONE
+            }
+        }
+    }
+
+    private fun attachAudioMetricsObserver(view: View) {
+        val listener = com.fairylive.app.core.audio.AudioStateNotifier.MetricsListener { metrics ->
+            coroutineScope.launch(Dispatchers.Main) {
+                val wasSilenced = isMicSilencedBySystem
+                val wasMuted = isMicMuted
+                isMicSilencedBySystem = metrics.isMicSilencedBySystem
+                isMicMuted = metrics.isMuted
+                updateMicStatusUi(view)
+
+                if ((wasSilenced || wasMuted) && !metrics.isMicSilencedBySystem && !metrics.isMuted) {
+                    flashLiveMicActivePill(view)
+                }
+            }
+        }
+        this.audioMetricsListener = listener
+        com.fairylive.app.core.audio.AudioStateNotifier.addMetricsListener(listener)
+        isMicSilencedBySystem = com.fairylive.app.core.audio.AudioStateNotifier.isMicSilencedBySystem
+        isMicMuted = com.fairylive.app.core.audio.AudioStateNotifier.currentMetrics.isMuted
+        updateMicStatusUi(view)
     }
 
     private fun setupDecorDraggability(view: View) {

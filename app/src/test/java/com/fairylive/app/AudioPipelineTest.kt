@@ -288,5 +288,29 @@ class AudioPipelineTest {
         )
         assertEquals(88200L, metrics.samplesRead)
         assertEquals(8820L, metrics.silenceFramesInserted)
+        assertFalse(metrics.isMicSilencedBySystem)
+    }
+
+    @Test
+    fun testAudioSilencedDetectionObserver() {
+        var observedSilenced = false
+        val listener = AudioStateNotifier.SilencedStateListener { isSilenced ->
+            observedSilenced = isSilenced
+        }
+        AudioStateNotifier.addSilencedListener(listener)
+
+        // Simulate game mic turning on -> system silences stream mic
+        AudioStateNotifier.updateMicSilenced(true)
+        assertTrue(AudioStateNotifier.isMicSilencedBySystem)
+        assertTrue(observedSilenced)
+        assertTrue(AudioStateNotifier.currentMetrics.isMicSilencedBySystem)
+
+        // Simulate game mic turning off -> system restores stream mic
+        AudioStateNotifier.updateMicSilenced(false)
+        assertFalse(AudioStateNotifier.isMicSilencedBySystem)
+        assertFalse(observedSilenced)
+        assertFalse(AudioStateNotifier.currentMetrics.isMicSilencedBySystem)
+
+        AudioStateNotifier.removeSilencedListener(listener)
     }
 }

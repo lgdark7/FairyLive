@@ -7,18 +7,58 @@
     android:gravity="center_vertical"
     android:orientation="horizontal">
 
-    <!-- Compact Floating Toggle Button (Always visible: Click to toggle Expand/Collapse) -->
-    <ImageButton
-        android:id="@+id/hudBtnToggleCollapse"
-        android:layout_width="48dp"
-        android:layout_height="48dp"
-        android:background="@drawable/bg_hud_circle_button"
-        android:contentDescription="Fairy Live Stream Controls"
-        android:padding="7dp"
-        android:scaleType="fitCenter"
-        android:src="@drawable/ic_fairy_logo" />
+    <!-- Compact Floating Toggle Button with Smart Badging -->
+    <FrameLayout
+        android:id="@+id/hudCollapsedContainer"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content">
 
-    <!-- Expanded Streamer Controls (Visible only when expanded) -->
+        <ImageButton
+            android:id="@+id/hudBtnToggleCollapse"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:background="@drawable/bg_hud_circle_button"
+            android:contentDescription="Fairy Live Stream Controls"
+            android:padding="7dp"
+            android:scaleType="fitCenter"
+            android:src="@drawable/ic_fairy_logo" />
+
+        <!-- Smart Warning Badge on logo button when mic is silenced by OS/game -->
+        <TextView
+            android:id="@+id/hudMicSilencedBadge"
+            android:layout_width="18dp"
+            android:layout_height="18dp"
+            android:layout_gravity="top|end"
+            android:layout_margin="2dp"
+            android:background="@drawable/bg_hud_warning_badge"
+            android:gravity="center"
+            android:text="!"
+            android:textColor="#FFFFFF"
+            android:textSize="11sp"
+            android:textStyle="bold"
+            android:visibility="gone" />
+    </FrameLayout>
+
+    <!-- Persistent Smart Warning Pill (Always visible while mic is silenced by in-game mic or muted) -->
+    <TextView
+        android:id="@+id/hudMicWarningPill"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="6dp"
+        android:background="@drawable/bg_hud_warning_pill"
+        android:elevation="6dp"
+        android:gravity="center_vertical"
+        android:paddingStart="8dp"
+        android:paddingTop="4dp"
+        android:paddingEnd="8dp"
+        android:paddingBottom="4dp"
+        android:text="⚠️ Game Mic Active (Live Muted)"
+        android:textColor="#F59E0B"
+        android:textSize="11sp"
+        android:textStyle="bold"
+        android:visibility="gone" />
+
+    <!-- Expanded Streamer Controls (Visible only when tapped / expanded) -->
     <LinearLayout
         android:id="@+id/hudExpandedControls"
         android:layout_width="wrap_content"
@@ -34,10 +74,27 @@
             android:id="@+id/hudLiveStatus"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:paddingEnd="8dp"
+            android:paddingEnd="6dp"
             android:text="● LIVE"
             android:textColor="#E53935"
             android:textSize="12sp"
+            android:textStyle="bold" />
+
+        <!-- Smart Mic Status pill shown when tapped/expanded -->
+        <TextView
+            android:id="@+id/hudExpandedMicStatus"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="6dp"
+            android:background="@drawable/bg_hud_active_pill"
+            android:gravity="center"
+            android:paddingStart="7dp"
+            android:paddingTop="3dp"
+            android:paddingEnd="7dp"
+            android:paddingBottom="3dp"
+            android:text="🟢 Live Mic Active"
+            android:textColor="#10B981"
+            android:textSize="10sp"
             android:textStyle="bold" />
 
         <!-- Chat Quick Toggle Button -->
