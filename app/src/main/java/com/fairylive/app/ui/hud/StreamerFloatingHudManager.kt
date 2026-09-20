@@ -524,10 +524,15 @@ class StreamerFloatingHudManager(private val context: Context) {
         header.addView(closeBtn)
         card.addView(header)
 
-        var currentMicVol = 0.9f
-        var currentGameVol = 0.8f
-        var currentMediaVol = 0.5f
-        var currentMasterVol = 1.0f
+        com.fairylive.app.core.audio.AudioStudioRepository.init(context)
+        var currentMicVol = com.fairylive.app.core.audio.AudioStudioRepository.micVolume
+        var currentGameVol = com.fairylive.app.core.audio.AudioStudioRepository.gameVolume
+        var currentMediaVol = com.fairylive.app.core.audio.AudioStudioRepository.mediaVolume
+        var currentMasterVol = com.fairylive.app.core.audio.AudioStudioRepository.masterVolume
+        var isNoiseGateEnabled = com.fairylive.app.core.audio.AudioStudioRepository.isNoiseSuppressionEnabled
+        var isLimiterEnabled = com.fairylive.app.core.audio.AudioStudioRepository.isLimiterEnabled
+        var isAgcEnabled = com.fairylive.app.core.audio.AudioStudioRepository.isAgcEnabled
+        var isCompressorEnabled = com.fairylive.app.core.audio.AudioStudioRepository.isCompressorEnabled
 
         // 1. Device Microphone Channel (Universal Device Mic - ZERO Pixel mentions)
         val micLabel = TextView(context).apply {
@@ -543,6 +548,13 @@ class StreamerFloatingHudManager(private val context: Context) {
                 override fun onProgressChanged(sb: SeekBar?, progress: Int, fromUser: Boolean) {
                     currentMicVol = progress / 100f
                     micLabel.text = "🎙 Device Microphone: ${progress}%"
+                    com.fairylive.app.core.audio.AudioStudioRepository.saveVolumes(
+                        context = context,
+                        mic = currentMicVol,
+                        game = currentGameVol,
+                        media = currentMediaVol,
+                        master = currentMasterVol
+                    )
                     FairyStreamService.setAudioVolumes(
                         context = context,
                         micVolume = currentMicVol,
@@ -572,6 +584,13 @@ class StreamerFloatingHudManager(private val context: Context) {
                 override fun onProgressChanged(sb: SeekBar?, progress: Int, fromUser: Boolean) {
                     currentGameVol = progress / 100f
                     gameLabel.text = "🎮 Game & System Audio: ${progress}%"
+                    com.fairylive.app.core.audio.AudioStudioRepository.saveVolumes(
+                        context = context,
+                        mic = currentMicVol,
+                        game = currentGameVol,
+                        media = currentMediaVol,
+                        master = currentMasterVol
+                    )
                     FairyStreamService.setAudioVolumes(
                         context = context,
                         micVolume = currentMicVol,
@@ -601,6 +620,13 @@ class StreamerFloatingHudManager(private val context: Context) {
                 override fun onProgressChanged(sb: SeekBar?, progress: Int, fromUser: Boolean) {
                     currentMediaVol = progress / 100f
                     mediaLabel.text = "🎵 Media & BGM: ${progress}%"
+                    com.fairylive.app.core.audio.AudioStudioRepository.saveVolumes(
+                        context = context,
+                        mic = currentMicVol,
+                        game = currentGameVol,
+                        media = currentMediaVol,
+                        master = currentMasterVol
+                    )
                     FairyStreamService.setAudioVolumes(
                         context = context,
                         micVolume = currentMicVol,
@@ -630,6 +656,13 @@ class StreamerFloatingHudManager(private val context: Context) {
                 override fun onProgressChanged(sb: SeekBar?, progress: Int, fromUser: Boolean) {
                     currentMasterVol = progress / 100f
                     masterLabel.text = "🎚 Master Output: ${progress}%"
+                    com.fairylive.app.core.audio.AudioStudioRepository.saveVolumes(
+                        context = context,
+                        mic = currentMicVol,
+                        game = currentGameVol,
+                        media = currentMediaVol,
+                        master = currentMasterVol
+                    )
                     FairyStreamService.setAudioVolumes(
                         context = context,
                         micVolume = currentMicVol,
@@ -651,28 +684,40 @@ class StreamerFloatingHudManager(private val context: Context) {
             setPadding(0, dpToPx(8), 0, 0)
         }
         val btnNoise = TextView(context).apply {
-            text = "🚫 Noise Gate: ON"
-            setTextColor(0xFF10B981.toInt())
+            text = if (isNoiseGateEnabled) "🚫 Noise Gate: ON" else "🚫 Noise Gate: OFF"
+            setTextColor(if (isNoiseGateEnabled) 0xFF10B981.toInt() else 0xFF9CA3AF.toInt())
             textSize = 11f
-            var enabled = true
             setOnClickListener {
-                enabled = !enabled
-                text = if (enabled) "🚫 Noise Gate: ON" else "🚫 Noise Gate: OFF"
-                setTextColor(if (enabled) 0xFF10B981.toInt() else 0xFF9CA3AF.toInt())
-                FairyStreamService.setAudioDspFilters(context, noiseGate = enabled, agc = false, compressor = true, limiter = true)
+                isNoiseGateEnabled = !isNoiseGateEnabled
+                text = if (isNoiseGateEnabled) "🚫 Noise Gate: ON" else "🚫 Noise Gate: OFF"
+                setTextColor(if (isNoiseGateEnabled) 0xFF10B981.toInt() else 0xFF9CA3AF.toInt())
+                com.fairylive.app.core.audio.AudioStudioRepository.saveDsp(context, noiseGate = isNoiseGateEnabled)
+                FairyStreamService.setAudioDspFilters(
+                    context,
+                    noiseGate = isNoiseGateEnabled,
+                    agc = isAgcEnabled,
+                    compressor = isCompressorEnabled,
+                    limiter = isLimiterEnabled
+                )
             }
             layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
         }
         val btnLimiter = TextView(context).apply {
-            text = "🔊 Limiter: ON"
-            setTextColor(0xFF10B981.toInt())
+            text = if (isLimiterEnabled) "🔊 Limiter: ON" else "🔊 Limiter: OFF"
+            setTextColor(if (isLimiterEnabled) 0xFF10B981.toInt() else 0xFF9CA3AF.toInt())
             textSize = 11f
-            var enabled = true
             setOnClickListener {
-                enabled = !enabled
-                text = if (enabled) "🔊 Limiter: ON" else "🔊 Limiter: OFF"
-                setTextColor(if (enabled) 0xFF10B981.toInt() else 0xFF9CA3AF.toInt())
-                FairyStreamService.setAudioDspFilters(context, noiseGate = true, agc = false, compressor = true, limiter = enabled)
+                isLimiterEnabled = !isLimiterEnabled
+                text = if (isLimiterEnabled) "🔊 Limiter: ON" else "🔊 Limiter: OFF"
+                setTextColor(if (isLimiterEnabled) 0xFF10B981.toInt() else 0xFF9CA3AF.toInt())
+                com.fairylive.app.core.audio.AudioStudioRepository.saveDsp(context, limiter = isLimiterEnabled)
+                FairyStreamService.setAudioDspFilters(
+                    context,
+                    noiseGate = isNoiseGateEnabled,
+                    agc = isAgcEnabled,
+                    compressor = isCompressorEnabled,
+                    limiter = isLimiterEnabled
+                )
             }
             layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
         }

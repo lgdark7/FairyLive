@@ -240,15 +240,24 @@ class FairyStreamService : Service() {
                 if (mediaVol >= 0f) audioPipeline.setMediaVolume(mediaVol)
                 if (masterVol >= 0f) audioPipeline.setMasterVolume(masterVol)
 
-                if (intent != null && intent.hasExtra(EXTRA_MIC_MUTED)) {
-                    audioPipeline.setMicMuted(intent.getBooleanExtra(EXTRA_MIC_MUTED, false))
-                }
-                if (intent != null && intent.hasExtra(EXTRA_GAME_MUTED)) {
-                    audioPipeline.setGameMuted(intent.getBooleanExtra(EXTRA_GAME_MUTED, false))
-                }
-                if (intent != null && intent.hasExtra(EXTRA_MEDIA_MUTED)) {
-                    audioPipeline.setMediaMuted(intent.getBooleanExtra(EXTRA_MEDIA_MUTED, false))
-                }
+                val micMutedVal = if (intent != null && intent.hasExtra(EXTRA_MIC_MUTED)) intent.getBooleanExtra(EXTRA_MIC_MUTED, false) else null
+                val gameMutedVal = if (intent != null && intent.hasExtra(EXTRA_GAME_MUTED)) intent.getBooleanExtra(EXTRA_GAME_MUTED, false) else null
+                val mediaMutedVal = if (intent != null && intent.hasExtra(EXTRA_MEDIA_MUTED)) intent.getBooleanExtra(EXTRA_MEDIA_MUTED, false) else null
+
+                micMutedVal?.let { audioPipeline.setMicMuted(it) }
+                gameMutedVal?.let { audioPipeline.setGameMuted(it) }
+                mediaMutedVal?.let { audioPipeline.setMediaMuted(it) }
+
+                com.fairylive.app.core.audio.AudioStudioRepository.saveVolumes(
+                    context = this,
+                    mic = if (micVol >= 0f) micVol else null,
+                    game = if (gameVol >= 0f) gameVol else null,
+                    media = if (mediaVol >= 0f) mediaVol else null,
+                    master = if (masterVol >= 0f) masterVol else null,
+                    micMuted = micMutedVal,
+                    gameMuted = gameMutedVal,
+                    mediaMuted = mediaMutedVal
+                )
 
                 if (intent != null && intent.hasExtra(EXTRA_DSP_NOISE_GATE)) {
                     val noise = intent.getBooleanExtra(EXTRA_DSP_NOISE_GATE, true)
@@ -256,6 +265,7 @@ class FairyStreamService : Service() {
                     val comp = intent.getBooleanExtra(EXTRA_DSP_COMPRESSOR, true)
                     val lim = intent.getBooleanExtra(EXTRA_DSP_LIMITER, true)
                     audioPipeline.setDspFilters(noise, agc, comp, lim)
+                    com.fairylive.app.core.audio.AudioStudioRepository.saveDsp(this, noise, agc, comp, lim)
                 }
 
                 val presetName = intent?.getStringExtra(EXTRA_AUDIO_PRESET)
@@ -263,6 +273,7 @@ class FairyStreamService : Service() {
                     try {
                         val preset = com.fairylive.app.core.audio.dsp.AudioMixerProcessor.AudioPreset.valueOf(presetName)
                         audioPipeline.applyPreset(preset)
+                        com.fairylive.app.core.audio.AudioStudioRepository.savePreset(this, presetName)
                     } catch (_: Exception) {}
                 }
             }
@@ -742,6 +753,22 @@ class FairyStreamService : Service() {
         }
 
         audioPipeline.start(config, activeMediaProjection)
+
+        // Apply persisted Audio Studio settings upon audio startup
+        com.fairylive.app.core.audio.AudioStudioRepository.init(this)
+        audioPipeline.setMicVolume(com.fairylive.app.core.audio.AudioStudioRepository.micVolume)
+        audioPipeline.setGameVolume(com.fairylive.app.core.audio.AudioStudioRepository.gameVolume)
+        audioPipeline.setMediaVolume(com.fairylive.app.core.audio.AudioStudioRepository.mediaVolume)
+        audioPipeline.setMasterVolume(com.fairylive.app.core.audio.AudioStudioRepository.masterVolume)
+        audioPipeline.setMicMuted(com.fairylive.app.core.audio.AudioStudioRepository.isMicMuted)
+        audioPipeline.setGameMuted(com.fairylive.app.core.audio.AudioStudioRepository.isGameMuted)
+        audioPipeline.setMediaMuted(com.fairylive.app.core.audio.AudioStudioRepository.isMediaMuted)
+        audioPipeline.setDspFilters(
+            noiseGate = com.fairylive.app.core.audio.AudioStudioRepository.isNoiseSuppressionEnabled,
+            agc = com.fairylive.app.core.audio.AudioStudioRepository.isAgcEnabled,
+            compressor = com.fairylive.app.core.audio.AudioStudioRepository.isCompressorEnabled,
+            limiter = com.fairylive.app.core.audio.AudioStudioRepository.isLimiterEnabled
+        )
     }
 
     private fun startStreamForeground(statusText: String, withMediaProjection: Boolean = false) {

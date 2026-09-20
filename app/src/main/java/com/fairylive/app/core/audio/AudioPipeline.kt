@@ -79,6 +79,8 @@ class AudioPipeline {
     val mediaVolume: Float get() = captureEngine.mediaVolume
     val masterVolume: Float get() = captureEngine.masterVolume
     val isMicMuted: Boolean get() = captureEngine.isMicMuted
+    val isGameMuted: Boolean get() = captureEngine.isGameMuted
+    val isMediaMuted: Boolean get() = captureEngine.isMediaMuted
 
     fun setMediaVolume(volume: Float) = captureEngine.setMediaVolume(volume)
     fun setMasterVolume(volume: Float) = captureEngine.setMasterVolume(volume)

@@ -3,6 +3,7 @@ package com.fairylive.app
 import android.media.AudioFormat
 import android.media.MediaCodec
 import android.media.MediaFormat
+import com.fairylive.app.core.audio.AudioPipeline
 import com.fairylive.app.core.audio.AudioPlaybackCaptureHelper
 import com.fairylive.app.core.audio.AudioStateNotifier
 import com.fairylive.app.core.audio.model.AudioCaptureConfig
@@ -312,5 +313,26 @@ class AudioPipelineTest {
         assertFalse(AudioStateNotifier.currentMetrics.isMicSilencedBySystem)
 
         AudioStateNotifier.removeSilencedListener(listener)
+    }
+
+    @Test
+    fun testAudioPipelineFourChannelVolumeControl() {
+        val pipeline = AudioPipeline()
+        pipeline.setMicVolume(0.75f)
+        pipeline.setGameVolume(0.85f)
+        pipeline.setMediaVolume(0.40f)
+        pipeline.setMasterVolume(0.95f)
+
+        assertEquals(0.75f, pipeline.micVolume, 0.001f)
+        assertEquals(0.85f, pipeline.gameVolume, 0.001f)
+        assertEquals(0.40f, pipeline.mediaVolume, 0.001f)
+        assertEquals(0.95f, pipeline.masterVolume, 0.001f)
+
+        pipeline.setMicMuted(true)
+        pipeline.setGameMuted(true)
+        pipeline.setMediaMuted(true)
+        assertTrue(pipeline.isMicMuted)
+        assertTrue(pipeline.isGameMuted)
+        assertTrue(pipeline.isMediaMuted)
     }
 }

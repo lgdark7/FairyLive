@@ -42,6 +42,9 @@ class AudioCaptureEngine {
 
     private var recordingCallback: Any? = null
     private var recordingExecutor: java.util.concurrent.ExecutorService? = null
+    private var noiseSuppressor: android.media.audiofx.NoiseSuppressor? = null
+    private var acousticEchoCanceler: android.media.audiofx.AcousticEchoCanceler? = null
+    @Volatile private var recoveryRampFrames: Int = 0
 
     @Volatile
     var isMicSilencedBySystem: Boolean = false
@@ -73,6 +76,12 @@ class AudioCaptureEngine {
 
     val masterVolume: Float
         get() = audioMixer.masterVolume
+
+    val isGameMuted: Boolean
+        get() = audioMixer.isGameMuted
+
+    val isMediaMuted: Boolean
+        get() = audioMixer.isMediaMuted
 
     private var totalSamplesRead: Long = 0L
     private var totalSilenceFramesInserted: Long = 0L
@@ -170,6 +179,30 @@ class AudioCaptureEngine {
             if (rec.state == AudioRecord.STATE_INITIALIZED) {
                 micRec = rec
                 Log.i(TAG, "Initialized Standard Microphone AudioRecord (${config.sampleRate}Hz, buffer: $bufferSize)")
+
+                // Attach Hardware Noise Suppressor if supported by device chipset
+                if (android.media.audiofx.NoiseSuppressor.isAvailable()) {
+                    try {
+                        val ns = android.media.audiofx.NoiseSuppressor.create(rec.audioSessionId)
+                        ns?.enabled = true
+                        noiseSuppressor = ns
+                        Log.i(TAG, "Hardware NoiseSuppressor enabled: ${ns?.enabled}")
+                    } catch (e: Exception) {
+                        Log.w(TAG, "Failed to attach hardware NoiseSuppressor: ${e.message}")
+                    }
+                }
+
+                // Attach Hardware Acoustic Echo Canceler if supported
+                if (android.media.audiofx.AcousticEchoCanceler.isAvailable()) {
+                    try {
+                        val aec = android.media.audiofx.AcousticEchoCanceler.create(rec.audioSessionId)
+                        aec?.enabled = true
+                        acousticEchoCanceler = aec
+                        Log.i(TAG, "Hardware AcousticEchoCanceler enabled: ${aec?.enabled}")
+                    } catch (e: Exception) {
+                        Log.w(TAG, "Failed to attach hardware AcousticEchoCanceler: ${e.message}")
+                    }
+                }
             } else {
                 rec.release()
                 Log.w(TAG, "Microphone AudioRecord failed to initialize")
@@ -247,9 +280,22 @@ class AudioCaptureEngine {
                             }
                         }
                         if (isMicSilencedBySystem != silenced) {
+                            val wasSilenced = isMicSilencedBySystem
                             isMicSilencedBySystem = silenced
                             Log.w(TAG, "AudioRecord client silenced state changed: $silenced (in-game or VoIP mic active)")
                             AudioStateNotifier.updateMicSilenced(silenced)
+
+                            // When game mic turns OFF -> stream mic active:
+                            // Reset DSP filter states and start smooth fade-in ramp to prevent HAL mode-switch pop/static
+                            if (wasSilenced && !silenced) {
+                                audioMixer.resetDspState()
+                                recoveryRampFrames = (config.sampleRate * 0.15f).toInt()
+                                try {
+                                    noiseSuppressor?.enabled = true
+                                    acousticEchoCanceler?.enabled = true
+                                } catch (_: Exception) {}
+                                Log.i(TAG, "Post-silence audio recovery initiated: DSP reset, 150ms ramp armed")
+                            }
                         }
                     }
                 }
@@ -365,9 +411,27 @@ class AudioCaptureEngine {
                     ringBuffer.read(gameBuffer, 0, bytesRead)
                 }
 
-                // Compute effective volumes based on mute & pause states
-                val effectiveMicVol = if (isMuted || isMicMuted || isStreamPaused) 0.0f else micVolume
-                val effectiveGameVol = if (isMuted || isStreamPaused) 0.0f else gameVolume
+                // If OS silenced mic (in-game mic active), zero out micBuffer completely so HAL noise cannot leak
+                if (isMicSilencedBySystem) {
+                    micBuffer.fill(0)
+                } else if (recoveryRampFrames > 0 && micRec != null) {
+                    // Smooth linear ramp during post-silence recovery (prevents HAL mode-switch pop)
+                    val totalRamp = (config.sampleRate * 0.15f).toInt().coerceAtLeast(1)
+                    for (i in 0 until bytesRead - 1 step 2) {
+                        if (recoveryRampFrames > 0) {
+                            val factor = (totalRamp - recoveryRampFrames).toFloat() / totalRamp
+                            val sample = ((micBuffer[i + 1].toInt() shl 8) or (micBuffer[i].toInt() and 0xFF)).toShort()
+                            val rampedSample = (sample * factor).toInt().toShort()
+                            micBuffer[i] = (rampedSample.toInt() and 0xFF).toByte()
+                            micBuffer[i + 1] = ((rampedSample.toInt() shr 8) and 0xFF).toByte()
+                            recoveryRampFrames--
+                        }
+                    }
+                }
+
+                // Sync mute & pause states to DSP mixer
+                audioMixer.isMicMuted = isMuted || isMicMuted || isStreamPaused
+                audioMixer.isGameMuted = isMuted || isStreamPaused
 
                 // Real-time 16-bit PCM mixing & DSP audio processing
                 audioMixer.processAndMix(
@@ -460,6 +524,16 @@ class AudioCaptureEngine {
         } catch (_: Exception) {}
         playbackThread = null
         captureThread = null
+
+        try {
+            noiseSuppressor?.release()
+            noiseSuppressor = null
+        } catch (_: Exception) {}
+        try {
+            acousticEchoCanceler?.release()
+            acousticEchoCanceler = null
+        } catch (_: Exception) {}
+        recoveryRampFrames = 0
 
         try {
             micRecord?.stop()

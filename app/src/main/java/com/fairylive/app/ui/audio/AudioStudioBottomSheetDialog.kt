@@ -49,13 +49,31 @@ class AudioStudioBottomSheetDialog : BottomSheetDialogFragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
+        val ctx = requireContext()
+        com.fairylive.app.core.audio.AudioStudioRepository.init(ctx)
+        micVol = com.fairylive.app.core.audio.AudioStudioRepository.micVolume
+        gameVol = com.fairylive.app.core.audio.AudioStudioRepository.gameVolume
+        mediaVol = com.fairylive.app.core.audio.AudioStudioRepository.mediaVolume
+        masterVol = com.fairylive.app.core.audio.AudioStudioRepository.masterVolume
+        isMicMuted = com.fairylive.app.core.audio.AudioStudioRepository.isMicMuted
+        isGameMuted = com.fairylive.app.core.audio.AudioStudioRepository.isGameMuted
+        isMediaMuted = com.fairylive.app.core.audio.AudioStudioRepository.isMediaMuted
+
         setupSliders()
         setupMuteButtons()
         setupDspSwitches()
         setupPresets()
 
-        binding.btnCloseAudioStudio.setOnClickListener { dismiss() }
-        binding.btnApplyAudioStudio.setOnClickListener { dismiss() }
+        binding.btnCloseAudioStudio.setOnClickListener {
+            syncVolumesToService()
+            syncDspToService()
+            dismiss()
+        }
+        binding.btnApplyAudioStudio.setOnClickListener {
+            syncVolumesToService()
+            syncDspToService()
+            dismiss()
+        }
     }
 
     private fun setupSliders() {
@@ -71,7 +89,9 @@ class AudioStudioBottomSheetDialog : BottomSheetDialogFragment() {
                 }
             }
             override fun onStartTrackingTouch(sb: SeekBar?) {}
-            override fun onStopTrackingTouch(sb: SeekBar?) {}
+            override fun onStopTrackingTouch(sb: SeekBar?) {
+                syncVolumesToService()
+            }
         })
 
         // Game Audio (0 - 150%)
@@ -86,7 +106,9 @@ class AudioStudioBottomSheetDialog : BottomSheetDialogFragment() {
                 }
             }
             override fun onStartTrackingTouch(sb: SeekBar?) {}
-            override fun onStopTrackingTouch(sb: SeekBar?) {}
+            override fun onStopTrackingTouch(sb: SeekBar?) {
+                syncVolumesToService()
+            }
         })
 
         // Media Audio (0 - 100%)
@@ -101,7 +123,9 @@ class AudioStudioBottomSheetDialog : BottomSheetDialogFragment() {
                 }
             }
             override fun onStartTrackingTouch(sb: SeekBar?) {}
-            override fun onStopTrackingTouch(sb: SeekBar?) {}
+            override fun onStopTrackingTouch(sb: SeekBar?) {
+                syncVolumesToService()
+            }
         })
 
         // Master Output (0 - 100%)
@@ -116,7 +140,9 @@ class AudioStudioBottomSheetDialog : BottomSheetDialogFragment() {
                 }
             }
             override fun onStartTrackingTouch(sb: SeekBar?) {}
-            override fun onStopTrackingTouch(sb: SeekBar?) {}
+            override fun onStopTrackingTouch(sb: SeekBar?) {
+                syncVolumesToService()
+            }
         })
     }
 
@@ -139,6 +165,11 @@ class AudioStudioBottomSheetDialog : BottomSheetDialogFragment() {
     }
 
     private fun setupMuteButtons() {
+        binding.btnMuteMic.text = if (isMicMuted) "Unmute" else "Mute"
+        binding.btnMuteMic.setTextColor(
+            if (isMicMuted) requireContext().getColor(R.color.status_red)
+            else requireContext().getColor(R.color.accent_primary)
+        )
         binding.btnMuteMic.setOnClickListener {
             isMicMuted = !isMicMuted
             binding.btnMuteMic.text = if (isMicMuted) "Unmute" else "Mute"
@@ -149,6 +180,11 @@ class AudioStudioBottomSheetDialog : BottomSheetDialogFragment() {
             syncVolumesToService()
         }
 
+        binding.btnMuteGame.text = if (isGameMuted) "Unmute" else "Mute"
+        binding.btnMuteGame.setTextColor(
+            if (isGameMuted) requireContext().getColor(R.color.status_red)
+            else requireContext().getColor(R.color.accent_primary)
+        )
         binding.btnMuteGame.setOnClickListener {
             isGameMuted = !isGameMuted
             binding.btnMuteGame.text = if (isGameMuted) "Unmute" else "Mute"
@@ -159,6 +195,11 @@ class AudioStudioBottomSheetDialog : BottomSheetDialogFragment() {
             syncVolumesToService()
         }
 
+        binding.btnMuteMedia.text = if (isMediaMuted) "Unmute" else "Mute"
+        binding.btnMuteMedia.setTextColor(
+            if (isMediaMuted) requireContext().getColor(R.color.status_red)
+            else requireContext().getColor(R.color.accent_primary)
+        )
         binding.btnMuteMedia.setOnClickListener {
             isMediaMuted = !isMediaMuted
             binding.btnMuteMedia.text = if (isMediaMuted) "Unmute" else "Mute"
@@ -174,6 +215,11 @@ class AudioStudioBottomSheetDialog : BottomSheetDialogFragment() {
         val dspListener = { _: View, _: Boolean ->
             syncDspToService()
         }
+
+        binding.switchNoiseSuppression.isChecked = com.fairylive.app.core.audio.AudioStudioRepository.isNoiseSuppressionEnabled
+        binding.switchAgc.isChecked = com.fairylive.app.core.audio.AudioStudioRepository.isAgcEnabled
+        binding.switchCompressor.isChecked = com.fairylive.app.core.audio.AudioStudioRepository.isCompressorEnabled
+        binding.switchLimiter.isChecked = com.fairylive.app.core.audio.AudioStudioRepository.isLimiterEnabled
 
         binding.switchNoiseSuppression.setOnCheckedChangeListener(dspListener)
         binding.switchCompressor.setOnCheckedChangeListener(dspListener)
@@ -201,6 +247,7 @@ class AudioStudioBottomSheetDialog : BottomSheetDialogFragment() {
 
     private fun applyPreset(preset: AudioMixerProcessor.AudioPreset) {
         val context = context ?: return
+        com.fairylive.app.core.audio.AudioStudioRepository.savePreset(context, preset.name)
         FairyStreamService.setAudioPreset(context, preset.name)
 
         when (preset) {
@@ -250,10 +297,23 @@ class AudioStudioBottomSheetDialog : BottomSheetDialogFragment() {
         binding.tvLabelGameVol.text = "🎮 Game & System Audio: ${(gameVol * 100).toInt()}%"
         binding.tvLabelMediaVol.text = "🎵 Media & BGM: ${(mediaVol * 100).toInt()}%"
         binding.tvLabelMasterVol.text = "🎚 Master Stream Output: ${(masterVol * 100).toInt()}%"
+
+        syncVolumesToService()
+        syncDspToService()
     }
 
     private fun syncVolumesToService() {
         val context = context ?: return
+        com.fairylive.app.core.audio.AudioStudioRepository.saveVolumes(
+            context = context,
+            mic = micVol,
+            game = gameVol,
+            media = mediaVol,
+            master = masterVol,
+            micMuted = isMicMuted,
+            gameMuted = isGameMuted,
+            mediaMuted = isMediaMuted
+        )
         FairyStreamService.setAudioVolumes(
             context = context,
             micVolume = micVol,
@@ -269,6 +329,13 @@ class AudioStudioBottomSheetDialog : BottomSheetDialogFragment() {
     private fun syncDspToService() {
         val context = context ?: return
         val b = _binding ?: return
+        com.fairylive.app.core.audio.AudioStudioRepository.saveDsp(
+            context = context,
+            noiseGate = b.switchNoiseSuppression.isChecked,
+            agc = b.switchAgc.isChecked,
+            compressor = b.switchCompressor.isChecked,
+            limiter = b.switchLimiter.isChecked
+        )
         FairyStreamService.setAudioDspFilters(
             context = context,
             noiseGate = b.switchNoiseSuppression.isChecked,

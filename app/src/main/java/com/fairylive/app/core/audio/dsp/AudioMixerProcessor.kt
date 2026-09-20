@@ -1,11 +1,8 @@
 package com.fairylive.app.core.audio.dsp
 
 import android.util.Log
-import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.math.abs
 import kotlin.math.log10
-import kotlin.math.max
-import kotlin.math.min
 import kotlin.math.sign
 import kotlin.math.sqrt
 import kotlin.math.tanh
@@ -14,14 +11,18 @@ import kotlin.math.tanh
  * High-performance, zero-allocation native DSP Audio Mixer for FAIRY LIVE.
  *
  * Implements 4-channel independent volume mixing with real-time DSP:
- * 1. Device Microphone (with independent gain & mute) - NEVER references any specific device model
+ * 1. Device Microphone (with independent gain & mute) - Universal Device Mic
  * 2. Game / System Audio (with independent gain & mute)
  * 3. Media / BGM Audio (with independent gain & mute)
  * 4. Master Output Volume
  *
  * DSP Processing Filters:
- * - Noise Gate / Suppression (attenuates room hum/fan noise below -42 dBFS)
- * - Auto Gain Control (AGC) (gentle voice level stabilization)
+ * - Studio-Grade Noise Gate & Rumble Cut:
+ *   - 80Hz 1st-order high-pass rumble filter (cuts sub-bass AC hum and phone handling noise)
+ *   - Dual-time-constant envelope detector (5ms attack, 150ms release)
+ *   - Dual-threshold hysteresis gate (-38 dBFS open / -44 dBFS close)
+ *   - Exponential smooth downward expander (guarantees dead silence when streamer is silent)
+ * - Auto Gain Control (AGC) (speech-aware level stabilization without noise pumping)
  * - Soft-Knee Dynamic Compressor (prevents shouting distortion)
  * - Brickwall Soft Saturation Limiter (guarantees zero digital clipping)
  *
@@ -33,11 +34,13 @@ class AudioMixerProcessor {
         private const val TAG = "AudioMixerProcessor"
 
         // DSP Thresholds
-        private const val NOISE_GATE_THRESHOLD = 0.008f // ~ -42 dBFS
-        private const val AGC_TARGET_LEVEL = 0.50f       // ~ -6 dBFS
-        private const val COMPRESSOR_THRESHOLD = 0.20f   // ~ -14 dBFS
+        private const val NOISE_GATE_OPEN_THRESHOLD = 0.010f  // ~ -40 dBFS (speech onset)
+        private const val NOISE_GATE_CLOSE_THRESHOLD = 0.004f // ~ -48 dBFS (silence onset)
+        private const val AGC_TARGET_LEVEL = 0.45f             // ~ -7 dBFS
+        private const val COMPRESSOR_THRESHOLD = 0.20f         // ~ -14 dBFS
         private const val COMPRESSOR_RATIO = 3.5f
         private const val LIMITER_CEILING = 0.95f
+        private const val HP_ALPHA = 0.988f                    // ~80Hz high-pass at 44.1kHz
     }
 
     enum class AudioPreset {
@@ -79,7 +82,25 @@ class AudioMixerProcessor {
 
     // Internal DSP State
     private var micEnvelope: Float = 0.0f
+    private var isGateOpen: Boolean = false
+    private var gateHoldCounter: Int = 0
+    private var currentGateGain: Float = 0.0f
     private var agcGain: Float = 1.0f
+
+    // High-pass filter state
+    private var hpPrevIn: Float = 0.0f
+    private var hpPrevOut: Float = 0.0f
+
+    fun resetDspState() {
+        micEnvelope = 0.0f
+        isGateOpen = false
+        gateHoldCounter = 0
+        currentGateGain = 0.0f
+        agcGain = 1.0f
+        hpPrevIn = 0.0f
+        hpPrevOut = 0.0f
+        Log.i(TAG, "DSP internal state reset (noise gate & AGC cleared)")
+    }
 
     fun applyPreset(preset: AudioPreset) {
         activePreset = preset
@@ -135,11 +156,12 @@ class AudioMixerProcessor {
                 isAgcEnabled = false
             }
         }
+        resetDspState()
         Log.i(TAG, "Applied audio preset: $preset")
     }
 
     /**
-     * Mixes mic PCM and game PCM buffers with full DSP into outMixedBuffer.
+     * Mixes mic PCM and game/playback PCM buffers with full studio-grade DSP into outMixedBuffer.
      * All operations are zero-allocation and run in the high-priority capture thread.
      */
     fun processAndMix(
@@ -147,11 +169,13 @@ class AudioMixerProcessor {
         gameBuffer: ByteArray?,
         outMixedBuffer: ByteArray,
         bytesToProcess: Int,
-        isPaused: Boolean
+        isPaused: Boolean,
+        mediaBuffer: ByteArray? = null
     ) {
-        val effectiveMicVol = if (isMicMuted || isPaused) 0.0f else micVolume
-        val effectiveGameVol = if (isGameMuted || isPaused) 0.0f else gameVolume
-        val effectiveMasterVol = if (isPaused) 0.0f else masterVolume
+        val effectiveMicVol = if (isMicMuted || isPaused) 0.0f else micVolume.coerceIn(0.0f, 2.0f)
+        val effectiveGameVol = if (isGameMuted || isPaused) 0.0f else gameVolume.coerceIn(0.0f, 2.0f)
+        val effectiveMediaVol = if (isMediaMuted || isPaused) 0.0f else mediaVolume.coerceIn(0.0f, 2.0f)
+        val effectiveMasterVol = if (isPaused) 0.0f else masterVolume.coerceIn(0.0f, 1.0f)
 
         var micSumSq = 0.0
         var gameSumSq = 0.0
@@ -169,7 +193,13 @@ class AudioMixerProcessor {
             var rawGame = 0.0f
             if (gameBuffer != null && effectiveGameVol > 0.0f) {
                 val gameSample = ((gameBuffer[i + 1].toInt() shl 8) or (gameBuffer[i].toInt() and 0xFF)).toShort()
-                rawGame = gameSample / 32768.0f
+                rawGame = (gameSample / 32768.0f) * effectiveGameVol
+            }
+
+            var rawMedia = 0.0f
+            if (mediaBuffer != null && effectiveMediaVol > 0.0f) {
+                val mediaSample = ((mediaBuffer[i + 1].toInt() shl 8) or (mediaBuffer[i].toInt() and 0xFF)).toShort()
+                rawMedia = (mediaSample / 32768.0f) * effectiveMediaVol
             }
 
             // Track input energy for VU meters
@@ -177,28 +207,61 @@ class AudioMixerProcessor {
             gameSumSq += (rawGame * rawGame)
 
             // 2. Microphone DSP Pipeline
-            var processedMic = rawMic * effectiveMicVol
+            var processedMic = 0.0f
 
-            if (effectiveMicVol > 0.0f && abs(processedMic) > 0.0001f) {
-                // Envelope follower
-                micEnvelope = 0.95f * micEnvelope + 0.05f * abs(processedMic)
+            if (effectiveMicVol > 0.0f) {
+                // A. High-pass filter (cuts sub-80Hz rumble / fan noise / phone handling)
+                val hpOut = rawMic - hpPrevIn + HP_ALPHA * hpPrevOut
+                hpPrevIn = rawMic
+                hpPrevOut = hpOut
 
-                // Noise Gate / Suppression
-                if (isNoiseSuppressionEnabled) {
-                    if (micEnvelope < NOISE_GATE_THRESHOLD) {
-                        processedMic *= (micEnvelope / NOISE_GATE_THRESHOLD) * 0.2f
-                    }
+                val micSignal = if (isNoiseSuppressionEnabled) hpOut else rawMic
+                val absSignal = abs(micSignal)
+
+                // B. Dual-time-constant envelope detector (5ms attack, 150ms release)
+                if (absSignal > micEnvelope) {
+                    micEnvelope += 0.005f * (absSignal - micEnvelope)
+                } else {
+                    micEnvelope += 0.00015f * (absSignal - micEnvelope)
                 }
 
-                // AGC (Auto Gain Control)
-                if (isAgcEnabled && micEnvelope > NOISE_GATE_THRESHOLD) {
-                    val error = AGC_TARGET_LEVEL - micEnvelope
-                    agcGain += error * 0.001f
-                    agcGain = agcGain.coerceIn(0.5f, 2.8f)
+                // C. Downward Noise Gate with Hysteresis & Hold
+                if (isNoiseSuppressionEnabled) {
+                    if (micEnvelope >= NOISE_GATE_OPEN_THRESHOLD) {
+                        isGateOpen = true
+                        gateHoldCounter = 2000 // ~45ms hold to preserve word endings
+                    } else if (micEnvelope < NOISE_GATE_CLOSE_THRESHOLD) {
+                        if (gateHoldCounter > 0) {
+                            gateHoldCounter--
+                        } else {
+                            isGateOpen = false
+                        }
+                    }
+
+                    val targetGateGain = if (isGateOpen) 1.0f else 0.0f
+                    // Smooth gain interpolation to avoid clicks (ramps in ~15ms)
+                    currentGateGain += 0.002f * (targetGateGain - currentGateGain)
+                    if (!isGateOpen && currentGateGain < 0.005f) {
+                        currentGateGain = 0.0f // Absolute silence below threshold
+                    }
+
+                    processedMic = micSignal * effectiveMicVol * currentGateGain
+                } else {
+                    currentGateGain = 1.0f
+                    processedMic = micSignal * effectiveMicVol
+                }
+
+                // D. Speech-Aware AGC (Only adjusts when gate is open, never boosts noise)
+                if (isAgcEnabled) {
+                    if (isGateOpen && currentGateGain > 0.8f && micEnvelope > 0.015f) {
+                        val error = AGC_TARGET_LEVEL - micEnvelope
+                        agcGain += error * 0.0002f
+                        agcGain = agcGain.coerceIn(0.6f, 1.8f) // max +5dB boost
+                    }
                     processedMic *= agcGain
                 }
 
-                // Soft-Knee Dynamic Compressor
+                // E. Soft-Knee Dynamic Compressor (prevents shouting clipping)
                 if (isCompressorEnabled) {
                     val mag = abs(processedMic)
                     if (mag > COMPRESSOR_THRESHOLD) {
@@ -207,13 +270,12 @@ class AudioMixerProcessor {
                         processedMic = sign(processedMic) * compressedMag
                     }
                 }
+            } else {
+                currentGateGain = 0.0f
             }
 
-            // 3. Game Audio Scaling
-            val processedGame = rawGame * effectiveGameVol
-
-            // 4. Summing Bus & Master Output
-            var mixed = (processedMic + processedGame) * effectiveMasterVol
+            // 3. 4-Channel Summing Bus (Mic + Game + Media) scaled by Master Volume
+            var mixed = (processedMic + rawGame + rawMedia) * effectiveMasterVol
 
             // 5. Master Brickwall Soft Limiter
             if (isLimiterEnabled) {
