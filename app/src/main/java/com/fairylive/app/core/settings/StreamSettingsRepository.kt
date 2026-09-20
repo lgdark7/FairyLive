@@ -107,6 +107,49 @@ class StreamSettingsRepository(
         prefs.edit().putString(KEY_YOUTUBE_LIVE_URL, url.trim()).apply()
     }
 
+    fun getCreatorName(): String = prefs.getString(KEY_CREATOR_NAME, "") ?: ""
+
+    fun setCreatorName(name: String) {
+        prefs.edit().putString(KEY_CREATOR_NAME, name.trim()).apply()
+    }
+
+    data class RecentStreamSession(
+        val gameTitle: String = "Free Fire MAX",
+        val packageName: String = "com.dts.freefiremax",
+        val quality: String = "720p 30fps",
+        val durationSeconds: Long = 0L,
+        val timestampMs: Long = System.currentTimeMillis()
+    )
+
+    fun getRecentStreamSession(): RecentStreamSession? {
+        val json = prefs.getString(KEY_RECENT_SESSION, null) ?: return null
+        return try {
+            val obj = org.json.JSONObject(json)
+            RecentStreamSession(
+                gameTitle = obj.optString("gameTitle", "Free Fire MAX"),
+                packageName = obj.optString("packageName", "com.dts.freefiremax"),
+                quality = obj.optString("quality", "720p 30fps"),
+                durationSeconds = obj.optLong("durationSeconds", 0L),
+                timestampMs = obj.optLong("timestampMs", System.currentTimeMillis())
+            )
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    fun saveRecentStreamSession(session: RecentStreamSession) {
+        try {
+            val obj = org.json.JSONObject().apply {
+                put("gameTitle", session.gameTitle)
+                put("packageName", session.packageName)
+                put("quality", session.quality)
+                put("durationSeconds", session.durationSeconds)
+                put("timestampMs", session.timestampMs)
+            }
+            prefs.edit().putString(KEY_RECENT_SESSION, obj.toString()).apply()
+        } catch (_: Exception) {}
+    }
+
     fun saveSettings(settings: StreamSettings) {
         val clamped = settings.clamped()
 
@@ -150,5 +193,7 @@ class StreamSettingsRepository(
         private const val KEY_AUDIO_BITRATE = "audio_bitrate"
         private const val KEY_MIC_ENABLED = "mic_enabled"
         private const val KEY_YOUTUBE_LIVE_URL = "youtube_live_url"
+        private const val KEY_CREATOR_NAME = "creator_name"
+        private const val KEY_RECENT_SESSION = "recent_stream_session"
     }
 }

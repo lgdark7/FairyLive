@@ -33,6 +33,7 @@ import com.fairylive.app.core.permission.PermissionManager
 import com.fairylive.app.core.scene.SceneStateNotifier
 import com.fairylive.app.core.scene.model.BroadcastScene
 import com.fairylive.app.core.settings.StreamConfigurationValidator
+import com.fairylive.app.core.settings.StreamSettingsRepository
 import com.fairylive.app.core.stream.StreamTelemetryNotifier
 import com.fairylive.app.core.stream.model.RtmpConnectionState
 import com.fairylive.app.core.stream.model.StreamTelemetry
@@ -152,7 +153,17 @@ class DashboardFragment : Fragment(),
         bindActions()
         updateSceneUI(SceneStateNotifier.currentScene)
         updateCameraControls()
+        updateCreatorHeaderUI()
+        updateRecentActivityUI()
         updateServiceState(StreamStateNotifier.currentState)
+
+        // First-run check: Prompt creator for YouTube Channel Name if not set
+        val app = requireActivity().application as FairyLiveApplication
+        if (app.settingsRepository.getCreatorName().isBlank()) {
+            view.post {
+                showCreatorNameDialog(isFirstRun = true)
+            }
+        }
     }
 
     override fun onDestroyView() {
@@ -308,12 +319,20 @@ class DashboardFragment : Fragment(),
             Toast.makeText(requireContext(), msg, Toast.LENGTH_SHORT).show()
         }
 
+        binding.btnCreatorAvatar.setOnClickListener {
+            showCreatorNameDialog(isFirstRun = false)
+        }
+
+        binding.layoutCreatorHeader.setOnClickListener {
+            showCreatorNameDialog(isFirstRun = false)
+        }
+
         binding.cardRecentActivity.setOnClickListener {
-            binding.btnGoLive.performClick()
+            handleRecentActivityClick()
         }
 
         binding.btnRecentActivityPlay.setOnClickListener {
-            binding.btnGoLive.performClick()
+            handleRecentActivityClick()
         }
 
         binding.btnDismissError.setOnClickListener {
@@ -331,6 +350,8 @@ class DashboardFragment : Fragment(),
             (activity as? MainActivity)?.navigateToSettings()
         }
     }
+
+    private var activeStreamStartTimeMs: Long = 0L
 
     private fun showLiveChatDialog() {
         val app = requireActivity().application as FairyLiveApplication
@@ -357,7 +378,7 @@ class DashboardFragment : Fragment(),
 
         MaterialAlertDialogBuilder(requireContext())
             .setTitle("YouTube Live Chat")
-            .setMessage("Enter your YouTube Live Stream URL, Video ID, or Channel Handle to enable real-time floating chat:")
+            .setMessage("Enter your YouTube Live Stream URL, Video ID, or Channel Handle to enable the real-time vanishing chat overlay:")
             .setView(container)
             .setPositiveButton("Connect Chat") { _, _ ->
                 val newUrl = input.text.toString().trim()
@@ -372,6 +393,132 @@ class DashboardFragment : Fragment(),
             }
             .setNegativeButton("Cancel", null)
             .show()
+    }
+
+    private fun getDynamicGreeting(): String {
+        val hour = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
+        return when (hour) {
+            in 5..11 -> "Good Morning"
+            in 12..16 -> "Good Afternoon"
+            in 17..21 -> "Good Evening"
+            else -> "Good Night"
+        }
+    }
+
+    private fun updateCreatorHeaderUI() {
+        if (_binding == null) return
+        val app = (context?.applicationContext as? FairyLiveApplication) ?: return
+        val name = app.settingsRepository.getCreatorName().ifBlank { "Creator" }
+        binding.tvCreatorName.text = name
+        binding.tvAvatarInitial.text = name.first().uppercase()
+        binding.tvStreamStatusHeadline.text = getDynamicGreeting()
+    }
+
+    private fun showCreatorNameDialog(isFirstRun: Boolean) {
+        val ctx = context ?: return
+        val app = ctx.applicationContext as FairyLiveApplication
+        val currentName = app.settingsRepository.getCreatorName()
+
+        val input = android.widget.EditText(ctx).apply {
+            hint = "e.g. Dark Gaming, ProStreamer"
+            setText(currentName)
+            setSingleLine(true)
+            setTextColor(ContextCompat.getColor(context, R.color.text_primary))
+            setHintTextColor(ContextCompat.getColor(context, R.color.text_muted))
+            setBackgroundResource(R.drawable.bg_input_field)
+            val pad = (14 * resources.displayMetrics.density).toInt()
+            setPadding(pad, pad, pad, pad)
+        }
+
+        val container = android.widget.FrameLayout(ctx).apply {
+            val padH = (20 * resources.displayMetrics.density).toInt()
+            val padV = (10 * resources.displayMetrics.density).toInt()
+            setPadding(padH, padV, padH, padV)
+            addView(input)
+        }
+
+        val title = if (isFirstRun) "Welcome to FAIRY LIVE! 🎮" else "Edit Channel Name"
+        val message = if (isFirstRun)
+            "Enter your YouTube Channel Name or Streamer Handle to personalize your dashboard:"
+        else
+            "Update your YouTube Channel Name or Streamer Handle:"
+
+        MaterialAlertDialogBuilder(ctx)
+            .setTitle(title)
+            .setMessage(message)
+            .setView(container)
+            .setCancelable(!isFirstRun)
+            .setPositiveButton(if (isFirstRun) "Let's Go!" else "Save") { _, _ ->
+                val newName = input.text.toString().trim()
+                if (newName.isNotEmpty()) {
+                    app.settingsRepository.setCreatorName(newName)
+                    updateCreatorHeaderUI()
+                    Toast.makeText(ctx, "Welcome, $newName! 👑", Toast.LENGTH_SHORT).show()
+                }
+            }
+            .apply {
+                if (!isFirstRun) {
+                    setNegativeButton("Cancel", null)
+                }
+            }
+            .show()
+    }
+
+    private fun isPackageInstalled(pkg: String): Boolean {
+        return try {
+            requireContext().packageManager.getPackageInfo(pkg, 0)
+            true
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    private fun updateRecentActivityUI() {
+        if (_binding == null) return
+        val app = (context?.applicationContext as? FairyLiveApplication) ?: return
+        val recent = app.settingsRepository.getRecentStreamSession()
+
+        if (recent != null) {
+            val diffMs = System.currentTimeMillis() - recent.timestampMs
+            val relativeTime = when {
+                diffMs < 60_000 -> "Just now"
+                diffMs < 3600_000 -> "${diffMs / 60_000}m ago"
+                diffMs < 86400_000 -> "${diffMs / 3600_000}h ago"
+                else -> "${diffMs / 86400_000}d ago"
+            }
+            val durMin = recent.durationSeconds / 60
+            val durSec = recent.durationSeconds % 60
+            val durStr = if (durMin > 0) "${durMin}m ${durSec}s" else "${durSec}s"
+
+            binding.tvRecentActivityTitle.text = recent.gameTitle
+            binding.tvRecentActivitySubtitle.text = "${recent.quality} • ${durStr} • ${relativeTime}"
+        } else {
+            val isFfInstalled = isPackageInstalled("com.dts.freefiremax") || isPackageInstalled("com.dts.freefireth")
+            if (isFfInstalled) {
+                binding.tvRecentActivityTitle.text = "Free Fire MAX"
+                binding.tvRecentActivitySubtitle.text = "Installed • Tap to launch & stream"
+            } else {
+                binding.tvRecentActivityTitle.text = "No recent streams"
+                binding.tvRecentActivitySubtitle.text = "Start your first stream above"
+            }
+        }
+    }
+
+    private fun handleRecentActivityClick() {
+        val ctx = context ?: return
+        val pm = ctx.packageManager
+        val launchIntent = pm.getLaunchIntentForPackage("com.dts.freefiremax")
+            ?: pm.getLaunchIntentForPackage("com.dts.freefireth")
+
+        if (launchIntent != null) {
+            Toast.makeText(ctx, "Launching Free Fire MAX...", Toast.LENGTH_SHORT).show()
+            startActivity(launchIntent)
+            if (!StreamStateNotifier.currentState.isActive) {
+                binding.btnGoLive.performClick()
+            }
+        } else {
+            binding.btnGoLive.performClick()
+        }
     }
 
     private fun updateSceneUI(scene: BroadcastScene) {
@@ -422,6 +569,25 @@ class DashboardFragment : Fragment(),
         val ctx = context ?: return
         when (state) {
             StreamState.ERROR -> {
+                if (activeStreamStartTimeMs > 0L) {
+                    val durationSec = (System.currentTimeMillis() - activeStreamStartTimeMs) / 1000
+                    if (durationSec >= 3) {
+                        val app = ctx.applicationContext as FairyLiveApplication
+                        val settings = app.settingsRepository.loadSettings(app.deviceCapability.recommendedProfile)
+                        app.settingsRepository.saveRecentStreamSession(
+                            StreamSettingsRepository.RecentStreamSession(
+                                gameTitle = "Free Fire MAX",
+                                packageName = "com.dts.freefiremax",
+                                quality = "${settings.height}p ${settings.fps}fps",
+                                durationSeconds = durationSec,
+                                timestampMs = System.currentTimeMillis()
+                            )
+                        )
+                        updateRecentActivityUI()
+                    }
+                    activeStreamStartTimeMs = 0L
+                }
+
                 binding.tvStreamStatusHeadline.text = "Stream Stopped"
                 binding.tvStreamStatusSubtext.text = "An error occurred during broadcasting"
                 binding.tvDashboardStatusPill.text = "ERROR"
@@ -440,6 +606,10 @@ class DashboardFragment : Fragment(),
                 binding.tvDashboardTimer.visibility = View.GONE
             }
             StreamState.STREAMING -> {
+                if (activeStreamStartTimeMs == 0L) {
+                    activeStreamStartTimeMs = System.currentTimeMillis()
+                }
+
                 binding.tvStreamStatusHeadline.text = "Live On Air 🔴"
                 binding.tvStreamStatusSubtext.text = "Broadcasting to RTMP destination"
                 binding.tvDashboardStatusPill.text = "● LIVE"
@@ -494,7 +664,26 @@ class DashboardFragment : Fragment(),
                 binding.tvDashboardTimer.visibility = View.GONE
             }
             else -> {
-                binding.tvStreamStatusHeadline.text = "Good Evening"
+                if (activeStreamStartTimeMs > 0L) {
+                    val durationSec = (System.currentTimeMillis() - activeStreamStartTimeMs) / 1000
+                    if (durationSec >= 3) {
+                        val app = ctx.applicationContext as FairyLiveApplication
+                        val settings = app.settingsRepository.loadSettings(app.deviceCapability.recommendedProfile)
+                        app.settingsRepository.saveRecentStreamSession(
+                            StreamSettingsRepository.RecentStreamSession(
+                                gameTitle = "Free Fire MAX",
+                                packageName = "com.dts.freefiremax",
+                                quality = "${settings.height}p ${settings.fps}fps",
+                                durationSeconds = durationSec,
+                                timestampMs = System.currentTimeMillis()
+                            )
+                        )
+                        updateRecentActivityUI()
+                    }
+                    activeStreamStartTimeMs = 0L
+                }
+
+                binding.tvStreamStatusHeadline.text = getDynamicGreeting()
                 binding.tvStreamStatusSubtext.text = "Ready to stream?"
                 binding.tvDashboardStatusPill.text = "Ready"
                 binding.tvDashboardStatusPill.setTextColor(ContextCompat.getColor(ctx, R.color.accent_primary))

@@ -132,15 +132,19 @@
 
             <!-- Circular Creator Avatar -->
             <FrameLayout
+                android:id="@+id/btn_creator_avatar"
                 android:layout_width="48dp"
                 android:layout_height="48dp"
-                android:background="@drawable/bg_avatar_circle">
+                android:background="@drawable/bg_avatar_circle"
+                android:clickable="true"
+                android:focusable="true">
 
                 <TextView
+                    android:id="@+id/tv_avatar_initial"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_gravity="center"
-                    android:text="B"
+                    android:text="C"
                     android:textColor="@color/text_on_dark"
                     android:textSize="20sp"
                     android:textStyle="bold" />
@@ -148,10 +152,13 @@
 
             <!-- Greeting & Creator Name with Crown -->
             <LinearLayout
+                android:id="@+id/layout_creator_header"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_marginStart="14dp"
                 android:layout_weight="1"
+                android:clickable="true"
+                android:focusable="true"
                 android:orientation="vertical">
 
                 <TextView
@@ -169,9 +176,10 @@
                     android:orientation="horizontal">
 
                     <TextView
+                        android:id="@+id/tv_creator_name"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Benny"
+                        android:text="Creator"
                         android:textColor="@color/text_primary"
                         android:textSize="20sp"
                         android:textStyle="bold" />
@@ -673,6 +681,7 @@
                     android:orientation="vertical">
 
                     <TextView
+                        android:id="@+id/tv_recent_activity_title"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="Free Fire MAX"
@@ -681,13 +690,20 @@
                         android:textStyle="bold" />
 
                     <TextView
-                        android:id="@+id/tv_shortcut_destination_subtext"
+                        android:id="@+id/tv_recent_activity_subtitle"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="2dp"
                         android:text="1080p 60fps • 2h ago"
                         android:textColor="@color/text_secondary"
                         android:textSize="12sp" />
+
+                    <!-- Keep for backward compatibility -->
+                    <TextView
+                        android:id="@+id/tv_shortcut_destination_subtext"
+                        android:layout_width="0dp"
+                        android:layout_height="0dp"
+                        android:visibility="gone" />
                 </LinearLayout>
 
                 <!-- Circular Play Action Button -->
