@@ -37,7 +37,7 @@ object AppUpdateManager {
 
     // Primary endpoint: static version.json on main branch (high CDN availability, zero rate limits)
     private const val VERSION_JSON_URL =
-        "https://raw.githubusercontent.com/lgdark7/FairyLive/main/version.json"
+        "https://raw.githubusercontent.com/lgdark7/fairylive-releases/main/version.json"
 
     private val executor = Executors.newSingleThreadExecutor()
     private val mainHandler = Handler(Looper.getMainLooper())
