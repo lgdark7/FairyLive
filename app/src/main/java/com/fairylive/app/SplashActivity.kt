@@ -1,33 +1,40 @@
 package com.fairylive.app
 
 import android.content.Intent
+import android.content.res.AssetFileDescriptor
+import android.graphics.SurfaceTexture
+import android.media.MediaPlayer
 import android.os.Bundle
 import android.util.Log
+import android.view.Surface
+import android.view.TextureView
 import android.view.View
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
-import com.fairylive.app.ui.splash.FairySplashFlowView
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
- * SplashActivity presents the seamless 9-second branded logo-drawing animation
- * for Fairy Live on a deep nocturnal violet (#130E22) backdrop.
+ * SplashActivity presents the seamless 60 FPS optical-flow animated logo-drawing intro
+ * for Fairy Live on a deep nocturnal violet (#130E22) canvas.
  *
- * Driven by hardware-accelerated GPU canvas (FairySplashFlowView), running at
- * native 60/120 FPS with zero decoder black flashes, zero flicker, and fluid parametric flow.
- *
- * Tapping anywhere or clicking "ENTER STUDIO ›" transitions smoothly to MainActivity.
+ * Driven by double-buffered TextureView + MediaPlayer, eliminating all SurfaceView
+ * hole-punch flicker, black flashes, and frame drops.
  */
-class SplashActivity : AppCompatActivity() {
+class SplashActivity : AppCompatActivity(), TextureView.SurfaceTextureListener {
 
-    private var splashFlowView: FairySplashFlowView? = null
+    private var textureView: TextureView? = null
+    private var mediaPlayer: MediaPlayer? = null
+    private var surface: Surface? = null
     private val isNavigating = AtomicBoolean(false)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_splash)
 
-        splashFlowView = findViewById(R.id.splashFlowView)
+        textureView = findViewById(R.id.splashTextureView)
+        textureView?.surfaceTextureListener = this
+        textureView?.alpha = 0f // Keep hidden until first frame is decoded (zero flicker)
+
         val btnSkip = findViewById<TextView>(R.id.btnSkipSplash)
         val root = findViewById<View>(R.id.splashRoot)
 
@@ -38,13 +45,66 @@ class SplashActivity : AppCompatActivity() {
         btnSkip?.setOnClickListener {
             navigateToMain()
         }
+    }
 
-        splashFlowView?.onAnimationCompleteListener = {
-            Log.i(TAG, "Splash 9s sequence completed -> smoothly transitioning to MainActivity")
+    override fun onSurfaceTextureAvailable(surfaceTexture: SurfaceTexture, width: Int, height: Int) {
+        surface = Surface(surfaceTexture)
+        startVideoPlayback()
+    }
+
+    override fun onSurfaceTextureSizeChanged(surfaceTexture: SurfaceTexture, width: Int, height: Int) {}
+
+    override fun onSurfaceTextureDestroyed(surfaceTexture: SurfaceTexture): Boolean {
+        releasePlayer()
+        surface?.release()
+        surface = null
+        return true
+    }
+
+    override fun onSurfaceTextureUpdated(surfaceTexture: SurfaceTexture) {}
+
+    private fun startVideoPlayback() {
+        try {
+            val surf = surface ?: return
+            val afd: AssetFileDescriptor = assets.openFd("fairy_splash_intro.mp4")
+
+            mediaPlayer = MediaPlayer().apply {
+                setSurface(surf)
+                setDataSource(afd.fileDescriptor, afd.startOffset, afd.length)
+                afd.close()
+
+                isLooping = false
+
+                setOnPreparedListener { mp ->
+                    mp.start()
+                    Log.i(TAG, "Splash 60 FPS video started playing (duration: ${mp.duration}ms)")
+                }
+
+                setOnInfoListener { _, what, _ ->
+                    if (what == MediaPlayer.MEDIA_INFO_VIDEO_RENDERING_START) {
+                        // First frame ready: smoothly fade in texture view with zero black flash
+                        textureView?.animate()?.alpha(1f)?.setDuration(120)?.start()
+                    }
+                    false
+                }
+
+                setOnCompletionListener {
+                    Log.i(TAG, "Splash 9s sequence completed -> smoothly transitioning to MainActivity")
+                    navigateToMain()
+                }
+
+                setOnErrorListener { _, what, extra ->
+                    Log.w(TAG, "Splash video playback error: what=$what extra=$extra")
+                    navigateToMain()
+                    true
+                }
+
+                prepareAsync()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error starting splash video playback", e)
             navigateToMain()
         }
-
-        splashFlowView?.startAnimation()
     }
 
     private fun navigateToMain() {
@@ -52,9 +112,7 @@ class SplashActivity : AppCompatActivity() {
             return
         }
 
-        try {
-            splashFlowView?.stopAnimation()
-        } catch (_: Exception) {}
+        releasePlayer()
 
         val intent = Intent(this, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_NEW_TASK
@@ -64,20 +122,33 @@ class SplashActivity : AppCompatActivity() {
         overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)
     }
 
+    private fun releasePlayer() {
+        try {
+            mediaPlayer?.stop()
+            mediaPlayer?.release()
+        } catch (_: Exception) {}
+        mediaPlayer = null
+    }
+
     override fun onPause() {
         super.onPause()
-        splashFlowView?.pauseAnimation()
+        try {
+            mediaPlayer?.pause()
+        } catch (_: Exception) {}
     }
 
     override fun onResume() {
         super.onResume()
-        splashFlowView?.resumeAnimation()
+        try {
+            mediaPlayer?.start()
+        } catch (_: Exception) {}
     }
 
     override fun onDestroy() {
         super.onDestroy()
-        splashFlowView?.stopAnimation()
-        splashFlowView = null
+        releasePlayer()
+        surface?.release()
+        surface = null
     }
 
     companion object {
