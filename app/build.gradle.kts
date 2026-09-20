@@ -11,8 +11,8 @@ android {
         applicationId = "com.fairylive.app"
         minSdk = 24
         targetSdk = 34
-        versionCode = 121
-        versionName = "1.2.1"
+        versionCode = 123
+        versionName = "1.2.3"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
@@ -33,6 +33,7 @@ android {
     }
     buildFeatures {
         viewBinding = true
+        buildConfig = true
     }
     testOptions {
         unitTests.isReturnDefaultValues = true
@@ -49,6 +50,7 @@ dependencies {
     implementation("androidx.fragment:fragment-ktx:1.6.2")
 
     testImplementation("junit:junit:4.13.2")
+    testImplementation("org.json:json:20240303")
     // Test-only cross-validation of the QR encoder against an independent,
     // industry-standard decoder (zxing). JVM-scope only — never packaged in the APK.
     testImplementation("com.google.zxing:core:3.5.3")

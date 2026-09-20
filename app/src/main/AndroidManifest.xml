@@ -24,6 +24,9 @@
     <!-- Floating HUD overlay permission -->
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
 
+    <!-- In-App OTA Auto-Updater permission (Android 8.0+ / API 26+) -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+
     <!-- Declare hardware features as optional to ensure compatibility on all devices -->
     <uses-feature android:name="android.hardware.microphone" android:required="false" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
@@ -78,6 +81,17 @@
                 <action android:name="com.fairylive.app.ACTION_SWITCH_SCENE" />
             </intent-filter>
         </receiver>
+
+        <!-- Secure FileProvider for In-App APK Updates -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
 
     </application>
 </manifest>

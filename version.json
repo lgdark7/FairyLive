@@ -1,0 +1,7 @@
+{
+  "versionCode": 123,
+  "versionName": "1.2.3",
+  "releaseNotes": "• Persistent 4-Channel Audio Studio & DSP Mixer\n• Hardware Noise Suppression & Audio HAL smooth transition\n• Organized App Settings with Category Filtering\n• In-App OTA Auto-Updater system",
+  "downloadUrl": "https://github.com/lgdark7/FairyLive/releases/download/v1.2.3/app-release.apk",
+  "isMandatory": false
+}

@@ -21,6 +21,7 @@ import com.fairylive.app.MainActivity
 import com.fairylive.app.R
 import com.fairylive.app.core.audio.AudioStudioRepository
 import com.fairylive.app.core.capability.model.StreamProfile
+import com.fairylive.app.core.updater.AppUpdateManager
 import com.fairylive.app.core.settings.CaptureSource
 import com.fairylive.app.core.settings.StreamConfigurationValidator
 import com.fairylive.app.core.settings.StreamDestination
@@ -275,6 +276,10 @@ class SettingsFragment : Fragment() {
 
         binding.rowClearCredentials.setOnClickListener {
             showClearCredentialsDialog(repo)
+        }
+
+        binding.rowCheckUpdates.setOnClickListener {
+            AppUpdateManager.checkUpdateManually(requireActivity())
         }
 
         binding.rowAboutApp.setOnClickListener {

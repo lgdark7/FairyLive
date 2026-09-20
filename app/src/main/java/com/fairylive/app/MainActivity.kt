@@ -10,6 +10,7 @@ import androidx.fragment.app.Fragment
 import com.fairylive.app.core.lifecycle.StreamState
 import com.fairylive.app.core.lifecycle.StreamStateNotifier
 import com.fairylive.app.core.permission.PermissionManager
+import com.fairylive.app.core.updater.AppUpdateManager
 import com.fairylive.app.databinding.ActivityMainBinding
 import com.fairylive.app.ui.dashboard.DashboardFragment
 import com.fairylive.app.ui.diagnostics.DiagnosticsFragment
@@ -45,6 +46,18 @@ class MainActivity : AppCompatActivity(), StreamStateNotifier.Listener {
         if (savedInstanceState == null) {
             switchFragment(DashboardFragment())
         }
+
+        // Check for updates asynchronously without blocking UI or stream
+        window.decorView.postDelayed({
+            if (!isFinishing && !isDestroyed) {
+                AppUpdateManager.checkForUpdate(
+                    context = this,
+                    onUpdateFound = { updateInfo ->
+                        AppUpdateManager.showUpdateDialog(this, updateInfo)
+                    }
+                )
+            }
+        }, 2500)
     }
 
     override fun onDestroy() {
