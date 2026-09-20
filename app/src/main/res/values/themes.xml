@@ -22,14 +22,6 @@
         <item name="bottomSheetDialogTheme">@style/Theme.FairyLive.BottomSheetDialog</item>
     </style>
 
-    <style name="Theme.FairyLive.Splash" parent="Theme.MaterialComponents.NoActionBar">
-        <item name="android:windowBackground">@color/bg_primary</item>
-        <item name="android:statusBarColor">@color/bg_primary</item>
-        <item name="android:navigationBarColor">@color/bg_primary</item>
-        <item name="android:windowLightStatusBar" tools:targetApi="m">false</item>
-        <item name="android:windowLightNavigationBar" tools:targetApi="o_mr1">false</item>
-        <item name="android:windowFullscreen">true</item>
-    </style>
 
     <style name="FairyBottomSheetStyle" parent="Widget.MaterialComponents.BottomSheet.Modal">
         <item name="android:background">@drawable/bg_bottom_sheet</item>
