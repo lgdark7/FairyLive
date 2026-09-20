@@ -6,7 +6,9 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.TextView
 import android.widget.Toast
+import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import com.fairylive.app.FairyLiveApplication
 import com.fairylive.app.MainActivity
@@ -39,6 +41,15 @@ class SettingsFragment : Fragment() {
         val currentSettings = repo.loadSettings(app.deviceCapability.recommendedProfile)
 
         populateFields(currentSettings)
+
+        // Category Filter Chips
+        binding.chipAll.setOnClickListener { selectCategory(binding.chipAll, null) }
+        binding.chipStream.setOnClickListener { selectCategory(binding.chipStream, binding.cardCategoryStream) }
+        binding.chipCapture.setOnClickListener { selectCategory(binding.chipCapture, binding.cardCategoryCapture) }
+        binding.chipVideo.setOnClickListener { selectCategory(binding.chipVideo, binding.cardCategoryVideo) }
+        binding.chipAudio.setOnClickListener { selectCategory(binding.chipAudio, binding.cardCategoryAudio) }
+        binding.chipAdvanced.setOnClickListener { selectCategory(binding.chipAdvanced, binding.cardCategoryAdvanced) }
+        binding.chipLegal.setOnClickListener { selectCategory(binding.chipLegal, binding.cardCategoryLegal) }
 
         binding.rgDestination.setOnCheckedChangeListener { _, checkedId ->
             when (checkedId) {
@@ -83,6 +94,36 @@ class SettingsFragment : Fragment() {
 
         binding.btnSave.setOnClickListener {
             saveFields(showFeedback = true)
+        }
+    }
+
+    private fun selectCategory(selectedChip: TextView, targetCard: View?) {
+        val chips = listOf(
+            binding.chipAll,
+            binding.chipStream,
+            binding.chipCapture,
+            binding.chipVideo,
+            binding.chipAudio,
+            binding.chipAdvanced,
+            binding.chipLegal
+        )
+
+        chips.forEach { chip ->
+            if (chip == selectedChip) {
+                chip.setBackgroundResource(R.drawable.bg_chip_selected)
+                chip.setTextColor(ContextCompat.getColor(requireContext(), R.color.text_on_dark))
+            } else {
+                chip.setBackgroundResource(R.drawable.bg_chip_unselected)
+                chip.setTextColor(ContextCompat.getColor(requireContext(), R.color.text_secondary))
+            }
+        }
+
+        if (targetCard == null) {
+            binding.scrollSettings.smoothScrollTo(0, 0)
+        } else {
+            binding.scrollSettings.post {
+                binding.scrollSettings.smoothScrollTo(0, targetCard.top)
+            }
         }
     }
 

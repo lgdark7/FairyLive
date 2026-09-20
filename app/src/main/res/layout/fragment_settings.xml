@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/scroll_settings"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@color/bg_primary"
@@ -10,9 +11,11 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:paddingHorizontal="20dp"
-        android:paddingVertical="20dp">
+        android:paddingHorizontal="16dp"
+        android:paddingTop="16dp"
+        android:paddingBottom="32dp">
 
+        <!-- Title & Subtitle -->
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -25,29 +28,149 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="2dp"
-            android:layout_marginBottom="20dp"
+            android:layout_marginBottom="16dp"
             android:text="Stream configuration &amp; hardware preferences"
             android:textColor="@color/text_secondary"
             android:textSize="13sp" />
 
-        <!-- SECTION: STREAM -->
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="8dp"
-            android:letterSpacing="0.05"
-            android:text="STREAM"
-            android:textColor="@color/text_muted"
-            android:textSize="11sp"
-            android:textStyle="bold" />
-
-        <androidx.cardview.widget.CardView
+        <!-- HORIZONTAL CATEGORY SELECTOR CHIPS -->
+        <HorizontalScrollView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginBottom="20dp"
+            android:layout_marginBottom="16dp"
+            android:overScrollMode="never"
+            android:scrollbars="none">
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal">
+
+                <!-- Chip: All -->
+                <TextView
+                    android:id="@+id/chip_all"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:background="@drawable/bg_chip_selected"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:paddingHorizontal="14dp"
+                    android:paddingVertical="7dp"
+                    android:text="All"
+                    android:textColor="@color/text_on_dark"
+                    android:textSize="12sp"
+                    android:textStyle="bold" />
+
+                <!-- Chip: Stream -->
+                <TextView
+                    android:id="@+id/chip_stream"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="8dp"
+                    android:background="@drawable/bg_chip_unselected"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:paddingHorizontal="14dp"
+                    android:paddingVertical="7dp"
+                    android:text="📡 Stream"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="12sp"
+                    android:textStyle="bold" />
+
+                <!-- Chip: Capture -->
+                <TextView
+                    android:id="@+id/chip_capture"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="8dp"
+                    android:background="@drawable/bg_chip_unselected"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:paddingHorizontal="14dp"
+                    android:paddingVertical="7dp"
+                    android:text="📱 Capture"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="12sp"
+                    android:textStyle="bold" />
+
+                <!-- Chip: Video -->
+                <TextView
+                    android:id="@+id/chip_video"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="8dp"
+                    android:background="@drawable/bg_chip_unselected"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:paddingHorizontal="14dp"
+                    android:paddingVertical="7dp"
+                    android:text="🎬 Video"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="12sp"
+                    android:textStyle="bold" />
+
+                <!-- Chip: Audio & Camera -->
+                <TextView
+                    android:id="@+id/chip_audio"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="8dp"
+                    android:background="@drawable/bg_chip_unselected"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:paddingHorizontal="14dp"
+                    android:paddingVertical="7dp"
+                    android:text="🎙️ Audio"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="12sp"
+                    android:textStyle="bold" />
+
+                <!-- Chip: Advanced -->
+                <TextView
+                    android:id="@+id/chip_advanced"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="8dp"
+                    android:background="@drawable/bg_chip_unselected"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:paddingHorizontal="14dp"
+                    android:paddingVertical="7dp"
+                    android:text="⚙️ Advanced"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="12sp"
+                    android:textStyle="bold" />
+
+                <!-- Chip: Legal -->
+                <TextView
+                    android:id="@+id/chip_legal"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="8dp"
+                    android:background="@drawable/bg_chip_unselected"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:paddingHorizontal="14dp"
+                    android:paddingVertical="7dp"
+                    android:text="⚖️ Legal"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="12sp"
+                    android:textStyle="bold" />
+
+            </LinearLayout>
+        </HorizontalScrollView>
+
+        <!-- ============================================================ -->
+        <!-- CATEGORY 1: STREAM & DESTINATION -->
+        <!-- ============================================================ -->
+        <androidx.cardview.widget.CardView
+            android:id="@+id/card_category_stream"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
             app:cardBackgroundColor="@color/bg_card"
-            app:cardCornerRadius="14dp"
-            app:cardElevation="0dp">
+            app:cardCornerRadius="20dp"
+            app:cardElevation="1dp">
 
             <LinearLayout
                 android:layout_width="match_parent"
@@ -55,12 +178,65 @@
                 android:orientation="vertical"
                 android:padding="16dp">
 
+                <!-- Category Header -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <FrameLayout
+                        android:layout_width="42dp"
+                        android:layout_height="42dp"
+                        android:background="@drawable/bg_grid_icon_circle">
+
+                        <ImageView
+                            android:layout_width="22dp"
+                            android:layout_height="22dp"
+                            android:layout_gravity="center"
+                            android:src="@drawable/ic_stream"
+                            app:tint="@color/accent_primary_variant" />
+                    </FrameLayout>
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="12dp"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Stream Destination"
+                            android:textColor="@color/text_primary"
+                            android:textSize="16sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="2dp"
+                            android:text="RTMP ingest server, stream key &amp; chat"
+                            android:textColor="@color/text_secondary"
+                            android:textSize="12sp" />
+                    </LinearLayout>
+                </LinearLayout>
+
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:layout_marginVertical="14dp"
+                    android:background="@color/divider_color" />
+
+                <!-- Destination Selector -->
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Stream Destination"
+                    android:text="Broadcast Platform"
                     android:textColor="@color/text_secondary"
-                    android:textSize="12sp" />
+                    android:textSize="12sp"
+                    android:textStyle="bold" />
 
                 <RadioGroup
                     android:id="@+id/rg_destination"
@@ -102,11 +278,12 @@
                         android:visibility="gone" />
                 </RadioGroup>
 
+                <!-- Server URL -->
                 <TextView
                     android:id="@+id/tv_label_server_url"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="YouTube Server URL"
+                    android:text="YouTube Ingest URL"
                     android:textColor="@color/text_secondary"
                     android:textSize="12sp" />
 
@@ -123,6 +300,7 @@
                     android:textColorHint="@color/text_muted"
                     android:textSize="13sp" />
 
+                <!-- Stream Key -->
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
@@ -144,6 +322,7 @@
                     android:textColorHint="@color/text_muted"
                     android:textSize="13sp" />
 
+                <!-- Live Chat URL -->
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
@@ -168,30 +347,74 @@
             </LinearLayout>
         </androidx.cardview.widget.CardView>
 
-        <!-- SECTION: CAPTURE SOURCE -->
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="8dp"
-            android:letterSpacing="0.05"
-            android:text="CAPTURE SOURCE"
-            android:textColor="@color/text_muted"
-            android:textSize="11sp"
-            android:textStyle="bold" />
-
+        <!-- ============================================================ -->
+        <!-- CATEGORY 2: CAPTURE SOURCE -->
+        <!-- ============================================================ -->
         <androidx.cardview.widget.CardView
+            android:id="@+id/card_category_capture"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginBottom="20dp"
+            android:layout_marginBottom="16dp"
             app:cardBackgroundColor="@color/bg_card"
-            app:cardCornerRadius="14dp"
-            app:cardElevation="0dp">
+            app:cardCornerRadius="20dp"
+            app:cardElevation="1dp">
 
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
                 android:padding="16dp">
+
+                <!-- Category Header -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <FrameLayout
+                        android:layout_width="42dp"
+                        android:layout_height="42dp"
+                        android:background="@drawable/bg_grid_icon_circle">
+
+                        <ImageView
+                            android:layout_width="22dp"
+                            android:layout_height="22dp"
+                            android:layout_gravity="center"
+                            android:src="@drawable/ic_gamepad"
+                            app:tint="@color/accent_primary_variant" />
+                    </FrameLayout>
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="12dp"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Capture Source"
+                            android:textColor="@color/text_primary"
+                            android:textSize="16sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="2dp"
+                            android:text="Choose game capture or full screen mode"
+                            android:textColor="@color/text_secondary"
+                            android:textSize="12sp" />
+                    </LinearLayout>
+                </LinearLayout>
+
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:layout_marginVertical="14dp"
+                    android:background="@color/divider_color" />
 
                 <RadioGroup
                     android:id="@+id/rg_capture_source"
@@ -204,7 +427,7 @@
                         android:layout_height="wrap_content"
                         android:buttonTint="@color/accent_primary"
                         android:checked="true"
-                        android:text="Single App / Game (Android 14+)"
+                        android:text="Single App / Game (Android 14+ Privacy Safe)"
                         android:textColor="@color/text_primary"
                         android:textSize="13sp" />
 
@@ -214,7 +437,7 @@
                         android:layout_height="wrap_content"
                         android:layout_marginTop="6dp"
                         android:buttonTint="@color/accent_primary"
-                        android:text="Entire Screen"
+                        android:text="Entire Screen (All apps &amp; notifications)"
                         android:textColor="@color/text_primary"
                         android:textSize="13sp" />
                 </RadioGroup>
@@ -222,30 +445,74 @@
             </LinearLayout>
         </androidx.cardview.widget.CardView>
 
-        <!-- SECTION: VIDEO -->
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="8dp"
-            android:letterSpacing="0.05"
-            android:text="VIDEO"
-            android:textColor="@color/text_muted"
-            android:textSize="11sp"
-            android:textStyle="bold" />
-
+        <!-- ============================================================ -->
+        <!-- CATEGORY 3: VIDEO QUALITY -->
+        <!-- ============================================================ -->
         <androidx.cardview.widget.CardView
+            android:id="@+id/card_category_video"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginBottom="20dp"
+            android:layout_marginBottom="16dp"
             app:cardBackgroundColor="@color/bg_card"
-            app:cardCornerRadius="14dp"
-            app:cardElevation="0dp">
+            app:cardCornerRadius="20dp"
+            app:cardElevation="1dp">
 
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
                 android:padding="16dp">
+
+                <!-- Category Header -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <FrameLayout
+                        android:layout_width="42dp"
+                        android:layout_height="42dp"
+                        android:background="@drawable/bg_grid_icon_circle">
+
+                        <ImageView
+                            android:layout_width="22dp"
+                            android:layout_height="22dp"
+                            android:layout_gravity="center"
+                            android:src="@drawable/ic_video"
+                            app:tint="@color/accent_primary_variant" />
+                    </FrameLayout>
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="12dp"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Video Quality &amp; Profile"
+                            android:textColor="@color/text_primary"
+                            android:textSize="16sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="2dp"
+                            android:text="Hardware H.264 resolution, framerate &amp; bitrate"
+                            android:textColor="@color/text_secondary"
+                            android:textSize="12sp" />
+                    </LinearLayout>
+                </LinearLayout>
+
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:layout_marginVertical="14dp"
+                    android:background="@color/divider_color" />
 
                 <RadioGroup
                     android:id="@+id/rg_profiles"
@@ -267,7 +534,7 @@
                         android:layout_height="wrap_content"
                         android:layout_marginTop="6dp"
                         android:buttonTint="@color/accent_primary"
-                        android:text="Balanced HD (720p @ 30fps • 2.2 Mbps)"
+                        android:text="Balanced HD (720p @ 30fps • 2.5 Mbps • Recommended)"
                         android:textColor="@color/text_primary"
                         android:textSize="13sp" />
 
@@ -277,7 +544,7 @@
                         android:layout_height="wrap_content"
                         android:layout_marginTop="6dp"
                         android:buttonTint="@color/accent_primary"
-                        android:text="High Quality (1080p @ 30fps • 4.0 Mbps)"
+                        android:text="High Quality (1080p @ 60fps • 4.5 Mbps)"
                         android:textColor="@color/text_primary"
                         android:textSize="13sp" />
                 </RadioGroup>
@@ -285,24 +552,17 @@
             </LinearLayout>
         </androidx.cardview.widget.CardView>
 
-        <!-- SECTION: AUDIO & CAMERA -->
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="8dp"
-            android:letterSpacing="0.05"
-            android:text="AUDIO &amp; CAMERA"
-            android:textColor="@color/text_muted"
-            android:textSize="11sp"
-            android:textStyle="bold" />
-
+        <!-- ============================================================ -->
+        <!-- CATEGORY 4: AUDIO & CAMERA -->
+        <!-- ============================================================ -->
         <androidx.cardview.widget.CardView
+            android:id="@+id/card_category_audio"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginBottom="20dp"
+            android:layout_marginBottom="16dp"
             app:cardBackgroundColor="@color/bg_card"
-            app:cardCornerRadius="14dp"
-            app:cardElevation="0dp">
+            app:cardCornerRadius="20dp"
+            app:cardElevation="1dp">
 
             <LinearLayout
                 android:layout_width="match_parent"
@@ -310,6 +570,58 @@
                 android:orientation="vertical"
                 android:padding="16dp">
 
+                <!-- Category Header -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <FrameLayout
+                        android:layout_width="42dp"
+                        android:layout_height="42dp"
+                        android:background="@drawable/bg_grid_icon_circle">
+
+                        <ImageView
+                            android:layout_width="22dp"
+                            android:layout_height="22dp"
+                            android:layout_gravity="center"
+                            android:src="@drawable/ic_mic"
+                            app:tint="@color/accent_primary_variant" />
+                    </FrameLayout>
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="12dp"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Audio &amp; Camera Hardware"
+                            android:textColor="@color/text_primary"
+                            android:textSize="16sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="2dp"
+                            android:text="Microphone mixing &amp; picture-in-picture facecam"
+                            android:textColor="@color/text_secondary"
+                            android:textSize="12sp" />
+                    </LinearLayout>
+                </LinearLayout>
+
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:layout_marginVertical="14dp"
+                    android:background="@color/divider_color" />
+
+                <!-- Microphone Row -->
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
@@ -334,7 +646,7 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="1dp"
-                            android:text="Capture device microphone stream"
+                            android:text="Stream voice audio mixed with game audio"
                             android:textColor="@color/text_secondary"
                             android:textSize="12sp" />
                     </LinearLayout>
@@ -354,6 +666,7 @@
                     android:layout_marginVertical="12dp"
                     android:background="@color/divider_color" />
 
+                <!-- Facecam Row -->
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
@@ -378,7 +691,7 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="1dp"
-                            android:text="Enable camera picture-in-picture"
+                            android:text="Render front camera overlay on stream"
                             android:textColor="@color/text_secondary"
                             android:textSize="12sp" />
                     </LinearLayout>
@@ -395,29 +708,74 @@
             </LinearLayout>
         </androidx.cardview.widget.CardView>
 
-        <!-- SECTION: ADVANCED -->
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="8dp"
-            android:letterSpacing="0.05"
-            android:text="ADVANCED"
-            android:textColor="@color/text_muted"
-            android:textSize="11sp"
-            android:textStyle="bold" />
-
+        <!-- ============================================================ -->
+        <!-- CATEGORY 5: ADVANCED & SYSTEM -->
+        <!-- ============================================================ -->
         <androidx.cardview.widget.CardView
+            android:id="@+id/card_category_advanced"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginBottom="24dp"
+            android:layout_marginBottom="16dp"
             app:cardBackgroundColor="@color/bg_card"
-            app:cardCornerRadius="14dp"
-            app:cardElevation="0dp">
+            app:cardCornerRadius="20dp"
+            app:cardElevation="1dp">
 
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="vertical">
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <!-- Category Header -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <FrameLayout
+                        android:layout_width="42dp"
+                        android:layout_height="42dp"
+                        android:background="@drawable/bg_grid_icon_circle">
+
+                        <ImageView
+                            android:layout_width="22dp"
+                            android:layout_height="22dp"
+                            android:layout_gravity="center"
+                            android:src="@drawable/ic_diagnostics"
+                            app:tint="@color/accent_primary_variant" />
+                    </FrameLayout>
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="12dp"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="System &amp; Diagnostics"
+                            android:textColor="@color/text_primary"
+                            android:textSize="16sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="2dp"
+                            android:text="Hardware encoders, live telemetry &amp; app version"
+                            android:textColor="@color/text_secondary"
+                            android:textSize="12sp" />
+                    </LinearLayout>
+                </LinearLayout>
+
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:layout_marginVertical="14dp"
+                    android:background="@color/divider_color" />
 
                 <!-- Diagnostics Row -->
                 <LinearLayout
@@ -429,8 +787,7 @@
                     android:focusable="true"
                     android:gravity="center_vertical"
                     android:orientation="horizontal"
-                    android:paddingHorizontal="16dp"
-                    android:paddingVertical="14dp">
+                    android:paddingVertical="10dp">
 
                     <LinearLayout
                         android:layout_width="0dp"
@@ -450,7 +807,7 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="1dp"
-                            android:text="Hardware, MediaCodec encoders &amp; telemetry"
+                            android:text="Codec capability, memory &amp; RTMP latency metrics"
                             android:textColor="@color/text_secondary"
                             android:textSize="12sp" />
                     </LinearLayout>
@@ -465,6 +822,7 @@
                 <View
                     android:layout_width="match_parent"
                     android:layout_height="1dp"
+                    android:layout_marginVertical="10dp"
                     android:background="@color/divider_color" />
 
                 <!-- About Row -->
@@ -477,8 +835,7 @@
                     android:focusable="true"
                     android:gravity="center_vertical"
                     android:orientation="horizontal"
-                    android:paddingHorizontal="16dp"
-                    android:paddingVertical="14dp">
+                    android:paddingVertical="10dp">
 
                     <LinearLayout
                         android:layout_width="0dp"
@@ -498,7 +855,7 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="1dp"
-                            android:text="v1.2.2 Release • Pure Kotlin Native • 0 Third-Party Streaming Deps"
+                            android:text="v1.2.2 Release • Pure Kotlin Native • 0 Third-Party Deps"
                             android:textColor="@color/text_secondary"
                             android:textSize="12sp" />
                     </LinearLayout>
@@ -513,29 +870,74 @@
             </LinearLayout>
         </androidx.cardview.widget.CardView>
 
-        <!-- SECTION: LEGAL & COMPLIANCE -->
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="8dp"
-            android:letterSpacing="0.05"
-            android:text="LEGAL &amp; COMPLIANCE"
-            android:textColor="@color/text_muted"
-            android:textSize="11sp"
-            android:textStyle="bold" />
-
+        <!-- ============================================================ -->
+        <!-- CATEGORY 6: LEGAL & COMPLIANCE -->
+        <!-- ============================================================ -->
         <androidx.cardview.widget.CardView
+            android:id="@+id/card_category_legal"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginBottom="24dp"
             app:cardBackgroundColor="@color/bg_card"
-            app:cardCornerRadius="14dp"
-            app:cardElevation="0dp">
+            app:cardCornerRadius="20dp"
+            app:cardElevation="1dp">
 
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="vertical">
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <!-- Category Header -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <FrameLayout
+                        android:layout_width="42dp"
+                        android:layout_height="42dp"
+                        android:background="@drawable/bg_grid_icon_circle">
+
+                        <ImageView
+                            android:layout_width="22dp"
+                            android:layout_height="22dp"
+                            android:layout_gravity="center"
+                            android:src="@drawable/ic_shield"
+                            app:tint="@color/accent_primary_variant" />
+                    </FrameLayout>
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="12dp"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Legal &amp; Compliance"
+                            android:textColor="@color/text_primary"
+                            android:textSize="16sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="2dp"
+                            android:text="YouTube ToS, Google Privacy &amp; Data Safety"
+                            android:textColor="@color/text_secondary"
+                            android:textSize="12sp" />
+                    </LinearLayout>
+                </LinearLayout>
+
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:layout_marginVertical="14dp"
+                    android:background="@color/divider_color" />
 
                 <!-- YouTube Terms of Service Row -->
                 <LinearLayout
@@ -547,8 +949,7 @@
                     android:focusable="true"
                     android:gravity="center_vertical"
                     android:orientation="horizontal"
-                    android:paddingHorizontal="16dp"
-                    android:paddingVertical="14dp">
+                    android:paddingVertical="10dp">
 
                     <LinearLayout
                         android:layout_width="0dp"
@@ -583,6 +984,7 @@
                 <View
                     android:layout_width="match_parent"
                     android:layout_height="1dp"
+                    android:layout_marginVertical="10dp"
                     android:background="@color/divider_color" />
 
                 <!-- Google Privacy Policy Row -->
@@ -595,8 +997,7 @@
                     android:focusable="true"
                     android:gravity="center_vertical"
                     android:orientation="horizontal"
-                    android:paddingHorizontal="16dp"
-                    android:paddingVertical="14dp">
+                    android:paddingVertical="10dp">
 
                     <LinearLayout
                         android:layout_width="0dp"
@@ -631,6 +1032,7 @@
                 <View
                     android:layout_width="match_parent"
                     android:layout_height="1dp"
+                    android:layout_marginVertical="10dp"
                     android:background="@color/divider_color" />
 
                 <!-- Fairy Live Privacy & Permissions Row -->
@@ -643,8 +1045,7 @@
                     android:focusable="true"
                     android:gravity="center_vertical"
                     android:orientation="horizontal"
-                    android:paddingHorizontal="16dp"
-                    android:paddingVertical="14dp">
+                    android:paddingVertical="10dp">
 
                     <LinearLayout
                         android:layout_width="0dp"
@@ -683,16 +1084,16 @@
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btn_save"
             android:layout_width="match_parent"
-            android:layout_height="52dp"
+            android:layout_height="54dp"
             android:layout_marginBottom="24dp"
             android:backgroundTint="@color/accent_primary"
             android:text="Save Settings"
             android:textAllCaps="false"
-            android:textColor="@color/text_primary"
+            android:textColor="@color/text_on_dark"
             android:textSize="15sp"
             android:textStyle="bold"
-            app:cornerRadius="12dp"
-            app:elevation="0dp" />
+            app:cornerRadius="16dp"
+            app:elevation="2dp" />
 
     </LinearLayout>
 </ScrollView>
