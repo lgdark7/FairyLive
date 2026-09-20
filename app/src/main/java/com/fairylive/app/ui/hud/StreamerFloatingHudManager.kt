@@ -503,7 +503,7 @@ class StreamerFloatingHudManager(private val context: Context) {
             )
         }
         val title = TextView(context).apply {
-            text = "🔊 AUDIO MIXER"
+            text = "🎚️ AUDIO STUDIO"
             setTextColor(0xFFFFFFFF.toInt())
             textSize = 14f
             setTypeface(null, android.graphics.Typeface.BOLD)
@@ -519,14 +519,17 @@ class StreamerFloatingHudManager(private val context: Context) {
         header.addView(closeBtn)
         card.addView(header)
 
-        var currentMicVol = 1.0f
-        var currentGameVol = 1.0f
+        var currentMicVol = 0.9f
+        var currentGameVol = 0.8f
+        var currentMediaVol = 0.5f
+        var currentMasterVol = 1.0f
 
+        // 1. Device Microphone Channel (Universal Device Mic - ZERO Pixel mentions)
         val micLabel = TextView(context).apply {
-            text = "🎤 Microphone Output: ${(currentMicVol * 100).toInt()}%"
+            text = "🎙 Device Microphone: ${(currentMicVol * 100).toInt()}%"
             setTextColor(0xFFE5E7EB.toInt())
             textSize = 12f
-            setPadding(0, dpToPx(12), 0, dpToPx(4))
+            setPadding(0, dpToPx(8), 0, dpToPx(2))
         }
         val micSeekBar = SeekBar(context).apply {
             max = 150
@@ -534,8 +537,14 @@ class StreamerFloatingHudManager(private val context: Context) {
             setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
                 override fun onProgressChanged(sb: SeekBar?, progress: Int, fromUser: Boolean) {
                     currentMicVol = progress / 100f
-                    micLabel.text = "🎤 Microphone Output: ${progress}%"
-                    FairyStreamService.setAudioVolumes(context, currentMicVol, currentGameVol)
+                    micLabel.text = "🎙 Device Microphone: ${progress}%"
+                    FairyStreamService.setAudioVolumes(
+                        context = context,
+                        micVolume = currentMicVol,
+                        gameVolume = currentGameVol,
+                        mediaVolume = currentMediaVol,
+                        masterVolume = currentMasterVol
+                    )
                 }
                 override fun onStartTrackingTouch(sb: SeekBar?) {}
                 override fun onStopTrackingTouch(sb: SeekBar?) {}
@@ -544,20 +553,27 @@ class StreamerFloatingHudManager(private val context: Context) {
         card.addView(micLabel)
         card.addView(micSeekBar)
 
+        // 2. Game Audio Channel
         val gameLabel = TextView(context).apply {
-            text = "🎮 Game & Stream Audio: ${(currentGameVol * 100).toInt()}%"
+            text = "🎮 Game & System Audio: ${(currentGameVol * 100).toInt()}%"
             setTextColor(0xFFE5E7EB.toInt())
             textSize = 12f
-            setPadding(0, dpToPx(12), 0, dpToPx(4))
+            setPadding(0, dpToPx(6), 0, dpToPx(2))
         }
         val gameSeekBar = SeekBar(context).apply {
-            max = 100
+            max = 150
             progress = (currentGameVol * 100).toInt()
             setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
                 override fun onProgressChanged(sb: SeekBar?, progress: Int, fromUser: Boolean) {
                     currentGameVol = progress / 100f
-                    gameLabel.text = "🎮 Game & Stream Audio: ${progress}%"
-                    FairyStreamService.setAudioVolumes(context, currentMicVol, currentGameVol)
+                    gameLabel.text = "🎮 Game & System Audio: ${progress}%"
+                    FairyStreamService.setAudioVolumes(
+                        context = context,
+                        micVolume = currentMicVol,
+                        gameVolume = currentGameVol,
+                        mediaVolume = currentMediaVol,
+                        masterVolume = currentMasterVol
+                    )
                 }
                 override fun onStartTrackingTouch(sb: SeekBar?) {}
                 override fun onStopTrackingTouch(sb: SeekBar?) {}
@@ -566,13 +582,106 @@ class StreamerFloatingHudManager(private val context: Context) {
         card.addView(gameLabel)
         card.addView(gameSeekBar)
 
+        // 3. Media / BGM Channel
+        val mediaLabel = TextView(context).apply {
+            text = "🎵 Media & BGM: ${(currentMediaVol * 100).toInt()}%"
+            setTextColor(0xFFE5E7EB.toInt())
+            textSize = 12f
+            setPadding(0, dpToPx(6), 0, dpToPx(2))
+        }
+        val mediaSeekBar = SeekBar(context).apply {
+            max = 100
+            progress = (currentMediaVol * 100).toInt()
+            setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(sb: SeekBar?, progress: Int, fromUser: Boolean) {
+                    currentMediaVol = progress / 100f
+                    mediaLabel.text = "🎵 Media & BGM: ${progress}%"
+                    FairyStreamService.setAudioVolumes(
+                        context = context,
+                        micVolume = currentMicVol,
+                        gameVolume = currentGameVol,
+                        mediaVolume = currentMediaVol,
+                        masterVolume = currentMasterVol
+                    )
+                }
+                override fun onStartTrackingTouch(sb: SeekBar?) {}
+                override fun onStopTrackingTouch(sb: SeekBar?) {}
+            })
+        }
+        card.addView(mediaLabel)
+        card.addView(mediaSeekBar)
+
+        // 4. Master Volume Channel
+        val masterLabel = TextView(context).apply {
+            text = "🎚 Master Output: ${(currentMasterVol * 100).toInt()}%"
+            setTextColor(0xFFE5E7EB.toInt())
+            textSize = 12f
+            setPadding(0, dpToPx(6), 0, dpToPx(2))
+        }
+        val masterSeekBar = SeekBar(context).apply {
+            max = 100
+            progress = (currentMasterVol * 100).toInt()
+            setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(sb: SeekBar?, progress: Int, fromUser: Boolean) {
+                    currentMasterVol = progress / 100f
+                    masterLabel.text = "🎚 Master Output: ${progress}%"
+                    FairyStreamService.setAudioVolumes(
+                        context = context,
+                        micVolume = currentMicVol,
+                        gameVolume = currentGameVol,
+                        mediaVolume = currentMediaVol,
+                        masterVolume = currentMasterVol
+                    )
+                }
+                override fun onStartTrackingTouch(sb: SeekBar?) {}
+                override fun onStopTrackingTouch(sb: SeekBar?) {}
+            })
+        }
+        card.addView(masterLabel)
+        card.addView(masterSeekBar)
+
+        // DSP Processors Row (Noise Gate, Limiter)
+        val dspRow = LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(0, dpToPx(8), 0, 0)
+        }
+        val btnNoise = TextView(context).apply {
+            text = "🚫 Noise Gate: ON"
+            setTextColor(0xFF10B981.toInt())
+            textSize = 11f
+            var enabled = true
+            setOnClickListener {
+                enabled = !enabled
+                text = if (enabled) "🚫 Noise Gate: ON" else "🚫 Noise Gate: OFF"
+                setTextColor(if (enabled) 0xFF10B981.toInt() else 0xFF9CA3AF.toInt())
+                FairyStreamService.setAudioDspFilters(context, noiseGate = enabled, agc = false, compressor = true, limiter = true)
+            }
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+        }
+        val btnLimiter = TextView(context).apply {
+            text = "🔊 Limiter: ON"
+            setTextColor(0xFF10B981.toInt())
+            textSize = 11f
+            var enabled = true
+            setOnClickListener {
+                enabled = !enabled
+                text = if (enabled) "🔊 Limiter: ON" else "🔊 Limiter: OFF"
+                setTextColor(if (enabled) 0xFF10B981.toInt() else 0xFF9CA3AF.toInt())
+                FairyStreamService.setAudioDspFilters(context, noiseGate = true, agc = false, compressor = true, limiter = enabled)
+            }
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+        }
+        dspRow.addView(btnNoise)
+        dspRow.addView(btnLimiter)
+        card.addView(dspRow)
+
         val layoutType = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
         else
             @Suppress("DEPRECATION") WindowManager.LayoutParams.TYPE_PHONE
 
         val params = WindowManager.LayoutParams(
-            dpToPx(280),
+            dpToPx(300),
             WindowManager.LayoutParams.WRAP_CONTENT,
             layoutType,
             WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH,
@@ -868,6 +977,8 @@ class StreamerFloatingHudManager(private val context: Context) {
     companion object {
         private const val TAG = "StreamerFloatingHud"
         private val activeInstances = CopyOnWriteArrayList<StreamerFloatingHudManager>()
+
+        fun hasActiveInstance(): Boolean = activeInstances.isNotEmpty()
 
         fun dismissAll() {
             for (instance in activeInstances) {

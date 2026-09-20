@@ -76,7 +76,19 @@ class AudioPipeline {
 
     val micVolume: Float get() = captureEngine.micVolume
     val gameVolume: Float get() = captureEngine.gameVolume
+    val mediaVolume: Float get() = captureEngine.mediaVolume
+    val masterVolume: Float get() = captureEngine.masterVolume
     val isMicMuted: Boolean get() = captureEngine.isMicMuted
+
+    fun setMediaVolume(volume: Float) = captureEngine.setMediaVolume(volume)
+    fun setMasterVolume(volume: Float) = captureEngine.setMasterVolume(volume)
+    fun setGameMuted(muted: Boolean) = captureEngine.setGameMuted(muted)
+    fun setMediaMuted(muted: Boolean) = captureEngine.setMediaMuted(muted)
+    fun setDspFilters(noiseGate: Boolean, agc: Boolean, compressor: Boolean, limiter: Boolean) =
+        captureEngine.setDspFilters(noiseGate, agc, compressor, limiter)
+    fun applyPreset(preset: com.fairylive.app.core.audio.dsp.AudioMixerProcessor.AudioPreset) =
+        captureEngine.applyPreset(preset)
+    fun getAudioMixer() = captureEngine.audioMixer
 
     @Synchronized
     fun stop() {

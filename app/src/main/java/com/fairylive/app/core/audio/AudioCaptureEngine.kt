@@ -42,25 +42,30 @@ class AudioCaptureEngine {
 
     private var playbackRingBuffer: PcmRingBuffer? = null
 
+    val audioMixer = com.fairylive.app.core.audio.dsp.AudioMixerProcessor()
+
     @Volatile
     var isMuted: Boolean = false
         private set
 
-    @Volatile
-    var isMicMuted: Boolean = false
-        private set
+    val isMicMuted: Boolean
+        get() = audioMixer.isMicMuted
 
     @Volatile
     var isStreamPaused: Boolean = false
         private set
 
-    @Volatile
-    var micVolume: Float = 1.0f
-        private set
+    val micVolume: Float
+        get() = audioMixer.micVolume
 
-    @Volatile
-    var gameVolume: Float = 1.0f
-        private set
+    val gameVolume: Float
+        get() = audioMixer.gameVolume
+
+    val mediaVolume: Float
+        get() = audioMixer.mediaVolume
+
+    val masterVolume: Float
+        get() = audioMixer.masterVolume
 
     private var totalSamplesRead: Long = 0L
     private var totalSilenceFramesInserted: Long = 0L
@@ -75,18 +80,49 @@ class AudioCaptureEngine {
     }
 
     fun setMicVolume(volume: Float) {
-        this.micVolume = volume.coerceIn(0.0f, 2.0f)
-        Log.i(TAG, "Microphone volume set to ${(this.micVolume * 100).toInt()}%")
+        audioMixer.micVolume = volume.coerceIn(0.0f, 2.0f)
+        Log.i(TAG, "Microphone volume set to ${(audioMixer.micVolume * 100).toInt()}%")
     }
 
     fun setGameVolume(volume: Float) {
-        this.gameVolume = volume.coerceIn(0.0f, 2.0f)
-        Log.i(TAG, "Game audio volume set to ${(this.gameVolume * 100).toInt()}%")
+        audioMixer.gameVolume = volume.coerceIn(0.0f, 2.0f)
+        Log.i(TAG, "Game audio volume set to ${(audioMixer.gameVolume * 100).toInt()}%")
+    }
+
+    fun setMediaVolume(volume: Float) {
+        audioMixer.mediaVolume = volume.coerceIn(0.0f, 2.0f)
+        Log.i(TAG, "Media volume set to ${(audioMixer.mediaVolume * 100).toInt()}%")
+    }
+
+    fun setMasterVolume(volume: Float) {
+        audioMixer.masterVolume = volume.coerceIn(0.0f, 1.0f)
+        Log.i(TAG, "Master volume set to ${(audioMixer.masterVolume * 100).toInt()}%")
     }
 
     fun setMicMuted(muted: Boolean) {
-        this.isMicMuted = muted
+        audioMixer.isMicMuted = muted
         Log.i(TAG, "User mic muted: $muted")
+    }
+
+    fun setGameMuted(muted: Boolean) {
+        audioMixer.isGameMuted = muted
+        Log.i(TAG, "Game audio muted: $muted")
+    }
+
+    fun setMediaMuted(muted: Boolean) {
+        audioMixer.isMediaMuted = muted
+        Log.i(TAG, "Media audio muted: $muted")
+    }
+
+    fun setDspFilters(noiseGate: Boolean, agc: Boolean, compressor: Boolean, limiter: Boolean) {
+        audioMixer.isNoiseSuppressionEnabled = noiseGate
+        audioMixer.isAgcEnabled = agc
+        audioMixer.isCompressorEnabled = compressor
+        audioMixer.isLimiterEnabled = limiter
+    }
+
+    fun applyPreset(preset: com.fairylive.app.core.audio.dsp.AudioMixerProcessor.AudioPreset) {
+        audioMixer.applyPreset(preset)
     }
 
     fun setStreamPaused(paused: Boolean) {
@@ -291,35 +327,29 @@ class AudioCaptureEngine {
                 val effectiveMicVol = if (isMuted || isMicMuted || isStreamPaused) 0.0f else micVolume
                 val effectiveGameVol = if (isMuted || isStreamPaused) 0.0f else gameVolume
 
-                // Real-time 16-bit PCM mixing & volume scaling
-                if (micRec != null) {
-                    for (i in 0 until bytesRead - 1 step 2) {
-                        val micSample = ((micBuffer[i + 1].toInt() shl 8) or (micBuffer[i].toInt() and 0xFF)).toShort()
-                        val gameSample = ((gameBuffer[i + 1].toInt() shl 8) or (gameBuffer[i].toInt() and 0xFF)).toShort()
-                        val mixed = (micSample * effectiveMicVol + gameSample * effectiveGameVol).toInt().coerceIn(-32768, 32767).toShort()
-                        mixedBuffer[i] = (mixed.toInt() and 0xFF).toByte()
-                        mixedBuffer[i + 1] = ((mixed.toInt() shr 8) and 0xFF).toByte()
-                    }
-                } else {
-                    for (i in 0 until bytesRead - 1 step 2) {
-                        val gameSample = ((gameBuffer[i + 1].toInt() shl 8) or (gameBuffer[i].toInt() and 0xFF)).toShort()
-                        val scaled = (gameSample * effectiveGameVol).toInt().coerceIn(-32768, 32767).toShort()
-                        mixedBuffer[i] = (scaled.toInt() and 0xFF).toByte()
-                        mixedBuffer[i + 1] = ((scaled.toInt() shr 8) and 0xFF).toByte()
-                    }
-                }
+                // Real-time 16-bit PCM mixing & DSP audio processing
+                audioMixer.processAndMix(
+                    micBuffer = if (micRec != null) micBuffer else null,
+                    gameBuffer = gameBuffer,
+                    outMixedBuffer = mixedBuffer,
+                    bytesToProcess = bytesRead,
+                    isPaused = (isMuted || isStreamPaused)
+                )
 
                 // Peak amplitude calculation for UI meters
                 val now = SystemClock.elapsedRealtime()
                 if (now - lastAmplitudeUpdateTime >= 100L) {
                     lastAmplitudeUpdateTime = now
-                    val amplitudePercent = if (effectiveMicVol == 0.0f && effectiveGameVol == 0.0f) 0 else calculateRmsAmplitude(mixedBuffer, bytesRead)
+                    val amplitudePercent = if (audioMixer.isMicMuted && audioMixer.isGameMuted) 0 else calculateRmsAmplitude(mixedBuffer, bytesRead)
                     AudioStateNotifier.updateMetrics(
                         AudioStateNotifier.currentMetrics.copy(
                             samplesRead = totalSamplesRead,
                             silenceFramesInserted = totalSilenceFramesInserted,
                             peakAmplitudePercent = amplitudePercent,
-                            isMuted = (effectiveMicVol == 0.0f && effectiveGameVol == 0.0f),
+                            micDb = audioMixer.micDb,
+                            gameDb = audioMixer.gameDb,
+                            masterDb = audioMixer.masterDb,
+                            isMuted = (audioMixer.isMicMuted && audioMixer.isGameMuted) || isMuted || isStreamPaused,
                             isDeviceAudio = playbackRecord != null
                         )
                     )

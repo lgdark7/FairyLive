@@ -232,8 +232,39 @@ class FairyStreamService : Service() {
             ACTION_SET_AUDIO_VOLUMES -> {
                 val micVol = intent?.getFloatExtra(EXTRA_MIC_VOLUME, -1f) ?: -1f
                 val gameVol = intent?.getFloatExtra(EXTRA_GAME_VOLUME, -1f) ?: -1f
+                val mediaVol = intent?.getFloatExtra(EXTRA_MEDIA_VOLUME, -1f) ?: -1f
+                val masterVol = intent?.getFloatExtra(EXTRA_MASTER_VOLUME, -1f) ?: -1f
+
                 if (micVol >= 0f) audioPipeline.setMicVolume(micVol)
                 if (gameVol >= 0f) audioPipeline.setGameVolume(gameVol)
+                if (mediaVol >= 0f) audioPipeline.setMediaVolume(mediaVol)
+                if (masterVol >= 0f) audioPipeline.setMasterVolume(masterVol)
+
+                if (intent != null && intent.hasExtra(EXTRA_MIC_MUTED)) {
+                    audioPipeline.setMicMuted(intent.getBooleanExtra(EXTRA_MIC_MUTED, false))
+                }
+                if (intent != null && intent.hasExtra(EXTRA_GAME_MUTED)) {
+                    audioPipeline.setGameMuted(intent.getBooleanExtra(EXTRA_GAME_MUTED, false))
+                }
+                if (intent != null && intent.hasExtra(EXTRA_MEDIA_MUTED)) {
+                    audioPipeline.setMediaMuted(intent.getBooleanExtra(EXTRA_MEDIA_MUTED, false))
+                }
+
+                if (intent != null && intent.hasExtra(EXTRA_DSP_NOISE_GATE)) {
+                    val noise = intent.getBooleanExtra(EXTRA_DSP_NOISE_GATE, true)
+                    val agc = intent.getBooleanExtra(EXTRA_DSP_AGC, false)
+                    val comp = intent.getBooleanExtra(EXTRA_DSP_COMPRESSOR, true)
+                    val lim = intent.getBooleanExtra(EXTRA_DSP_LIMITER, true)
+                    audioPipeline.setDspFilters(noise, agc, comp, lim)
+                }
+
+                val presetName = intent?.getStringExtra(EXTRA_AUDIO_PRESET)
+                if (presetName != null) {
+                    try {
+                        val preset = com.fairylive.app.core.audio.dsp.AudioMixerProcessor.AudioPreset.valueOf(presetName)
+                        audioPipeline.applyPreset(preset)
+                    } catch (_: Exception) {}
+                }
             }
             ACTION_STOP_AUDIO -> {
                 audioPipeline.stop()
@@ -988,6 +1019,16 @@ class FairyStreamService : Service() {
         const val EXTRA_SCALE_MODE = "extra_scale_mode"
         const val EXTRA_MIC_VOLUME = "extra_mic_volume"
         const val EXTRA_GAME_VOLUME = "extra_game_volume"
+        const val EXTRA_MEDIA_VOLUME = "extra_media_volume"
+        const val EXTRA_MASTER_VOLUME = "extra_master_volume"
+        const val EXTRA_MIC_MUTED = "extra_mic_muted"
+        const val EXTRA_GAME_MUTED = "extra_game_muted"
+        const val EXTRA_MEDIA_MUTED = "extra_media_muted"
+        const val EXTRA_DSP_NOISE_GATE = "extra_dsp_noise_gate"
+        const val EXTRA_DSP_AGC = "extra_dsp_agc"
+        const val EXTRA_DSP_COMPRESSOR = "extra_dsp_compressor"
+        const val EXTRA_DSP_LIMITER = "extra_dsp_limiter"
+        const val EXTRA_AUDIO_PRESET = "extra_audio_preset"
         const val EXTRA_YOUTUBE_CHAT_URL = "extra_youtube_chat_url"
 
         const val EXTRA_ENABLE_FACECAM = "extra_enable_facecam"
@@ -1169,11 +1210,50 @@ class FairyStreamService : Service() {
             context.startService(intent)
         }
 
-        fun setAudioVolumes(context: Context, micVolume: Float, gameVolume: Float) {
+        fun setAudioVolumes(
+            context: Context,
+            micVolume: Float,
+            gameVolume: Float,
+            mediaVolume: Float = -1f,
+            masterVolume: Float = -1f,
+            micMuted: Boolean? = null,
+            gameMuted: Boolean? = null,
+            mediaMuted: Boolean? = null
+        ) {
             val intent = Intent(context, FairyStreamService::class.java).apply {
                 action = ACTION_SET_AUDIO_VOLUMES
                 putExtra(EXTRA_MIC_VOLUME, micVolume)
                 putExtra(EXTRA_GAME_VOLUME, gameVolume)
+                if (mediaVolume >= 0f) putExtra(EXTRA_MEDIA_VOLUME, mediaVolume)
+                if (masterVolume >= 0f) putExtra(EXTRA_MASTER_VOLUME, masterVolume)
+                if (micMuted != null) putExtra(EXTRA_MIC_MUTED, micMuted)
+                if (gameMuted != null) putExtra(EXTRA_GAME_MUTED, gameMuted)
+                if (mediaMuted != null) putExtra(EXTRA_MEDIA_MUTED, mediaMuted)
+            }
+            context.startService(intent)
+        }
+
+        fun setAudioDspFilters(
+            context: Context,
+            noiseGate: Boolean,
+            agc: Boolean,
+            compressor: Boolean,
+            limiter: Boolean
+        ) {
+            val intent = Intent(context, FairyStreamService::class.java).apply {
+                action = ACTION_SET_AUDIO_VOLUMES
+                putExtra(EXTRA_DSP_NOISE_GATE, noiseGate)
+                putExtra(EXTRA_DSP_AGC, agc)
+                putExtra(EXTRA_DSP_COMPRESSOR, compressor)
+                putExtra(EXTRA_DSP_LIMITER, limiter)
+            }
+            context.startService(intent)
+        }
+
+        fun setAudioPreset(context: Context, presetName: String) {
+            val intent = Intent(context, FairyStreamService::class.java).apply {
+                action = ACTION_SET_AUDIO_VOLUMES
+                putExtra(EXTRA_AUDIO_PRESET, presetName)
             }
             context.startService(intent)
         }
