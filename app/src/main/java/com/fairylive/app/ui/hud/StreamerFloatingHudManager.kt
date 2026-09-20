@@ -24,6 +24,9 @@ import android.widget.FrameLayout
 import android.widget.ImageButton
 import android.widget.LinearLayout
 import android.widget.TextView
+import android.widget.SeekBar
+import android.widget.EditText
+import android.widget.Button
 import com.fairylive.app.MainActivity
 import com.fairylive.app.R
 import com.fairylive.app.core.render.RenderDomain
@@ -112,6 +115,12 @@ class StreamerFloatingHudManager(private val context: Context) {
                 wm.addView(view, params)
                 hudView = view
                 Log.i(TAG, "Streamer Floating HUD added as TYPE_APPLICATION_OVERLAY")
+                showChatOverlay()
+                val repo = com.fairylive.app.core.settings.StreamSettingsRepository(context)
+                val savedYtUrl = repo.getYouTubeLiveUrl()
+                if (savedYtUrl.isNotBlank() && !YouTubeLiveIntegrationService.isPollingActive) {
+                    YouTubeLiveIntegrationService.startLiveChatPolling(savedYtUrl)
+                }
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to add system overlay view", e)
             }
@@ -140,6 +149,8 @@ class StreamerFloatingHudManager(private val context: Context) {
     fun dismiss() {
         coroutineScope.cancel()
         hideChatOverlay()
+        hideAudioMixerDialog()
+        hideConnectYouTubeChatDialog()
 
         hudView?.let { view ->
             val wm = windowManager
@@ -186,12 +197,16 @@ class StreamerFloatingHudManager(private val context: Context) {
         }
         updateExpandedState()
 
-        // Ephemeral chat overlay click toggle; long-press opens full chat sheet
+        // Ephemeral chat overlay click toggle; long-press opens YouTube connect / full chat sheet
         btnChat?.setOnClickListener {
-            toggleChatOverlay(btnChat)
+            if (!YouTubeLiveIntegrationService.isPollingActive) {
+                showConnectYouTubeChatDialog()
+            } else {
+                toggleChatOverlay(btnChat)
+            }
         }
         btnChat?.setOnLongClickListener {
-            openCreatorChatSheet()
+            showConnectYouTubeChatDialog()
             true
         }
 
@@ -202,6 +217,11 @@ class StreamerFloatingHudManager(private val context: Context) {
                 if (isMicMuted) android.R.drawable.ic_lock_silent_mode
                 else android.R.drawable.ic_btn_speak_now
             )
+            displayEphemeralMessage("Microphone", if (isMicMuted) "Voice Muted (Game Audio Active)" else "Microphone Active", isSystem = true)
+        }
+        btnMic?.setOnLongClickListener {
+            showAudioMixerDialog()
+            true
         }
 
         btnCamera?.setOnClickListener {
@@ -453,6 +473,263 @@ class StreamerFloatingHudManager(private val context: Context) {
         }
     }
 
+    private var mixerDialogView: View? = null
+    private var connectChatDialogView: View? = null
+
+    fun showAudioMixerDialog() {
+        if (mixerDialogView != null) {
+            hideAudioMixerDialog()
+            return
+        }
+
+        val wm = (context.getSystemService(Context.WINDOW_SERVICE) as? WindowManager) ?: return
+        val card = LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dpToPx(16), dpToPx(16), dpToPx(16), dpToPx(16))
+            val bg = android.graphics.drawable.GradientDrawable().apply {
+                setColor(0xF0111827.toInt())
+                cornerRadius = dpToPx(14).toFloat()
+                setStroke(dpToPx(1), 0xFF374151.toInt())
+            }
+            background = bg
+        }
+
+        // Header
+        val header = LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+        }
+        val title = TextView(context).apply {
+            text = "🔊 AUDIO MIXER"
+            setTextColor(0xFFFFFFFF.toInt())
+            textSize = 14f
+            setTypeface(null, android.graphics.Typeface.BOLD)
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+        }
+        val closeBtn = ImageButton(context).apply {
+            setImageResource(android.R.drawable.ic_menu_close_clear_cancel)
+            setBackgroundColor(0)
+            setColorFilter(0xFF9CA3AF.toInt())
+            setOnClickListener { hideAudioMixerDialog() }
+        }
+        header.addView(title)
+        header.addView(closeBtn)
+        card.addView(header)
+
+        var currentMicVol = 1.0f
+        var currentGameVol = 1.0f
+
+        val micLabel = TextView(context).apply {
+            text = "🎤 Microphone Output: ${(currentMicVol * 100).toInt()}%"
+            setTextColor(0xFFE5E7EB.toInt())
+            textSize = 12f
+            setPadding(0, dpToPx(12), 0, dpToPx(4))
+        }
+        val micSeekBar = SeekBar(context).apply {
+            max = 150
+            progress = (currentMicVol * 100).toInt()
+            setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(sb: SeekBar?, progress: Int, fromUser: Boolean) {
+                    currentMicVol = progress / 100f
+                    micLabel.text = "🎤 Microphone Output: ${progress}%"
+                    FairyStreamService.setAudioVolumes(context, currentMicVol, currentGameVol)
+                }
+                override fun onStartTrackingTouch(sb: SeekBar?) {}
+                override fun onStopTrackingTouch(sb: SeekBar?) {}
+            })
+        }
+        card.addView(micLabel)
+        card.addView(micSeekBar)
+
+        val gameLabel = TextView(context).apply {
+            text = "🎮 Game & Stream Audio: ${(currentGameVol * 100).toInt()}%"
+            setTextColor(0xFFE5E7EB.toInt())
+            textSize = 12f
+            setPadding(0, dpToPx(12), 0, dpToPx(4))
+        }
+        val gameSeekBar = SeekBar(context).apply {
+            max = 100
+            progress = (currentGameVol * 100).toInt()
+            setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(sb: SeekBar?, progress: Int, fromUser: Boolean) {
+                    currentGameVol = progress / 100f
+                    gameLabel.text = "🎮 Game & Stream Audio: ${progress}%"
+                    FairyStreamService.setAudioVolumes(context, currentMicVol, currentGameVol)
+                }
+                override fun onStartTrackingTouch(sb: SeekBar?) {}
+                override fun onStopTrackingTouch(sb: SeekBar?) {}
+            })
+        }
+        card.addView(gameLabel)
+        card.addView(gameSeekBar)
+
+        val layoutType = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
+            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+        else
+            @Suppress("DEPRECATION") WindowManager.LayoutParams.TYPE_PHONE
+
+        val params = WindowManager.LayoutParams(
+            dpToPx(280),
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            layoutType,
+            WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH,
+            PixelFormat.TRANSLUCENT
+        ).apply {
+            gravity = Gravity.CENTER
+        }
+
+        try {
+            wm.addView(card, params)
+            mixerDialogView = card
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to show audio mixer overlay: ${e.message}")
+        }
+    }
+
+    fun hideAudioMixerDialog() {
+        mixerDialogView?.let { v ->
+            try {
+                (context.getSystemService(Context.WINDOW_SERVICE) as? WindowManager)?.removeView(v)
+            } catch (_: Exception) {}
+            mixerDialogView = null
+        }
+    }
+
+    fun showConnectYouTubeChatDialog() {
+        if (connectChatDialogView != null) {
+            hideConnectYouTubeChatDialog()
+            return
+        }
+
+        val wm = (context.getSystemService(Context.WINDOW_SERVICE) as? WindowManager) ?: return
+        val repo = com.fairylive.app.core.settings.StreamSettingsRepository(context)
+        val savedUrl = repo.getYouTubeLiveUrl()
+
+        val card = LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            val bg = android.graphics.drawable.GradientDrawable().apply {
+                setColor(0xF0111827.toInt())
+                cornerRadius = dpToPx(14).toFloat()
+                setStroke(dpToPx(1), 0xFF374151.toInt())
+            }
+            background = bg
+            setPadding(dpToPx(16), dpToPx(16), dpToPx(16), dpToPx(16))
+        }
+
+        val header = LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+        }
+        val title = TextView(context).apply {
+            text = "💬 CONNECT YOUTUBE CHAT"
+            setTextColor(0xFFFFFFFF.toInt())
+            textSize = 14f
+            setTypeface(null, android.graphics.Typeface.BOLD)
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+        }
+        val closeBtn = ImageButton(context).apply {
+            setImageResource(android.R.drawable.ic_menu_close_clear_cancel)
+            setBackgroundColor(0)
+            setColorFilter(0xFF9CA3AF.toInt())
+            setOnClickListener { hideConnectYouTubeChatDialog() }
+        }
+        header.addView(title)
+        header.addView(closeBtn)
+        card.addView(header)
+
+        val desc = TextView(context).apply {
+            text = "Enter YouTube Live URL, Video ID, or @Channel Handle:"
+            setTextColor(0xFF9CA3AF.toInt())
+            textSize = 11f
+            setPadding(0, dpToPx(8), 0, dpToPx(4))
+        }
+        card.addView(desc)
+
+        val editText = EditText(context).apply {
+            hint = "e.g. @MyChannel or youtube.com/live/xxx"
+            setText(savedUrl)
+            setTextColor(0xFFFFFFFF.toInt())
+            setHintTextColor(0xFF6B7280.toInt())
+            textSize = 13f
+            val editBg = android.graphics.drawable.GradientDrawable().apply {
+                setColor(0xFF1F2937.toInt())
+                cornerRadius = dpToPx(8).toFloat()
+                setStroke(dpToPx(1), 0xFF4B5563.toInt())
+            }
+            background = editBg
+            setPadding(dpToPx(10), dpToPx(8), dpToPx(10), dpToPx(8))
+        }
+        card.addView(editText)
+
+        val btnConnect = Button(context).apply {
+            text = if (YouTubeLiveIntegrationService.isPollingActive) "RECONNECT CHAT" else "CONNECT CHAT"
+            setTextColor(0xFFFFFFFF.toInt())
+            textSize = 12f
+            setTypeface(null, android.graphics.Typeface.BOLD)
+            val btnBg = android.graphics.drawable.GradientDrawable().apply {
+                setColor(0xFF0284C7.toInt())
+                cornerRadius = dpToPx(8).toFloat()
+            }
+            background = btnBg
+            val lp = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dpToPx(40)
+            ).apply {
+                topMargin = dpToPx(12)
+            }
+            layoutParams = lp
+            setOnClickListener {
+                val input = editText.text.toString().trim()
+                if (input.isNotEmpty()) {
+                    repo.setYouTubeLiveUrl(input)
+                    YouTubeLiveIntegrationService.startLiveChatPolling(input)
+                    displayEphemeralMessage("YouTube Chat", "Connecting to live chat...", isSystem = true)
+                    hideConnectYouTubeChatDialog()
+                } else {
+                    editText.error = "Please enter a URL or handle"
+                }
+            }
+        }
+        card.addView(btnConnect)
+
+        val layoutType = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
+            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+        else
+            @Suppress("DEPRECATION") WindowManager.LayoutParams.TYPE_PHONE
+
+        val params = WindowManager.LayoutParams(
+            dpToPx(300),
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            layoutType,
+            WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH,
+            PixelFormat.TRANSLUCENT
+        ).apply {
+            gravity = Gravity.CENTER
+        }
+
+        try {
+            wm.addView(card, params)
+            connectChatDialogView = card
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to show connect chat dialog: ${e.message}")
+        }
+    }
+
+    fun hideConnectYouTubeChatDialog() {
+        connectChatDialogView?.let { v ->
+            try {
+                (context.getSystemService(Context.WINDOW_SERVICE) as? WindowManager)?.removeView(v)
+            } catch (_: Exception) {}
+            connectChatDialogView = null
+        }
+    }
+
     private fun openCreatorQuickActions() {
         if (context is Activity) {
             val builder = androidx.appcompat.app.AlertDialog.Builder(context)
@@ -460,6 +737,8 @@ class StreamerFloatingHudManager(private val context: Context) {
             builder.setItems(arrayOf(
                 "Aspect Ratio: FIT (Full Screen)",
                 "Aspect Ratio: FILL (Crop to 16:9)",
+                "🔊 Audio Mixer (Mic & Game Volume)",
+                "💬 Connect YouTube Live Chat",
                 "Close Floating HUD",
                 "Open Fairy Live App"
             )) { _, which ->
@@ -472,8 +751,10 @@ class StreamerFloatingHudManager(private val context: Context) {
                         FairyStreamService.setScaleMode(context, com.fairylive.app.core.capture.model.ScaleMode.FILL)
                         displayEphemeralMessage("Ratio", "Set to FILL (Cropped)", isSystem = true)
                     }
-                    2 -> dismiss()
-                    3 -> {
+                    2 -> showAudioMixerDialog()
+                    3 -> showConnectYouTubeChatDialog()
+                    4 -> dismiss()
+                    5 -> {
                         val intent = Intent(context, MainActivity::class.java).apply {
                             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
                         }
@@ -483,9 +764,8 @@ class StreamerFloatingHudManager(private val context: Context) {
             }
             builder.show()
         } else {
-            // From service context: toggle Aspect Ratio mode
-            FairyStreamService.setScaleMode(context, com.fairylive.app.core.capture.model.ScaleMode.FIT)
-            displayEphemeralMessage("Ratio", "Auto-adjusted to FIT (Full Game UI visible)", isSystem = true)
+            // Service context: Show Audio Mixer
+            showAudioMixerDialog()
         }
     }
 

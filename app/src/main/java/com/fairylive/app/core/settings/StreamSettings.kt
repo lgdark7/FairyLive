@@ -17,7 +17,8 @@ data class StreamSettings(
     val fps: Int = 24,
     val videoBitrateKbps: Int = 1200,
     val audioBitrateKbps: Int = 96,
-    val micEnabled: Boolean = true
+    val micEnabled: Boolean = true,
+    val youtubeLiveUrl: String = ""
 ) {
     /**
      * Sanitizes settings to enforce hardware encoder alignment rules and
@@ -65,7 +66,8 @@ data class StreamSettings(
             destination: StreamDestination = StreamDestination.YOUTUBE,
             captureSource: CaptureSource = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) CaptureSource.SINGLE_APP else CaptureSource.ENTIRE_SCREEN,
             serverUrl: String = "",
-            streamKey: String = ""
+            streamKey: String = "",
+            youtubeLiveUrl: String = ""
         ): StreamSettings {
             val effectiveUrl = if (serverUrl.isNotBlank()) {
                 serverUrl
@@ -84,7 +86,8 @@ data class StreamSettings(
                 fps = profile.fps,
                 videoBitrateKbps = profile.videoBitrateKbps,
                 audioBitrateKbps = profile.audioBitrateKbps,
-                micEnabled = true
+                micEnabled = true,
+                youtubeLiveUrl = youtubeLiveUrl
             )
         }
     }

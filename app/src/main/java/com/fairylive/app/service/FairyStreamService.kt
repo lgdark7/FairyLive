@@ -69,6 +69,27 @@ class FairyStreamService : Service() {
     private val isStopping = java.util.concurrent.atomic.AtomicBoolean(false)
     private var floatingHudManager: com.fairylive.app.ui.hud.StreamerFloatingHudManager? = null
 
+    @Volatile
+    var isStreamPausedState: Boolean = false
+        private set
+
+    @Volatile
+    var isUserMicMutedState: Boolean = false
+        private set
+
+    @Synchronized
+    private fun syncAudioMuteState() {
+        audioPipeline.setMicMuted(isUserMicMutedState)
+        audioPipeline.setStreamPaused(isStreamPausedState)
+        val shouldMute = isStreamPausedState || isUserMicMutedState
+        if (shouldMute) {
+            audioPipeline.mute()
+        } else {
+            audioPipeline.unmute()
+        }
+        Log.i("FairyStreamService", "syncAudioMuteState: paused=$isStreamPausedState, userMuted=$isUserMicMutedState -> pipelineMuted=$shouldMute")
+    }
+
     inner class LocalBinder : Binder() {
         fun getService(): FairyStreamService = this@FairyStreamService
     }
@@ -129,29 +150,30 @@ class FairyStreamService : Service() {
                 }
             }
             ACTION_PAUSE_CAPTURE -> {
+                isStreamPausedState = true
                 captureEngine.pause()
                 overlayCompositor.setStreamPaused(true)
-                audioPipeline.mute()
+                syncAudioMuteState()
                 Log.i("FairyStreamService", "Stream paused: Screen capture paused, pause video active, audio muted")
             }
             ACTION_RESUME_CAPTURE -> {
+                isStreamPausedState = false
                 overlayCompositor.setStreamPaused(false)
                 captureEngine.resume()
-                audioPipeline.unmute()
+                syncAudioMuteState()
                 Log.i("FairyStreamService", "Stream resumed: Normal broadcast restored")
             }
             ACTION_MUTE_MIC -> {
-                audioPipeline.mute()
+                isUserMicMutedState = true
+                syncAudioMuteState()
             }
             ACTION_UNMUTE_MIC -> {
-                audioPipeline.unmute()
+                isUserMicMutedState = false
+                syncAudioMuteState()
             }
             ACTION_TOGGLE_MIC -> {
-                if (audioPipeline.isMuted()) {
-                    audioPipeline.unmute()
-                } else {
-                    audioPipeline.mute()
-                }
+                isUserMicMutedState = !isUserMicMutedState
+                syncAudioMuteState()
             }
             ACTION_STOP_CAPTURE -> {
                 stopStream(
@@ -200,10 +222,18 @@ class FairyStreamService : Service() {
                 handleStartAudio(intent)
             }
             ACTION_MUTE_AUDIO -> {
-                audioPipeline.mute()
+                isUserMicMutedState = true
+                syncAudioMuteState()
             }
             ACTION_UNMUTE_AUDIO -> {
-                audioPipeline.unmute()
+                isUserMicMutedState = false
+                syncAudioMuteState()
+            }
+            ACTION_SET_AUDIO_VOLUMES -> {
+                val micVol = intent?.getFloatExtra(EXTRA_MIC_VOLUME, -1f) ?: -1f
+                val gameVol = intent?.getFloatExtra(EXTRA_GAME_VOLUME, -1f) ?: -1f
+                if (micVol >= 0f) audioPipeline.setMicVolume(micVol)
+                if (gameVol >= 0f) audioPipeline.setGameVolume(gameVol)
             }
             ACTION_STOP_AUDIO -> {
                 audioPipeline.stop()
@@ -277,6 +307,7 @@ class FairyStreamService : Service() {
         videoEncoder.stop()
         audioPipeline.stop()
         streamPipeline.stop()
+        com.fairylive.app.core.youtube.YouTubeLiveIntegrationService.stopLiveChatPolling()
         videoEncoder.setEncodedFrameListener(null)
         videoEncoder.onSpsPpsAvailable = null
         audioPipeline.setEncodedAudioFrameListener(null)
@@ -408,8 +439,9 @@ class FairyStreamService : Service() {
                 override fun onStop() {
                     Log.i("FairyStreamService", "MediaProjection stopped (game closed/swiped from recents) -> Automatically showing Be Right Back banner")
                     mainHandler.post {
+                        isStreamPausedState = true
                         overlayCompositor.setStreamPaused(true)
-                        audioPipeline.mute()
+                        syncAudioMuteState()
                         CaptureStateNotifier.updateState(CaptureState.PAUSED)
                         floatingHudManager?.displayEphemeralMessage(
                             "FairyLive",
@@ -426,12 +458,14 @@ class FairyStreamService : Service() {
                     mainHandler.post {
                         if (!visible) {
                             Log.i("FairyStreamService", "Game hidden/minimized -> Automatically showing Be Right Back")
+                            isStreamPausedState = true
                             overlayCompositor.setStreamPaused(true)
-                            audioPipeline.mute()
+                            syncAudioMuteState()
                         } else {
                             Log.i("FairyStreamService", "Game returned to foreground -> Automatically resuming stream")
+                            isStreamPausedState = false
                             overlayCompositor.setStreamPaused(false)
-                            audioPipeline.unmute()
+                            syncAudioMuteState()
                         }
                     }
                 }
@@ -480,12 +514,14 @@ class FairyStreamService : Service() {
                 mainHandler.post {
                     if (!visible) {
                         Log.i("FairyStreamService", "captureEngine visibility = false -> Showing Be Right Back banner")
+                        isStreamPausedState = true
                         overlayCompositor.setStreamPaused(true)
-                        audioPipeline.mute()
+                        syncAudioMuteState()
                     } else {
                         Log.i("FairyStreamService", "captureEngine visibility = true -> Resuming broadcast")
+                        isStreamPausedState = false
                         overlayCompositor.setStreamPaused(false)
-                        audioPipeline.unmute()
+                        syncAudioMuteState()
                     }
                 }
             }
@@ -596,6 +632,11 @@ class FairyStreamService : Service() {
                             RtmpConnectionState.PUBLISHING -> {
                                 StreamStateNotifier.updateState(StreamState.STREAMING)
                                 com.fairylive.app.core.lifecycle.StreamLifecycleDiagnostics.streamRunning()
+                                val ytUrl = intent.getStringExtra(EXTRA_YOUTUBE_CHAT_URL) ?: settings?.youtubeLiveUrl ?: ""
+                                if (ytUrl.isNotBlank()) {
+                                    Log.i("FairyStreamService", "Auto-starting YouTube Live Chat for: $ytUrl")
+                                    com.fairylive.app.core.youtube.YouTubeLiveIntegrationService.startLiveChatPolling(ytUrl)
+                                }
                                 mainHandler.post {
                                     if (floatingHudManager == null && android.provider.Settings.canDrawOverlays(this@FairyStreamService)) {
                                         floatingHudManager = com.fairylive.app.ui.hud.StreamerFloatingHudManager(this@FairyStreamService)
@@ -940,10 +981,14 @@ class FairyStreamService : Service() {
         const val ACTION_UPDATE_FACECAM = "com.fairylive.app.action.UPDATE_FACECAM"
         const val ACTION_SWITCH_SCENE = "com.fairylive.app.action.SWITCH_SCENE"
         const val ACTION_SET_SCALE_MODE = "com.fairylive.app.action.SET_SCALE_MODE"
+        const val ACTION_SET_AUDIO_VOLUMES = "com.fairylive.app.action.SET_AUDIO_VOLUMES"
 
         const val EXTRA_SCENE_ID = "extra_scene_id"
         const val EXTRA_TRANSITION = "extra_transition"
         const val EXTRA_SCALE_MODE = "extra_scale_mode"
+        const val EXTRA_MIC_VOLUME = "extra_mic_volume"
+        const val EXTRA_GAME_VOLUME = "extra_game_volume"
+        const val EXTRA_YOUTUBE_CHAT_URL = "extra_youtube_chat_url"
 
         const val EXTRA_ENABLE_FACECAM = "extra_enable_facecam"
         const val EXTRA_FACECAM_X = "extra_facecam_x"
@@ -1120,6 +1165,15 @@ class FairyStreamService : Service() {
         fun toggleMicrophone(context: Context) {
             val intent = Intent(context, FairyStreamService::class.java).apply {
                 action = ACTION_TOGGLE_MIC
+            }
+            context.startService(intent)
+        }
+
+        fun setAudioVolumes(context: Context, micVolume: Float, gameVolume: Float) {
+            val intent = Intent(context, FairyStreamService::class.java).apply {
+                action = ACTION_SET_AUDIO_VOLUMES
+                putExtra(EXTRA_MIC_VOLUME, micVolume)
+                putExtra(EXTRA_GAME_VOLUME, gameVolume)
             }
             context.startService(intent)
         }

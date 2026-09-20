@@ -96,8 +96,15 @@ class StreamSettingsRepository(
             fps = prefs.getInt(KEY_FPS, profile.fps),
             videoBitrateKbps = prefs.getInt(KEY_VIDEO_BITRATE, profile.videoBitrateKbps),
             audioBitrateKbps = prefs.getInt(KEY_AUDIO_BITRATE, profile.audioBitrateKbps),
-            micEnabled = prefs.getBoolean(KEY_MIC_ENABLED, true)
+            micEnabled = prefs.getBoolean(KEY_MIC_ENABLED, true),
+            youtubeLiveUrl = prefs.getString(KEY_YOUTUBE_LIVE_URL, "") ?: ""
         ).clamped()
+    }
+
+    fun getYouTubeLiveUrl(): String = prefs.getString(KEY_YOUTUBE_LIVE_URL, "") ?: ""
+
+    fun setYouTubeLiveUrl(url: String) {
+        prefs.edit().putString(KEY_YOUTUBE_LIVE_URL, url.trim()).apply()
     }
 
     fun saveSettings(settings: StreamSettings) {
@@ -119,6 +126,7 @@ class StreamSettingsRepository(
             .putInt(KEY_VIDEO_BITRATE, clamped.videoBitrateKbps)
             .putInt(KEY_AUDIO_BITRATE, clamped.audioBitrateKbps)
             .putBoolean(KEY_MIC_ENABLED, clamped.micEnabled)
+            .putString(KEY_YOUTUBE_LIVE_URL, clamped.youtubeLiveUrl)
             .apply()
     }
 
@@ -141,5 +149,6 @@ class StreamSettingsRepository(
         private const val KEY_VIDEO_BITRATE = "video_bitrate"
         private const val KEY_AUDIO_BITRATE = "audio_bitrate"
         private const val KEY_MIC_ENABLED = "mic_enabled"
+        private const val KEY_YOUTUBE_LIVE_URL = "youtube_live_url"
     }
 }

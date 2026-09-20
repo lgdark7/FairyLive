@@ -99,6 +99,7 @@ class SettingsFragment : Fragment() {
         }
 
         binding.etStreamKey.setText(settings.streamKey)
+        binding.etYoutubeLiveChatUrl.setText(settings.youtubeLiveUrl)
 
         when (settings.profile) {
             StreamProfile.LOW -> binding.rbProfileLow.isChecked = true
@@ -155,6 +156,7 @@ class SettingsFragment : Fragment() {
         }
 
         val streamKey = binding.etStreamKey.text?.toString()?.trim() ?: ""
+        val youtubeLiveUrl = binding.etYoutubeLiveChatUrl.text?.toString()?.trim() ?: ""
 
         val validation = com.fairylive.app.core.settings.StreamConfigurationValidator.validate(
             serverUrl = serverUrl,
@@ -176,9 +178,11 @@ class SettingsFragment : Fragment() {
             destination = selectedDestination,
             captureSource = selectedCaptureSource,
             serverUrl = serverUrl,
-            streamKey = streamKey
+            streamKey = streamKey,
+            youtubeLiveUrl = youtubeLiveUrl
         )
 
         repo.saveSettings(newSettings)
+        repo.setYouTubeLiveUrl(youtubeLiveUrl)
     }
 }

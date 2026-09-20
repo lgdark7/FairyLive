@@ -58,6 +58,26 @@ class AudioPipeline {
 
     fun isMuted(): Boolean = captureEngine.isMuted
 
+    fun setMicVolume(volume: Float) {
+        captureEngine.setMicVolume(volume)
+    }
+
+    fun setGameVolume(volume: Float) {
+        captureEngine.setGameVolume(volume)
+    }
+
+    fun setMicMuted(muted: Boolean) {
+        captureEngine.setMicMuted(muted)
+    }
+
+    fun setStreamPaused(paused: Boolean) {
+        captureEngine.setStreamPaused(paused)
+    }
+
+    val micVolume: Float get() = captureEngine.micVolume
+    val gameVolume: Float get() = captureEngine.gameVolume
+    val isMicMuted: Boolean get() = captureEngine.isMicMuted
+
     @Synchronized
     fun stop() {
         captureEngine.setAudioSampleListener(null)

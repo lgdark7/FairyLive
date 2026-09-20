@@ -32,10 +32,10 @@ data class ReconnectAttemptTelemetry(
  * failure termination when max attempts are reached without leaving the stream falsely LIVE.
  */
 class StreamReconnectionManager(
-    val maxAttempts: Int = 4,
+    val maxAttempts: Int = 12,
     val initialDelayMs: Long = 1000L,
-    val maxDelayMs: Long = 8000L,
-    val backoffMultiplier: Double = 2.0,
+    val maxDelayMs: Long = 5000L,
+    val backoffMultiplier: Double = 1.5,
     val stabilityThresholdMs: Long = 5000L
 ) {
     var attemptCount: Int = 0
