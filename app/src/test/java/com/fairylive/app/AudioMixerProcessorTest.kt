@@ -338,4 +338,55 @@ class AudioMixerProcessorTest {
         assertTrue("Ceiling fan noise must be gated to near-zero (was $maxFanOut)", maxFanOut <= 15)
         assertFalse("Gate should be closed during fan noise", mixer.isGateActive)
     }
+
+    @Test
+    fun testGamePauseDoesNotSilenceMicVoice() {
+        val mixer = AudioMixerProcessor()
+        val numSamples = 256
+        val bytes = numSamples * 2
+
+        val micBuffer = ByteArray(bytes)
+        val gameBuffer = ByteArray(bytes)
+        for (i in 0 until numSamples) {
+            val micSample = (5000 * Math.sin(2.0 * Math.PI * 1000.0 * i / 44100.0)).toInt().toShort()
+            val gameSample = (3000 * Math.sin(2.0 * Math.PI * 400.0 * i / 44100.0)).toInt().toShort()
+            micBuffer[i * 2] = (micSample.toInt() and 0xFF).toByte()
+            micBuffer[i * 2 + 1] = ((micSample.toInt() shr 8) and 0xFF).toByte()
+            gameBuffer[i * 2] = (gameSample.toInt() and 0xFF).toByte()
+            gameBuffer[i * 2 + 1] = ((gameSample.toInt() shr 8) and 0xFF).toByte()
+        }
+
+        // Scenario: Game is paused / minimized (BRB active on stream, game audio muted)
+        // Creator's mic must remain unmuted and produce real audio output
+        mixer.isMicMuted = false
+        mixer.isGameMuted = true // Simulates game audio paused during BRB
+
+        val outBuffer = ByteArray(bytes)
+        val allChannelsMuted = mixer.isMicMuted && mixer.isGameMuted && mixer.isMediaMuted
+        mixer.processAndMix(micBuffer, gameBuffer, outBuffer, bytes, isPaused = allChannelsMuted)
+
+        var hasMicAudio = false
+        for (b in outBuffer) {
+            if (b.toInt() != 0) {
+                hasMicAudio = true
+                break
+            }
+        }
+        assertTrue("Creator voice must NOT be silenced when game audio is paused/minimized", hasMicAudio)
+
+        // Scenario 2: When user explicitly mutes mic as well, stream should become completely silent
+        mixer.isMicMuted = true
+        outBuffer.fill(0)
+        val bothMuted = mixer.isMicMuted && mixer.isGameMuted && mixer.isMediaMuted
+        mixer.processAndMix(micBuffer, gameBuffer, outBuffer, bytes, isPaused = bothMuted)
+
+        var hasSoundWhenBothMuted = false
+        for (b in outBuffer) {
+            if (b.toInt() != 0) {
+                hasSoundWhenBothMuted = true
+                break
+            }
+        }
+        assertFalse("Output must be silent when both mic and game are muted", hasSoundWhenBothMuted)
+    }
 }

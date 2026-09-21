@@ -50,6 +50,9 @@ class OverlayCompositor(
     val isPauseActive = AtomicBoolean(false)
     private var pausePlayer: StreamPausePlayer? = null
 
+    var onAutoResumeRequested: (() -> Unit)? = null
+    private val isAutoResumePending = AtomicBoolean(false)
+
     private var enabled: Boolean = true
 
     @Volatile
@@ -246,6 +249,11 @@ class OverlayCompositor(
     fun onCaptureFrameAvailable() {
         if (!isRunning.get() || !available) return
         captureFramesReceived.incrementAndGet()
+        // Self-healing: if stream is in auto-pause but active capture frames are arriving from the game,
+        // trigger auto-resume immediately so missing OEM visibility callbacks do not lock the broadcast.
+        if (isPauseActive.get() && isAutoResumePending.compareAndSet(false, true)) {
+            onAutoResumeRequested?.invoke()
+        }
         renderHandler?.post {
             renderFrame(fromCallback = true)
         }
@@ -467,6 +475,9 @@ class OverlayCompositor(
     fun setStreamPaused(paused: Boolean) {
         if (isPauseActive.get() == paused) return
         isPauseActive.set(paused)
+        if (!paused) {
+            isAutoResumePending.set(false)
+        }
         renderHandler?.post {
             renderer.isPauseActive = paused
             if (paused) {

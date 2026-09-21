@@ -434,16 +434,21 @@ class AudioCaptureEngine {
                 }
 
                 // Sync mute & pause states to DSP mixer
-                audioMixer.isMicMuted = isMuted || isMicMuted || isStreamPaused
-                audioMixer.isGameMuted = isMuted || isStreamPaused
+                // Creator's mic is ONLY muted if explicitly requested by user or master engine mute.
+                // It must NEVER be muted when game video is paused / minimized (BRB active).
+                audioMixer.isMicMuted = isMuted || isMicMuted
+                // Game audio is muted if stream is paused (game minimized/BRB) or explicitly muted by user
+                audioMixer.isGameMuted = isMuted || isGameMuted || isStreamPaused
 
                 // Real-time 16-bit PCM mixing & DSP audio processing
+                // Only bypass the mixer if all active channels are muted
+                val isCompletelySilent = audioMixer.isMicMuted && audioMixer.isGameMuted && audioMixer.isMediaMuted
                 audioMixer.processAndMix(
                     micBuffer = if (micRec != null) micBuffer else null,
                     gameBuffer = gameBuffer,
                     outMixedBuffer = mixedBuffer,
                     bytesToProcess = bytesRead,
-                    isPaused = (isMuted || isStreamPaused)
+                    isPaused = isCompletelySilent
                 )
 
                 // Peak amplitude calculation for UI meters
@@ -459,7 +464,7 @@ class AudioCaptureEngine {
                             micDb = audioMixer.micDb,
                             gameDb = audioMixer.gameDb,
                             masterDb = audioMixer.masterDb,
-                            isMuted = (audioMixer.isMicMuted && audioMixer.isGameMuted) || isMuted || isStreamPaused,
+                            isMuted = (audioMixer.isMicMuted && audioMixer.isGameMuted) || isMuted,
                             isDeviceAudio = playbackRecord != null,
                             isMicSilencedBySystem = isMicSilencedBySystem,
                             isGateOpen = audioMixer.isGateActive,

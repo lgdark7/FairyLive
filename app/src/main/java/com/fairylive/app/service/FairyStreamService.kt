@@ -81,13 +81,14 @@ class FairyStreamService : Service() {
     private fun syncAudioMuteState() {
         audioPipeline.setMicMuted(isUserMicMutedState)
         audioPipeline.setStreamPaused(isStreamPausedState)
-        val shouldMute = isStreamPausedState || isUserMicMutedState
-        if (shouldMute) {
-            audioPipeline.mute()
-        } else {
-            audioPipeline.unmute()
+        // Decouple microphone from video BRB:
+        // Do NOT call audioPipeline.mute() on stream pause. Only user mic mute button controls mic.
+        // Unmute the master pipeline so creator's voice continues streaming cleanly even when game is paused/minimized.
+        if (isUserMicMutedState && (isStreamPausedState || com.fairylive.app.core.audio.AudioStudioRepository.isGameMuted)) {
+            audioPipeline.setMicMuted(true)
         }
-        Log.i("FairyStreamService", "syncAudioMuteState: paused=$isStreamPausedState, userMuted=$isUserMicMutedState -> pipelineMuted=$shouldMute")
+        audioPipeline.unmute()
+        Log.i("FairyStreamService", "syncAudioMuteState: gamePaused=$isStreamPausedState, userMicMuted=$isUserMicMutedState")
     }
 
     inner class LocalBinder : Binder() {
@@ -522,8 +523,17 @@ class FairyStreamService : Service() {
             if (enableCompositor) {
                 try {
                     captureSurface = overlayCompositor.start(encoderSurface, encW, encH, fps)
+                    overlayCompositor.onAutoResumeRequested = {
+                        mainHandler.post {
+                            if (isStreamPausedState) {
+                                Log.i("FairyStreamService", "Self-healing: Game frame arrived on SurfaceTexture -> Auto-resuming from BRB pause")
+                                isStreamPausedState = false
+                                overlayCompositor.setStreamPaused(false)
+                                syncAudioMuteState()
+                            }
+                        }
+                    }
                     overlayCompositor.updateDimensions(width, height)
-                    val app = applicationContext as? com.fairylive.app.FairyLiveApplication
                     val activeScene = app?.sceneManager?.activeScene
                     if (activeScene != null) {
                         overlayCompositor.applyScene(activeScene)
