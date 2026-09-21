@@ -130,9 +130,12 @@ class AudioCaptureEngine {
         Log.i(TAG, "Media audio muted: $muted")
     }
 
-    fun setDspFilters(noiseGate: Boolean, agc: Boolean, compressor: Boolean, limiter: Boolean, godMode: Boolean = true) {
+    fun setDspFilters(noiseGate: Boolean, agc: Boolean, compressor: Boolean, limiter: Boolean, godMode: Boolean = true, noiseLevel: Int? = null) {
         audioMixer.isNoiseSuppressionEnabled = noiseGate
         audioMixer.isGodModeNoiseEnabled = godMode
+        if (noiseLevel != null) {
+            audioMixer.noiseSuppressionLevel = noiseLevel.coerceIn(0, 100)
+        }
         audioMixer.isAgcEnabled = agc
         audioMixer.isCompressorEnabled = compressor
         audioMixer.isLimiterEnabled = limiter
@@ -458,7 +461,9 @@ class AudioCaptureEngine {
                             masterDb = audioMixer.masterDb,
                             isMuted = (audioMixer.isMicMuted && audioMixer.isGameMuted) || isMuted || isStreamPaused,
                             isDeviceAudio = playbackRecord != null,
-                            isMicSilencedBySystem = isMicSilencedBySystem
+                            isMicSilencedBySystem = isMicSilencedBySystem,
+                            isGateOpen = audioMixer.isGateActive,
+                            noiseFloorDb = audioMixer.estimatedNoiseFloorDb
                         )
                     )
                 }

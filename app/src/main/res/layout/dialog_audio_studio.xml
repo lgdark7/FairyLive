@@ -556,6 +556,129 @@
                         android:checked="true" />
                 </LinearLayout>
 
+                <!-- Noise Cancellation Intensity Control -->
+                <LinearLayout
+                    android:id="@+id/layout_noise_level_control"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:layout_marginBottom="12dp"
+                    android:background="@drawable/bg_card_rounded"
+                    android:orientation="vertical"
+                    android:padding="12dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal">
+
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="🌪 Noise Suppression Intensity"
+                            android:textColor="@color/text_primary"
+                            android:textSize="12sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:id="@+id/tv_studio_noise_level"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="75% (Aggressive Fan Cut)"
+                            android:textColor="@color/accent_primary_variant"
+                            android:textSize="12sp"
+                            android:textStyle="bold" />
+                    </LinearLayout>
+
+                    <SeekBar
+                        android:id="@+id/seek_studio_noise_level"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:max="100"
+                        android:progress="75"
+                        android:progressTint="@color/accent_primary_variant"
+                        android:thumbTint="@color/accent_primary_variant" />
+
+                    <!-- 3 Quick Preset Mode Buttons -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:gravity="center"
+                        android:orientation="horizontal">
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btn_noise_mild"
+                            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                            android:layout_width="0dp"
+                            android:layout_height="36dp"
+                            android:layout_marginEnd="4dp"
+                            android:layout_weight="1"
+                            android:padding="0dp"
+                            android:text="🍃 Mild (35%)"
+                            android:textColor="@color/text_secondary"
+                            android:textSize="10sp"
+                            app:cornerRadius="8dp"
+                            app:strokeColor="@color/bg_card_stroke" />
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btn_noise_balanced"
+                            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                            android:layout_width="0dp"
+                            android:layout_height="36dp"
+                            android:layout_marginEnd="4dp"
+                            android:layout_weight="1"
+                            android:padding="0dp"
+                            android:text="⚖ Balanced (65%)"
+                            android:textColor="@color/text_secondary"
+                            android:textSize="10sp"
+                            app:cornerRadius="8dp"
+                            app:strokeColor="@color/bg_card_stroke" />
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btn_noise_aggressive"
+                            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                            android:layout_width="0dp"
+                            android:layout_height="36dp"
+                            android:layout_weight="1"
+                            android:padding="0dp"
+                            android:text="🌪 Aggressive (85%)"
+                            android:textColor="@color/accent_primary_variant"
+                            android:textSize="10sp"
+                            app:cornerRadius="8dp"
+                            app:strokeColor="@color/accent_primary_variant" />
+                    </LinearLayout>
+
+                    <!-- Live Gate Status Indicator -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal">
+
+                        <TextView
+                            android:id="@+id/tv_studio_gate_status"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="🔒 Gate: Silenced (Fan Cut)"
+                            android:textColor="@color/text_secondary"
+                            android:textSize="11sp" />
+
+                        <TextView
+                            android:id="@+id/tv_studio_room_noise_db"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Noise Floor: -45 dB"
+                            android:textColor="@color/text_secondary"
+                            android:textSize="11sp" />
+                    </LinearLayout>
+                </LinearLayout>
+
                 <!-- Soft-Knee Compressor -->
                 <LinearLayout
                     android:layout_width="match_parent"

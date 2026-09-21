@@ -30,7 +30,9 @@ data class AudioMetrics(
     val isDeviceAudio: Boolean = false,
     val isMicSilencedBySystem: Boolean = false,
     val encoderName: String = "",
-    val encoderType: EncoderType = EncoderType.UNKNOWN
+    val encoderType: EncoderType = EncoderType.UNKNOWN,
+    val isGateOpen: Boolean = false,
+    val noiseFloorDb: Float = -50.0f
 ) {
     val isHardwareAccelerated: Boolean
         get() = encoderType == EncoderType.HARDWARE

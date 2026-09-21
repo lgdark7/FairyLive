@@ -34,6 +34,7 @@ object AudioStudioRepository {
 
     private const val KEY_NOISE_GATE = "noise_gate_enabled"
     private const val KEY_GOD_MODE_NOISE = "god_mode_noise_enabled"
+    private const val KEY_NOISE_LEVEL = "noise_suppression_level"
     private const val KEY_AGC = "agc_enabled"
     private const val KEY_COMPRESSOR = "compressor_enabled"
     private const val KEY_LIMITER = "limiter_enabled"
@@ -50,6 +51,7 @@ object AudioStudioRepository {
 
     @Volatile var isNoiseSuppressionEnabled: Boolean = true
     @Volatile var isGodModeNoiseEnabled: Boolean = true
+    @Volatile var noiseSuppressionLevel: Int = 75
     @Volatile var isAgcEnabled: Boolean = false
     @Volatile var isCompressorEnabled: Boolean = true
     @Volatile var isLimiterEnabled: Boolean = true
@@ -73,6 +75,7 @@ object AudioStudioRepository {
 
             isNoiseSuppressionEnabled = prefs.getBoolean(KEY_NOISE_GATE, true)
             isGodModeNoiseEnabled = prefs.getBoolean(KEY_GOD_MODE_NOISE, true)
+            noiseSuppressionLevel = prefs.getInt(KEY_NOISE_LEVEL, 75).coerceIn(0, 100)
             isAgcEnabled = prefs.getBoolean(KEY_AGC, false)
             isCompressorEnabled = prefs.getBoolean(KEY_COMPRESSOR, true)
             isLimiterEnabled = prefs.getBoolean(KEY_LIMITER, true)
@@ -126,11 +129,13 @@ object AudioStudioRepository {
         godMode: Boolean? = null,
         agc: Boolean? = null,
         compressor: Boolean? = null,
-        limiter: Boolean? = null
+        limiter: Boolean? = null,
+        noiseLevel: Int? = null
     ) {
         init(context)
         noiseGate?.let { isNoiseSuppressionEnabled = it }
         godMode?.let { isGodModeNoiseEnabled = it }
+        noiseLevel?.let { noiseSuppressionLevel = it.coerceIn(0, 100) }
         agc?.let { isAgcEnabled = it }
         compressor?.let { isCompressorEnabled = it }
         limiter?.let { isLimiterEnabled = it }
@@ -139,6 +144,7 @@ object AudioStudioRepository {
             val editor = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
             noiseGate?.let { editor.putBoolean(KEY_NOISE_GATE, it) }
             godMode?.let { editor.putBoolean(KEY_GOD_MODE_NOISE, it) }
+            noiseLevel?.let { editor.putInt(KEY_NOISE_LEVEL, it.coerceIn(0, 100)) }
             agc?.let { editor.putBoolean(KEY_AGC, it) }
             compressor?.let { editor.putBoolean(KEY_COMPRESSOR, it) }
             limiter?.let { editor.putBoolean(KEY_LIMITER, it) }

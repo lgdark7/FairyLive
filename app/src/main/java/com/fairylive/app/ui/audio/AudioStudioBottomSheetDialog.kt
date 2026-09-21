@@ -161,6 +161,15 @@ class AudioStudioBottomSheetDialog : BottomSheetDialogFragment() {
 
             b.vuProgressMaster.progress = masterPercent
             b.tvVuMasterDb.text = "${metrics.masterDb.toInt()} dB"
+
+            if (metrics.isGateOpen) {
+                b.tvStudioGateStatus.text = "🟢 Gate: Open (Speaking)"
+                b.tvStudioGateStatus.setTextColor(requireContext().getColor(R.color.status_green))
+            } else {
+                b.tvStudioGateStatus.text = "🔒 Gate: Silenced (Fan Cut)"
+                b.tvStudioGateStatus.setTextColor(requireContext().getColor(R.color.text_secondary))
+            }
+            b.tvStudioRoomNoiseDb.text = "Room Noise: ${metrics.noiseFloorDb.toInt()} dB"
         }
     }
 
@@ -227,6 +236,47 @@ class AudioStudioBottomSheetDialog : BottomSheetDialogFragment() {
         binding.switchCompressor.setOnCheckedChangeListener(dspListener)
         binding.switchLimiter.setOnCheckedChangeListener(dspListener)
         binding.switchAgc.setOnCheckedChangeListener(dspListener)
+
+        val currentLevel = com.fairylive.app.core.audio.AudioStudioRepository.noiseSuppressionLevel
+        binding.seekStudioNoiseLevel.progress = currentLevel
+        updateNoiseLevelText(currentLevel)
+
+        binding.seekStudioNoiseLevel.setOnSeekBarChangeListener(object : android.widget.SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: android.widget.SeekBar?, progress: Int, fromUser: Boolean) {
+                if (fromUser) {
+                    updateNoiseLevelText(progress)
+                    syncDspToService()
+                }
+            }
+            override fun onStartTrackingTouch(seekBar: android.widget.SeekBar?) {}
+            override fun onStopTrackingTouch(seekBar: android.widget.SeekBar?) {}
+        })
+
+        binding.btnNoiseMild.setOnClickListener {
+            binding.seekStudioNoiseLevel.progress = 35
+            updateNoiseLevelText(35)
+            syncDspToService()
+        }
+        binding.btnNoiseBalanced.setOnClickListener {
+            binding.seekStudioNoiseLevel.progress = 65
+            updateNoiseLevelText(65)
+            syncDspToService()
+        }
+        binding.btnNoiseAggressive.setOnClickListener {
+            binding.seekStudioNoiseLevel.progress = 85
+            updateNoiseLevelText(85)
+            syncDspToService()
+        }
+    }
+
+    private fun updateNoiseLevelText(level: Int) {
+        val desc = when {
+            level >= 80 -> "Aggressive (Loud Fan Cut)"
+            level >= 50 -> "Balanced (Normal Room)"
+            level > 0 -> "Mild (Quiet Studio)"
+            else -> "Bypassed"
+        }
+        binding.tvStudioNoiseLevel.text = "$level% ($desc)"
     }
 
     private fun setupPresets() {
@@ -259,6 +309,8 @@ class AudioStudioBottomSheetDialog : BottomSheetDialogFragment() {
                 binding.switchCompressor.isChecked = true
                 binding.switchLimiter.isChecked = true
                 binding.switchAgc.isChecked = false
+                binding.seekStudioNoiseLevel.progress = 80
+                updateNoiseLevelText(80)
             }
             AudioMixerProcessor.AudioPreset.VOICE_FOCUS -> {
                 gameVol = 0.4f; micVol = 1.0f; mediaVol = 0.3f; masterVol = 1.0f
@@ -266,6 +318,8 @@ class AudioStudioBottomSheetDialog : BottomSheetDialogFragment() {
                 binding.switchCompressor.isChecked = true
                 binding.switchLimiter.isChecked = true
                 binding.switchAgc.isChecked = true
+                binding.seekStudioNoiseLevel.progress = 85
+                updateNoiseLevelText(85)
             }
             AudioMixerProcessor.AudioPreset.MUSIC -> {
                 gameVol = 0.6f; micVol = 0.7f; mediaVol = 0.8f; masterVol = 1.0f
@@ -273,6 +327,8 @@ class AudioStudioBottomSheetDialog : BottomSheetDialogFragment() {
                 binding.switchCompressor.isChecked = false
                 binding.switchLimiter.isChecked = true
                 binding.switchAgc.isChecked = false
+                binding.seekStudioNoiseLevel.progress = 0
+                updateNoiseLevelText(0)
             }
             AudioMixerProcessor.AudioPreset.BALANCED -> {
                 gameVol = 0.7f; micVol = 0.8f; mediaVol = 0.6f; masterVol = 1.0f
@@ -280,6 +336,8 @@ class AudioStudioBottomSheetDialog : BottomSheetDialogFragment() {
                 binding.switchCompressor.isChecked = true
                 binding.switchLimiter.isChecked = true
                 binding.switchAgc.isChecked = false
+                binding.seekStudioNoiseLevel.progress = 65
+                updateNoiseLevelText(65)
             }
             AudioMixerProcessor.AudioPreset.LOW_END -> {
                 gameVol = 0.8f; micVol = 0.8f; mediaVol = 0.5f; masterVol = 1.0f
@@ -287,6 +345,8 @@ class AudioStudioBottomSheetDialog : BottomSheetDialogFragment() {
                 binding.switchCompressor.isChecked = false
                 binding.switchLimiter.isChecked = false
                 binding.switchAgc.isChecked = false
+                binding.seekStudioNoiseLevel.progress = 0
+                updateNoiseLevelText(0)
             }
         }
 
@@ -331,13 +391,15 @@ class AudioStudioBottomSheetDialog : BottomSheetDialogFragment() {
     private fun syncDspToService() {
         val context = context ?: return
         val b = _binding ?: return
+        val currentNoiseLevel = b.seekStudioNoiseLevel.progress
         com.fairylive.app.core.audio.AudioStudioRepository.saveDsp(
             context = context,
             noiseGate = b.switchNoiseSuppression.isChecked,
             godMode = b.switchGodModeNoise.isChecked,
             agc = b.switchAgc.isChecked,
             compressor = b.switchCompressor.isChecked,
-            limiter = b.switchLimiter.isChecked
+            limiter = b.switchLimiter.isChecked,
+            noiseLevel = currentNoiseLevel
         )
         FairyStreamService.setAudioDspFilters(
             context = context,
@@ -345,7 +407,8 @@ class AudioStudioBottomSheetDialog : BottomSheetDialogFragment() {
             godMode = b.switchGodModeNoise.isChecked,
             agc = b.switchAgc.isChecked,
             compressor = b.switchCompressor.isChecked,
-            limiter = b.switchLimiter.isChecked
+            limiter = b.switchLimiter.isChecked,
+            noiseLevel = currentNoiseLevel
         )
     }
 

@@ -1105,6 +1105,112 @@
                 <View
                     android:layout_width="match_parent"
                     android:layout_height="1dp"
+                    android:layout_marginVertical="12dp"
+                    android:background="@color/divider_color" />
+
+                <!-- Noise Suppression Strength Slider -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal">
+
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="🌪 Noise Suppression Intensity"
+                            android:textColor="@color/text_primary"
+                            android:textSize="14sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:id="@+id/tv_settings_noise_level"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="75% (Aggressive)"
+                            android:textColor="@color/accent_primary_variant"
+                            android:textSize="12sp"
+                            android:textStyle="bold" />
+                    </LinearLayout>
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="2dp"
+                        android:text="Cuts ceiling fan motor drone, room noise, and street hiss"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="12sp" />
+
+                    <SeekBar
+                        android:id="@+id/seek_settings_noise_level"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="10dp"
+                        android:max="100"
+                        android:progress="75"
+                        android:progressTint="@color/accent_primary_variant"
+                        android:thumbTint="@color/accent_primary_variant" />
+
+                    <!-- Quick Mode Buttons -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:gravity="center"
+                        android:orientation="horizontal">
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btn_settings_noise_mild"
+                            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                            android:layout_width="0dp"
+                            android:layout_height="38dp"
+                            android:layout_marginEnd="6dp"
+                            android:layout_weight="1"
+                            android:padding="0dp"
+                            android:text="🍃 Mild (35%)"
+                            android:textColor="@color/text_secondary"
+                            android:textSize="11sp"
+                            app:cornerRadius="10dp"
+                            app:strokeColor="@color/bg_card_stroke" />
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btn_settings_noise_balanced"
+                            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                            android:layout_width="0dp"
+                            android:layout_height="38dp"
+                            android:layout_marginEnd="6dp"
+                            android:layout_weight="1"
+                            android:padding="0dp"
+                            android:text="⚖ Balanced (65%)"
+                            android:textColor="@color/text_secondary"
+                            android:textSize="11sp"
+                            app:cornerRadius="10dp"
+                            app:strokeColor="@color/bg_card_stroke" />
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btn_settings_noise_aggressive"
+                            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                            android:layout_width="0dp"
+                            android:layout_height="38dp"
+                            android:layout_weight="1"
+                            android:padding="0dp"
+                            android:text="🌪 Aggressive (85%)"
+                            android:textColor="@color/accent_primary_variant"
+                            android:textSize="11sp"
+                            app:cornerRadius="10dp"
+                            app:strokeColor="@color/accent_primary_variant" />
+                    </LinearLayout>
+                </LinearLayout>
+
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
                     android:layout_marginVertical="14dp"
                     android:background="@color/divider_color" />
 

@@ -3,6 +3,8 @@ package com.fairylive.app.core.audio.dsp
 import android.util.Log
 import kotlin.math.abs
 import kotlin.math.log10
+import kotlin.math.max
+import kotlin.math.min
 import kotlin.math.sign
 import kotlin.math.sqrt
 
@@ -81,9 +83,13 @@ class AudioMixerProcessor {
     // DSP Toggles
     @Volatile var isNoiseSuppressionEnabled: Boolean = true
     @Volatile var isGodModeNoiseEnabled: Boolean = true
+    @Volatile var noiseSuppressionLevel: Int = 75
     @Volatile var isAgcEnabled: Boolean = false
     @Volatile var isCompressorEnabled: Boolean = true
     @Volatile var isLimiterEnabled: Boolean = true
+
+    // Gate Telemetry
+    val isGateActive: Boolean get() = isGateOpen
 
     // Current Preset
     @Volatile var activePreset: AudioPreset = AudioPreset.GAMING
@@ -141,6 +147,7 @@ class AudioMixerProcessor {
                 masterVolume = 1.0f
                 isNoiseSuppressionEnabled = true
                 isGodModeNoiseEnabled = true
+                noiseSuppressionLevel = 80
                 isCompressorEnabled = true
                 isLimiterEnabled = true
                 isAgcEnabled = false
@@ -152,6 +159,7 @@ class AudioMixerProcessor {
                 masterVolume = 1.0f
                 isNoiseSuppressionEnabled = true
                 isGodModeNoiseEnabled = true
+                noiseSuppressionLevel = 85
                 isCompressorEnabled = true
                 isLimiterEnabled = true
                 isAgcEnabled = true
@@ -163,6 +171,7 @@ class AudioMixerProcessor {
                 masterVolume = 1.0f
                 isNoiseSuppressionEnabled = false
                 isGodModeNoiseEnabled = false
+                noiseSuppressionLevel = 0
                 isCompressorEnabled = false
                 isLimiterEnabled = true
                 isAgcEnabled = false
@@ -174,6 +183,7 @@ class AudioMixerProcessor {
                 masterVolume = 1.0f
                 isNoiseSuppressionEnabled = true
                 isGodModeNoiseEnabled = true
+                noiseSuppressionLevel = 65
                 isCompressorEnabled = true
                 isLimiterEnabled = true
                 isAgcEnabled = false
@@ -185,6 +195,7 @@ class AudioMixerProcessor {
                 masterVolume = 1.0f
                 isNoiseSuppressionEnabled = false
                 isGodModeNoiseEnabled = false
+                noiseSuppressionLevel = 0
                 isCompressorEnabled = false
                 isLimiterEnabled = false
                 isAgcEnabled = false
@@ -254,36 +265,51 @@ class AudioMixerProcessor {
             var processedMic = 0.0f
 
             if (effectiveMicVol > 0.0f) {
-                // A. 1st-Order Butterworth Rumble High-Pass Filter (80Hz cut, 0% THD)
-                val hpOut = rawMic - hpPrevIn + HP_ALPHA * hpPrevOut
+                val levelNorm = (noiseSuppressionLevel.coerceIn(0, 100) / 100.0f)
+
+                // A. 1st-Order Butterworth Rumble High-Pass Filter
+                // Tunable cutoff from ~75Hz at level 0 up to ~140Hz at level 100 to eliminate ceiling fan & AC motor hum
+                val currentHpAlpha = if (isGodModeNoiseEnabled) {
+                    0.989f - (levelNorm * 0.009f)
+                } else {
+                    HP_ALPHA
+                }
+
+                val hpOut = rawMic - hpPrevIn + currentHpAlpha * hpPrevOut
                 hpPrevIn = rawMic
                 hpPrevOut = hpOut
                 val micSignal = hpOut
                 val absSignal = abs(micSignal)
 
-                if (isNoiseSuppressionEnabled) {
-                    // B. Envelope Follower (fast 4ms attack, smooth 160ms release)
+                if (isNoiseSuppressionEnabled && noiseSuppressionLevel > 0) {
+                    // B. Envelope Follower (fast 4ms attack, smooth 140ms release)
                     if (absSignal > micEnvelope) {
-                        micEnvelope += 0.006f * (absSignal - micEnvelope)
+                        micEnvelope += 0.008f * (absSignal - micEnvelope)
                     } else {
-                        micEnvelope += 0.00014f * (absSignal - micEnvelope)
+                        micEnvelope += 0.00045f * (absSignal - micEnvelope)
                     }
 
-                    // Track ambient room noise floor during speech pauses for telemetry
+                    // Ambient room noise floor estimation (strictly tracks stationary room noise)
                     if (!isGateOpen) {
+                        ambientNoiseFloor += 0.0005f * (micEnvelope - ambientNoiseFloor)
+                    } else {
                         if (micEnvelope < ambientNoiseFloor) {
-                            ambientNoiseFloor += 0.002f * (micEnvelope - ambientNoiseFloor)
-                        } else {
-                            ambientNoiseFloor += 0.00005f * (micEnvelope - ambientNoiseFloor)
+                            ambientNoiseFloor += 0.0002f * (micEnvelope - ambientNoiseFloor)
                         }
-                        ambientNoiseFloor = ambientNoiseFloor.coerceIn(0.0005f, 0.02f)
                     }
+                    ambientNoiseFloor = ambientNoiseFloor.coerceIn(0.001f, 0.045f)
+                    estimatedNoiseFloorDb = (20.0 * log10(max(ambientNoiseFloor, 0.00001f).toDouble())).toFloat()
 
-                    // C. Studio Downward Expander (Zero-Distortion Noise Gate)
-                    if (micEnvelope >= BASE_GATE_OPEN_THRESHOLD) {
+                    // C. Adaptive Downward Expander (Zero-Distortion Noise Gate)
+                    val baseClose = 0.004f + levelNorm * 0.026f
+                    val baseOpen = 0.009f + levelNorm * 0.045f
+                    val dynamicClose = max(baseClose, ambientNoiseFloor * (1.25f + levelNorm * 0.5f))
+                    val dynamicOpen = max(baseOpen, dynamicClose * (1.5f + levelNorm * 0.3f))
+
+                    if (micEnvelope >= dynamicOpen) {
                         isGateOpen = true
-                        gateHoldCounter = GATE_HOLD_SAMPLES
-                    } else if (micEnvelope < BASE_GATE_CLOSE_THRESHOLD) {
+                        gateHoldCounter = (GATE_HOLD_SAMPLES * (1.0f - levelNorm * 0.3f)).toInt()
+                    } else if (micEnvelope < dynamicClose) {
                         if (gateHoldCounter > 0) {
                             gateHoldCounter--
                         } else {
@@ -292,16 +318,23 @@ class AudioMixerProcessor {
                     }
 
                     val targetGateGain = if (isGateOpen) 1.0f else 0.0f
-                    val rampSpeed = if (targetGateGain > currentGateGain) 0.005f else 0.0025f
+                    val rampSpeed = if (targetGateGain > currentGateGain) 0.008f else 0.004f
                     currentGateGain += rampSpeed * (targetGateGain - currentGateGain)
-                    if (!isGateOpen && currentGateGain < 0.003f) {
+                    if (!isGateOpen && currentGateGain < 0.002f) {
                         currentGateGain = 0.0f // Pitch-black silence during pauses
                     }
 
                     var micClean = micSignal * currentGateGain
 
+                    // Residual stationary room/fan noise attenuation under speech (Zero Distortion)
+                    if (isGodModeNoiseEnabled && isGateOpen && currentGateGain > 0.5f && micEnvelope > 0.005f) {
+                        val noiseRatio = (ambientNoiseFloor / micEnvelope).coerceIn(0.0f, 0.6f)
+                        val voicePurityGain = 1.0f - (noiseRatio * 0.5f * levelNorm)
+                        micClean *= voicePurityGain
+                    }
+
                     // D. Broadcast Vocal Clarity Presence Filter (+1 dB presence lift above 3 kHz)
-                    if (isGodModeNoiseEnabled && isGateOpen && currentGateGain > 0.5f) {
+                    if (isGateOpen && currentGateGain > 0.5f) {
                         val presenceDiff = micClean - presenceLowPass
                         presenceLowPass += 0.25f * presenceDiff
                         micClean += (presenceDiff * PRESENCE_ALPHA)
@@ -312,6 +345,7 @@ class AudioMixerProcessor {
                     processedMic = micClean * effectiveMicVol
                 } else {
                     currentGateGain = 1.0f
+                    isGateOpen = true
                     processedMic = rawMic * effectiveMicVol
                 }
 

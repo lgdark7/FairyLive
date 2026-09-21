@@ -220,6 +220,10 @@ class SettingsFragment : Fragment() {
         binding.switchDspNoiseGate.isChecked = AudioStudioRepository.isNoiseSuppressionEnabled
         binding.switchGodModeNoise.isChecked = AudioStudioRepository.isGodModeNoiseEnabled
 
+        val currentLevel = AudioStudioRepository.noiseSuppressionLevel
+        binding.seekSettingsNoiseLevel.progress = currentLevel
+        updateSettingsNoiseLevelText(currentLevel)
+
         binding.switchHardwareNs.setOnCheckedChangeListener { _, isChecked ->
             AudioStudioRepository.saveDsp(requireContext(), noiseGate = isChecked)
             updateAudioStudioStatus()
@@ -235,11 +239,61 @@ class SettingsFragment : Fragment() {
             updateAudioStudioStatus()
         }
 
+        binding.seekSettingsNoiseLevel.setOnSeekBarChangeListener(object : android.widget.SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: android.widget.SeekBar?, progress: Int, fromUser: Boolean) {
+                if (fromUser) {
+                    updateSettingsNoiseLevelText(progress)
+                    AudioStudioRepository.saveDsp(requireContext(), noiseLevel = progress)
+                    com.fairylive.app.service.FairyStreamService.setAudioDspFilters(
+                        context = requireContext(),
+                        noiseGate = AudioStudioRepository.isNoiseSuppressionEnabled,
+                        godMode = AudioStudioRepository.isGodModeNoiseEnabled,
+                        agc = AudioStudioRepository.isAgcEnabled,
+                        compressor = AudioStudioRepository.isCompressorEnabled,
+                        limiter = AudioStudioRepository.isLimiterEnabled,
+                        noiseLevel = progress
+                    )
+                    updateAudioStudioStatus()
+                }
+            }
+            override fun onStartTrackingTouch(seekBar: android.widget.SeekBar?) {}
+            override fun onStopTrackingTouch(seekBar: android.widget.SeekBar?) {}
+        })
+
+        binding.btnSettingsNoiseMild.setOnClickListener {
+            binding.seekSettingsNoiseLevel.progress = 35
+            updateSettingsNoiseLevelText(35)
+            AudioStudioRepository.saveDsp(requireContext(), noiseLevel = 35)
+            updateAudioStudioStatus()
+        }
+        binding.btnSettingsNoiseBalanced.setOnClickListener {
+            binding.seekSettingsNoiseLevel.progress = 65
+            updateSettingsNoiseLevelText(65)
+            AudioStudioRepository.saveDsp(requireContext(), noiseLevel = 65)
+            updateAudioStudioStatus()
+        }
+        binding.btnSettingsNoiseAggressive.setOnClickListener {
+            binding.seekSettingsNoiseLevel.progress = 85
+            updateSettingsNoiseLevelText(85)
+            AudioStudioRepository.saveDsp(requireContext(), noiseLevel = 85)
+            updateAudioStudioStatus()
+        }
+
         binding.btnOpenAudioStudio.setOnClickListener {
             AudioStudioBottomSheetDialog().show(parentFragmentManager, AudioStudioBottomSheetDialog.TAG)
         }
 
         updateAudioStudioStatus()
+    }
+
+    private fun updateSettingsNoiseLevelText(level: Int) {
+        val desc = when {
+            level >= 80 -> "Aggressive (Loud Fan Cut)"
+            level >= 50 -> "Balanced (Normal Room)"
+            level > 0 -> "Mild (Quiet Studio)"
+            else -> "Bypassed"
+        }
+        binding.tvSettingsNoiseLevel.text = "$level% ($desc)"
     }
 
     private fun updateAudioStudioStatus() {

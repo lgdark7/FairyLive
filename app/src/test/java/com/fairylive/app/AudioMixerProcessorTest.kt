@@ -305,4 +305,37 @@ class AudioMixerProcessorTest {
         // Crystal-clear voice has > 0.90 correlation with input sine wave (zero gar-gar zero-crossing distortion)
         assertTrue("Speech output must retain clean sine wave purity (>0.90 correlation, was $correlation)", correlation > 0.90)
     }
+
+    @Test
+    fun testCeilingFanNoiseSuppressionAndLevelControl() {
+        val mixer = AudioMixerProcessor()
+        mixer.isNoiseSuppressionEnabled = true
+        mixer.isGodModeNoiseEnabled = true
+        mixer.noiseSuppressionLevel = 80 // Aggressive fan cut
+        mixer.micVolume = 1.0f
+
+        val numSamples = 2048
+        val bytes = numSamples * 2
+
+        // Synthesize realistic fan noise: 100Hz motor drone + blade turbulence (amplitude ~ 400, ~ -38 dBFS)
+        val fanBuffer = ByteArray(bytes)
+        for (i in 0 until numSamples) {
+            val angle = 2.0 * Math.PI * 100.0 * (i.toDouble() / 44100.0)
+            val sample = (350.0 * Math.sin(angle) + 50.0 * Math.sin(angle * 2.0)).toInt().toShort()
+            fanBuffer[i * 2] = (sample.toInt() and 0xFF).toByte()
+            fanBuffer[i * 2 + 1] = ((sample.toInt() shr 8) and 0xFF).toByte()
+        }
+
+        val outBuffer = ByteArray(bytes)
+        mixer.processAndMix(fanBuffer, null, outBuffer, bytes, isPaused = false)
+
+        // The adaptive gate should clamp the ceiling fan noise down to absolute silence
+        var maxFanOut = 0
+        for (i in 1000 until numSamples) {
+            val s = abs(((outBuffer[i * 2 + 1].toInt() shl 8) or (outBuffer[i * 2].toInt() and 0xFF)).toShort().toInt())
+            if (s > maxFanOut) maxFanOut = s
+        }
+        assertTrue("Ceiling fan noise must be gated to near-zero (was $maxFanOut)", maxFanOut <= 15)
+        assertFalse("Gate should be closed during fan noise", mixer.isGateActive)
+    }
 }
