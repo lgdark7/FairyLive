@@ -1,7 +1,7 @@
 {
-  "versionCode": 124,
-  "versionName": "1.2.4",
-  "releaseNotes": "• God-Level Studio Noise Cancellation (Multi-Band Expander, 80Hz Rumble Cut, 8kHz De-Esser & Dynamic Noise-Floor Tracking)\n• Modernized Creator Studio Dashboard UX with Live Telemetry\n• High-Tech Settings Control Center with Quick Ingest Diagnostics\n• In-App OTA Auto-Updater & Stability Improvements",
-  "downloadUrl": "https://github.com/lgdark7/fairylive-releases/releases/download/v1.2.4/app-release.apk",
+  "versionCode": 125,
+  "versionName": "1.2.5",
+  "releaseNotes": "• Dynamic Background Noise Suppression Slider (0-100% Intensity with Mild, Balanced & Aggressive Fan Cut presets)\n• God-Level Studio Noise Gate with Accelerated 148ms Room Noise Clamp\n• Real-Time Gate Open/Silenced Telemetry & Live Room Noise Floor Display\n• Recurring Display Overlay Permission Check for seamless floating HUD operation\n• Crystal-Clear Voice Audio with 0% harmonic distortion",
+  "downloadUrl": "https://github.com/lgdark7/fairylive-releases/releases/download/v1.2.5/app-release.apk",
   "isMandatory": false
 }

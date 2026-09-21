@@ -329,6 +329,9 @@ class SettingsFragment : Fragment() {
     // =========================================================================
 
     private fun setupAdvancedAndStorageControls(app: FairyLiveApplication, repo: StreamSettingsRepository) {
+        binding.tvCheckUpdatesSummary.text = "Installed: v${com.fairylive.app.BuildConfig.VERSION_NAME} • In-App OTA update channel"
+        binding.tvAboutSummary.text = "v${com.fairylive.app.BuildConfig.VERSION_NAME} Release • Pure Kotlin Native • 0 Third-Party Deps"
+
         binding.rowCreatorProfile.setOnClickListener {
             showEditCreatorNameDialog(repo)
         }
@@ -425,7 +428,7 @@ class SettingsFragment : Fragment() {
         MaterialAlertDialogBuilder(requireContext())
             .setTitle("About Fairy Live")
             .setMessage(
-                "FAIRY LIVE v1.2.3\n\n" +
+                "FAIRY LIVE v${com.fairylive.app.BuildConfig.VERSION_NAME}\n\n" +
                 "A lightweight, pure Kotlin Native live-streaming application built for Android creators.\n\n" +
                 "• Architecture: 100% Android Hardware MediaCodec + GLES20/30\n" +
                 "• Audio: 4-Channel DSP Mixer + Native Hardware Noise Suppression\n" +

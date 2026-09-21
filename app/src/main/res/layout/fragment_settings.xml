@@ -1784,10 +1784,11 @@
                             android:textStyle="bold" />
 
                         <TextView
+                            android:id="@+id/tv_about_summary"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="1dp"
-                            android:text="v1.2.3 Release • Pure Kotlin Native • 0 Third-Party Deps"
+                            android:text="v1.2.5 Release • Pure Kotlin Native • 0 Third-Party Deps"
                             android:textColor="@color/text_secondary"
                             android:textSize="12sp" />
                     </LinearLayout>
