@@ -1,7 +1,7 @@
 {
-  "versionCode": 125,
-  "versionName": "1.2.5",
-  "releaseNotes": "• Dynamic Background Noise Suppression Slider (0-100% Intensity with Mild, Balanced & Aggressive Fan Cut presets)\n• God-Level Studio Noise Gate with Accelerated 148ms Room Noise Clamp\n• Real-Time Gate Open/Silenced Telemetry & Live Room Noise Floor Display\n• Recurring Display Overlay Permission Check for seamless floating HUD operation\n• Crystal-Clear Voice Audio with 0% harmonic distortion",
-  "downloadUrl": "https://github.com/lgdark7/fairylive-releases/releases/download/v1.2.5/app-release.apk",
+  "versionCode": 126,
+  "versionName": "1.2.6",
+  "releaseNotes": "• Fixed single-app audio capture (Free Fire & game streaming mic clarity)\n• Unlocked voice audio during game pause & Be Right Back screens\n• Frame-arrival self-healing on Xiaomi, Realme, Oppo, Vivo, Samsung devices\n• Dynamic room & fan noise cancellation intensity control",
+  "downloadUrl": "https://github.com/lgdark7/fairylive-releases/releases/download/v1.2.6/app-release.apk",
   "isMandatory": false
 }
