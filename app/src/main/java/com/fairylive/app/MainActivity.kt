@@ -2,6 +2,7 @@ package com.fairylive.app
 
 import com.fairylive.app.ui.hud.StreamerFloatingHudManager
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
@@ -20,11 +21,14 @@ class MainActivity : AppCompatActivity(), StreamStateNotifier.Listener {
 
     private lateinit var binding: ActivityMainBinding
     private var hudManager: StreamerFloatingHudManager? = null
+    private var isOverlayDialogShowing = false
+    private var lastOverlayPromptTime = 0L
 
     private val permissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { _ ->
-        // Core permissions handled on app start
+        // Core permissions handled on app start, then check overlay permission
+        checkOverlayPermission()
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -38,6 +42,8 @@ class MainActivity : AppCompatActivity(), StreamStateNotifier.Listener {
         val missing = PermissionManager.getMissingPermissions(this)
         if (missing.isNotEmpty()) {
             permissionLauncher.launch(missing.toTypedArray())
+        } else {
+            checkOverlayPermission()
         }
 
         setupNavigation()
@@ -58,6 +64,49 @@ class MainActivity : AppCompatActivity(), StreamStateNotifier.Listener {
                 )
             }
         }, 2500)
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (PermissionManager.getMissingPermissions(this).isEmpty()) {
+            checkOverlayPermission()
+        }
+    }
+
+    private fun checkOverlayPermission() {
+        if (isFinishing || isDestroyed) return
+        if (!PermissionManager.hasOverlayPermission(this)) {
+            val now = android.os.SystemClock.elapsedRealtime()
+            if (isOverlayDialogShowing || (now - lastOverlayPromptTime < 2500L)) return
+            lastOverlayPromptTime = now
+            isOverlayDialogShowing = true
+
+            com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
+                .setTitle("✨ Display Overlay Permission")
+                .setMessage("Fairy Live requires 'Display over other apps' permission so you can control your stream, view mic audio meters, and access chat tools while gaming.\n\nPlease turn on the toggle for Fairy Live.")
+                .setPositiveButton("Turn On") { _, _ ->
+                    isOverlayDialogShowing = false
+                    try {
+                        val intent = Intent(
+                            android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                            android.net.Uri.parse("package:$packageName")
+                        )
+                        startActivity(intent)
+                    } catch (e: Exception) {
+                        try {
+                            val intent = Intent(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION)
+                            startActivity(intent)
+                        } catch (_: Exception) {}
+                    }
+                }
+                .setNegativeButton("Later") { _, _ ->
+                    isOverlayDialogShowing = false
+                }
+                .setOnDismissListener {
+                    isOverlayDialogShowing = false
+                }
+                .show()
+        }
     }
 
     override fun onDestroy() {

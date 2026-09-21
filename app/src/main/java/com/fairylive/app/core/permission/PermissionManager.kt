@@ -53,4 +53,11 @@ object PermissionManager {
             true
         }
     }
+
+    /**
+     * Checks if the app has permission to draw overlays over other apps (SYSTEM_ALERT_WINDOW).
+     */
+    fun hasOverlayPermission(context: Context): Boolean {
+        return android.provider.Settings.canDrawOverlays(context)
+    }
 }

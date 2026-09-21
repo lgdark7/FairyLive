@@ -263,4 +263,46 @@ class AudioMixerProcessorTest {
         }
         assertTrue("Active speech (500Hz AC) should pass through gate with peak > 2000 (was $peakSample)", peakSample > 2000)
     }
+
+    @Test
+    fun testVoiceWaveformPurityAndZeroGarGarDistortion() {
+        val mixer = AudioMixerProcessor()
+        mixer.isNoiseSuppressionEnabled = true
+        mixer.isGodModeNoiseEnabled = true
+        mixer.micVolume = 1.0f
+
+        val numSamples = 2048
+        val bytes = numSamples * 2
+
+        // Synthesize 400 Hz vocal tone
+        val speechBuffer = ByteArray(bytes)
+        val origDoubles = DoubleArray(numSamples)
+        for (i in 0 until numSamples) {
+            val angle = 2.0 * Math.PI * 400.0 * (i.toDouble() / 44100.0)
+            val d = Math.sin(angle)
+            origDoubles[i] = d
+            val sample = (6000.0 * d).toInt().toShort()
+            speechBuffer[i * 2] = (sample.toInt() and 0xFF).toByte()
+            speechBuffer[i * 2 + 1] = ((sample.toInt() shr 8) and 0xFF).toByte()
+        }
+
+        val outBuffer = ByteArray(bytes)
+        mixer.processAndMix(speechBuffer, null, outBuffer, bytes, isPaused = false)
+
+        // Check output samples in steady state (last 512 samples)
+        var dot = 0.0
+        var normA = 0.0
+        var normB = 0.0
+        for (i in 1500 until numSamples) {
+            val s = ((outBuffer[i * 2 + 1].toInt() shl 8) or (outBuffer[i * 2].toInt() and 0xFF)).toShort().toDouble()
+            val o = origDoubles[i]
+            dot += s * o
+            normA += s * s
+            normB += o * o
+        }
+
+        val correlation = dot / (Math.sqrt(normA) * Math.sqrt(normB))
+        // Crystal-clear voice has > 0.90 correlation with input sine wave (zero gar-gar zero-crossing distortion)
+        assertTrue("Speech output must retain clean sine wave purity (>0.90 correlation, was $correlation)", correlation > 0.90)
+    }
 }
