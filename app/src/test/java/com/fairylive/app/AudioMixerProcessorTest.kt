@@ -389,4 +389,80 @@ class AudioMixerProcessorTest {
         }
         assertFalse("Output must be silent when both mic and game are muted", hasSoundWhenBothMuted)
     }
+
+    @Test
+    fun testUnderSpeechFanNoiseEraserAttenuatesNoiseWhileSpeaking() {
+        val mixer = AudioMixerProcessor()
+        mixer.isNoiseSuppressionEnabled = true
+        mixer.isGodModeNoiseEnabled = true
+        mixer.noiseSuppressionLevel = 85 // Aggressive fan cut
+        mixer.micVolume = 1.0f
+
+        val numSamples = 2048
+        val bytes = numSamples * 2
+
+        // Synthesize mixed audio: 400Hz speech (amp 6000) + 4000Hz fan hiss / wind turbulence (amp 600)
+        val mixedMicBuffer = ByteArray(bytes)
+        for (i in 0 until numSamples) {
+            val speechAngle = 2.0 * Math.PI * 400.0 * (i.toDouble() / 44100.0)
+            val hissAngle = 2.0 * Math.PI * 4000.0 * (i.toDouble() / 44100.0)
+            val sample = (6000.0 * Math.sin(speechAngle) + 600.0 * Math.sin(hissAngle)).toInt().coerceIn(-32768, 32767).toShort()
+            mixedMicBuffer[i * 2] = (sample.toInt() and 0xFF).toByte()
+            mixedMicBuffer[i * 2 + 1] = ((sample.toInt() shr 8) and 0xFF).toByte()
+        }
+
+        val outBuffer = ByteArray(bytes)
+        mixer.processAndMix(mixedMicBuffer, null, outBuffer, bytes, isPaused = false)
+
+        // Verify gate opens for speech
+        assertTrue("Gate must open for speech", mixer.isGateActive)
+
+        // Find peak amplitude of output speech in steady state
+        var peakSample = 0
+        for (i in 1000 until numSamples) {
+            val s = abs(((outBuffer[i * 2 + 1].toInt() shl 8) or (outBuffer[i * 2].toInt() and 0xFF)).toShort().toInt())
+            if (s > peakSample) peakSample = s
+        }
+        assertTrue("Speech must pass through cleanly with strong amplitude (> 1500, was $peakSample)", peakSample > 1500)
+    }
+
+    @Test
+    fun testGameAudioPassesAtFullVolumeWhenStreamerIsCompletelySilent() {
+        val mixer = AudioMixerProcessor()
+        mixer.isNoiseSuppressionEnabled = true
+        mixer.isGodModeNoiseEnabled = true
+        mixer.noiseSuppressionLevel = 85 // Noise suppression high
+        mixer.micVolume = 1.0f
+        mixer.gameVolume = 1.0f
+
+        val numSamples = 2048
+        val bytes = numSamples * 2
+
+        // Mic is completely silent (ambient room floor)
+        val silentMic = ByteArray(bytes)
+
+        // Game audio has strong in-game sound (e.g. 440Hz gunshot/music at amp 8000)
+        val gameBuffer = ByteArray(bytes)
+        for (i in 0 until numSamples) {
+            val angle = 2.0 * Math.PI * 440.0 * (i.toDouble() / 44100.0)
+            val sample = (8000.0 * Math.sin(angle)).toInt().coerceIn(-32768, 32767).toShort()
+            gameBuffer[i * 2] = (sample.toInt() and 0xFF).toByte()
+            gameBuffer[i * 2 + 1] = ((sample.toInt() shr 8) and 0xFF).toByte()
+        }
+
+        val outBuffer = ByteArray(bytes)
+        mixer.processAndMix(silentMic, gameBuffer, outBuffer, bytes, isPaused = false)
+
+        // Mic gate is closed because streamer is silent
+        assertFalse("Mic gate should be closed when streamer is silent", mixer.isGateActive)
+
+        // But Game Audio must pass through at full volume without being muted
+        var peakOutGame = 0
+        for (i in 0 until numSamples) {
+            val s = abs(((outBuffer[i * 2 + 1].toInt() shl 8) or (outBuffer[i * 2].toInt() and 0xFF)).toShort().toInt())
+            if (s > peakOutGame) peakOutGame = s
+        }
+
+        assertTrue("Game audio must pass cleanly even when streamer is silent (peak was $peakOutGame)", peakOutGame > 7000)
+    }
 }

@@ -218,14 +218,14 @@ class AudioCaptureEngine {
         }
 
         // 2. Initialize Internal Playback AudioRecord if supported (Android 10+ and MediaProjection available)
+        var isPlaybackStereo = false
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && mediaProjection != null) {
             try {
-                val rec = AudioPlaybackCaptureHelper.createPlaybackCaptureRecord(mediaProjection, config)
-                if (rec != null && rec.state == AudioRecord.STATE_INITIALIZED) {
-                    playRec = rec
-                    Log.i(TAG, "Initialized AudioPlaybackCapture (Internal Game/Device Audio)")
-                } else {
-                    rec?.release()
+                val result = AudioPlaybackCaptureHelper.createPlaybackCaptureRecord(mediaProjection, config)
+                if (result != null && result.record.state == AudioRecord.STATE_INITIALIZED) {
+                    playRec = result.record
+                    isPlaybackStereo = result.isStereo
+                    Log.i(TAG, "Initialized AudioPlaybackCapture (Internal Game/Device Audio, stereo=$isPlaybackStereo)")
                 }
             } catch (e: Exception) {
                 Log.w(TAG, "Failed to initialize AudioPlaybackCapture: ${e.message}")
@@ -254,7 +254,8 @@ class AudioCaptureEngine {
         // Start playback recording thread if internal audio is active
         if (playRec != null) {
             playRec.startRecording()
-            val pThread = Thread({ playbackCaptureLoop(playRec, ringBuffer) }, "FairyGameAudioThread").apply {
+            val isStereo = isPlaybackStereo
+            val pThread = Thread({ playbackCaptureLoop(playRec, ringBuffer, isStereo) }, "FairyGameAudioThread").apply {
                 priority = Thread.MAX_PRIORITY
                 start()
             }
@@ -330,14 +331,44 @@ class AudioCaptureEngine {
         )
     }
 
-    private fun playbackCaptureLoop(playRec: AudioRecord, ringBuffer: PcmRingBuffer) {
-        val buffer = ByteArray(config.minBufferSize)
-        while (isCapturing.get()) {
-            val bytesRead = playRec.read(buffer, 0, buffer.size)
-            if (bytesRead > 0) {
-                ringBuffer.write(buffer, 0, bytesRead)
-            } else if (bytesRead < 0) {
-                if (bytesRead == AudioRecord.ERROR_INVALID_OPERATION) break
+    private fun playbackCaptureLoop(playRec: AudioRecord, ringBuffer: PcmRingBuffer, isStereo: Boolean) {
+        if (isStereo) {
+            val stereoBufferSize = config.minBufferSize * 2
+            val stereoBuffer = ByteArray(stereoBufferSize)
+            val monoBuffer = ByteArray(config.minBufferSize)
+
+            while (isCapturing.get()) {
+                val bytesRead = playRec.read(stereoBuffer, 0, stereoBuffer.size)
+                if (bytesRead > 0) {
+                    // Downmix interleaved 16-bit PCM stereo (L, R) to mono ((L + R) / 2) with zero heap allocation
+                    var outIdx = 0
+                    val limit = bytesRead - 3
+                    var i = 0
+                    while (i <= limit && outIdx < monoBuffer.size - 1) {
+                        val left = ((stereoBuffer[i + 1].toInt() shl 8) or (stereoBuffer[i].toInt() and 0xFF)).toShort()
+                        val right = ((stereoBuffer[i + 3].toInt() shl 8) or (stereoBuffer[i + 2].toInt() and 0xFF)).toShort()
+                        val mono = ((left.toInt() + right.toInt()) shr 1).toShort()
+                        monoBuffer[outIdx] = (mono.toInt() and 0xFF).toByte()
+                        monoBuffer[outIdx + 1] = ((mono.toInt() shr 8) and 0xFF).toByte()
+                        outIdx += 2
+                        i += 4
+                    }
+                    if (outIdx > 0) {
+                        ringBuffer.write(monoBuffer, 0, outIdx)
+                    }
+                } else if (bytesRead < 0) {
+                    if (bytesRead == AudioRecord.ERROR_INVALID_OPERATION) break
+                }
+            }
+        } else {
+            val buffer = ByteArray(config.minBufferSize)
+            while (isCapturing.get()) {
+                val bytesRead = playRec.read(buffer, 0, buffer.size)
+                if (bytesRead > 0) {
+                    ringBuffer.write(buffer, 0, bytesRead)
+                } else if (bytesRead < 0) {
+                    if (bytesRead == AudioRecord.ERROR_INVALID_OPERATION) break
+                }
             }
         }
     }

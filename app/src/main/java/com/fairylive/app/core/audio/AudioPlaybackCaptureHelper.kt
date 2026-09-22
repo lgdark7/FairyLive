@@ -6,6 +6,7 @@ import android.media.AudioPlaybackCaptureConfiguration
 import android.media.AudioRecord
 import android.media.projection.MediaProjection
 import android.os.Build
+import android.util.Log
 import androidx.annotation.RequiresApi
 import com.fairylive.app.core.audio.model.AudioCaptureConfig
 
@@ -14,6 +15,13 @@ import com.fairylive.app.core.audio.model.AudioCaptureConfig
  * AudioPlaybackCapture API.
  */
 object AudioPlaybackCaptureHelper {
+
+    private const val TAG = "AudioPlaybackHelper"
+
+    data class PlaybackRecordResult(
+        val record: AudioRecord,
+        val isStereo: Boolean
+    )
 
     /**
      * Checks if internal device audio capture is supported by this device and OS version.
@@ -24,34 +32,87 @@ object AudioPlaybackCaptureHelper {
 
     /**
      * Builds an AudioRecord targeting internal playback audio from games and media apps.
+     * Tries primary channel configuration (Mono) first, then falls back to Stereo
+     * if the device HAL requires stereo capture (common on Xiaomi, Realme, Vivo, Samsung, MediaTek).
      * Note: Subject to app manifest opt-outs (allowAudioPlaybackCapture=false) and call exclusions.
      */
     @RequiresApi(Build.VERSION_CODES.Q)
     fun createPlaybackCaptureRecord(
         mediaProjection: MediaProjection,
         config: AudioCaptureConfig
-    ): AudioRecord? {
-        return try {
+    ): PlaybackRecordResult? {
+        // Attempt 1: Config's native channel mask (e.g. MONO)
+        try {
             val playbackConfig = AudioPlaybackCaptureConfiguration.Builder(mediaProjection)
                 .addMatchingUsage(AudioAttributes.USAGE_MEDIA)
                 .addMatchingUsage(AudioAttributes.USAGE_GAME)
                 .addMatchingUsage(AudioAttributes.USAGE_UNKNOWN)
                 .build()
 
-            val audioFormat = AudioFormat.Builder()
+            val primaryFormat = AudioFormat.Builder()
                 .setEncoding(config.audioFormat)
                 .setSampleRate(config.sampleRate)
                 .setChannelMask(config.channelConfig)
                 .build()
 
-            AudioRecord.Builder()
-                .setAudioFormat(audioFormat)
+            val rec = AudioRecord.Builder()
+                .setAudioFormat(primaryFormat)
                 .setBufferSizeInBytes(config.minBufferSize)
                 .setAudioPlaybackCaptureConfig(playbackConfig)
                 .build()
+
+            if (rec.state == AudioRecord.STATE_INITIALIZED) {
+                val isStereo = config.channelConfig == AudioFormat.CHANNEL_IN_STEREO
+                Log.i(TAG, "Initialized native AudioPlaybackCapture (mono=${!isStereo})")
+                return PlaybackRecordResult(rec, isStereo)
+            } else {
+                rec.release()
+                Log.w(TAG, "Primary AudioPlaybackCapture record not initialized, attempting stereo fallback")
+            }
         } catch (e: Exception) {
-            android.util.Log.w("AudioPlaybackHelper", "Failed to create AudioPlaybackCapture AudioRecord", e)
-            null
+            Log.w(TAG, "Primary AudioPlaybackCapture creation failed (${e.message}), attempting stereo fallback")
         }
+
+        // Attempt 2: Fallback to CHANNEL_IN_STEREO
+        // Most OEM HALs that reject mono playback capture strictly require stereo.
+        if (config.channelConfig != AudioFormat.CHANNEL_IN_STEREO) {
+            try {
+                val playbackConfig = AudioPlaybackCaptureConfiguration.Builder(mediaProjection)
+                    .addMatchingUsage(AudioAttributes.USAGE_MEDIA)
+                    .addMatchingUsage(AudioAttributes.USAGE_GAME)
+                    .addMatchingUsage(AudioAttributes.USAGE_UNKNOWN)
+                    .build()
+
+                val stereoFormat = AudioFormat.Builder()
+                    .setEncoding(config.audioFormat)
+                    .setSampleRate(config.sampleRate)
+                    .setChannelMask(AudioFormat.CHANNEL_IN_STEREO)
+                    .build()
+
+                val stereoBufferSize = AudioRecord.getMinBufferSize(
+                    config.sampleRate,
+                    AudioFormat.CHANNEL_IN_STEREO,
+                    config.audioFormat
+                ).coerceAtLeast(config.minBufferSize * 2)
+
+                val stereoRec = AudioRecord.Builder()
+                    .setAudioFormat(stereoFormat)
+                    .setBufferSizeInBytes(stereoBufferSize)
+                    .setAudioPlaybackCaptureConfig(playbackConfig)
+                    .build()
+
+                if (stereoRec.state == AudioRecord.STATE_INITIALIZED) {
+                    Log.i(TAG, "Initialized fallback stereo AudioPlaybackCapture with real-time mono downmixing")
+                    return PlaybackRecordResult(stereoRec, isStereo = true)
+                } else {
+                    stereoRec.release()
+                    Log.w(TAG, "Fallback stereo AudioPlaybackCapture also failed to initialize")
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed to create fallback stereo AudioPlaybackCapture: ${e.message}")
+            }
+        }
+
+        return null
     }
 }

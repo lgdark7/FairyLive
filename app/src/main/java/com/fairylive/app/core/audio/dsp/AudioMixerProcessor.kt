@@ -114,6 +114,12 @@ class AudioMixerProcessor {
     private var currentGateGain = 0.0f
     private var ambientNoiseFloor = 0.002f
 
+    // Multi-band crossover and air/hiss filter states (zero heap allocation)
+    private var crossoverLp = 0.0f
+    private var airEnvelope = 0.0f
+    private var ambientAirFloor = 0.001f
+    private var currentAirGain = 1.0f
+
     private var presenceLowPass = 0.0f
 
     private var agcGain = 1.0f
@@ -127,6 +133,10 @@ class AudioMixerProcessor {
         gateHoldCounter = 0
         currentGateGain = 0.0f
         ambientNoiseFloor = 0.002f
+        crossoverLp = 0.0f
+        airEnvelope = 0.0f
+        ambientAirFloor = 0.001f
+        currentAirGain = 1.0f
         presenceLowPass = 0.0f
         agcGain = 1.0f
         compEnvelope = 0.0f
@@ -282,6 +292,11 @@ class AudioMixerProcessor {
                 val absSignal = abs(micSignal)
 
                 if (isNoiseSuppressionEnabled && noiseSuppressionLevel > 0) {
+                    // Split input into Vocal Core (< 3 kHz) and Air / Hiss Band (> 3 kHz) using 1-pole crossover
+                    crossoverLp += 0.35f * (micSignal - crossoverLp)
+                    val speechBody = crossoverLp
+                    val airBand = micSignal - crossoverLp
+
                     // B. Envelope Follower (fast 4ms attack, smooth 140ms release)
                     if (absSignal > micEnvelope) {
                         micEnvelope += 0.008f * (absSignal - micEnvelope)
@@ -289,15 +304,28 @@ class AudioMixerProcessor {
                         micEnvelope += 0.00045f * (absSignal - micEnvelope)
                     }
 
+                    // High-frequency air envelope follower for transient speech consonant detection
+                    val absAir = abs(airBand)
+                    if (absAir > airEnvelope) {
+                        airEnvelope += 0.04f * (absAir - airEnvelope)
+                    } else {
+                        airEnvelope += 0.001f * (absAir - airEnvelope)
+                    }
+
                     // Ambient room noise floor estimation (strictly tracks stationary room noise)
                     if (!isGateOpen) {
                         ambientNoiseFloor += 0.0005f * (micEnvelope - ambientNoiseFloor)
+                        ambientAirFloor += 0.0005f * (airEnvelope - ambientAirFloor)
                     } else {
                         if (micEnvelope < ambientNoiseFloor) {
                             ambientNoiseFloor += 0.0002f * (micEnvelope - ambientNoiseFloor)
                         }
+                        if (airEnvelope < ambientAirFloor) {
+                            ambientAirFloor += 0.0002f * (airEnvelope - ambientAirFloor)
+                        }
                     }
                     ambientNoiseFloor = ambientNoiseFloor.coerceIn(0.001f, 0.045f)
+                    ambientAirFloor = ambientAirFloor.coerceIn(0.0005f, 0.035f)
                     estimatedNoiseFloorDb = (20.0 * log10(max(ambientNoiseFloor, 0.00001f).toDouble())).toFloat()
 
                     // C. Adaptive Downward Expander (Zero-Distortion Noise Gate)
@@ -324,20 +352,43 @@ class AudioMixerProcessor {
                         currentGateGain = 0.0f // Pitch-black silence during pauses
                     }
 
-                    var micClean = micSignal * currentGateGain
+                    // D. Under-Speech Multi-Band Fan & Room Noise Eraser (Zero Distortion)
+                    val cleanBody: Float
+                    val cleanAir: Float
 
-                    // Residual stationary room/fan noise attenuation under speech (Zero Distortion)
-                    if (isGodModeNoiseEnabled && isGateOpen && currentGateGain > 0.5f && micEnvelope > 0.005f) {
-                        val noiseRatio = (ambientNoiseFloor / micEnvelope).coerceIn(0.0f, 0.6f)
-                        val voicePurityGain = 1.0f - (noiseRatio * 0.5f * levelNorm)
-                        micClean *= voicePurityGain
+                    if (isGodModeNoiseEnabled && isGateOpen && currentGateGain > 0.3f) {
+                        // 1. Vocal Core: Wiener spectral subtraction against stationary room noise floor
+                        val overSub = 1.0f + 1.5f * levelNorm
+                        val voiceMargin = max(0.0f, micEnvelope - (ambientNoiseFloor * overSub))
+                        val voicePurity = if (micEnvelope > 0.0001f) voiceMargin / micEnvelope else 0.0f
+                        val minBodyGain = (1.0f - 0.70f * levelNorm).coerceIn(0.25f, 1.0f)
+                        val bodyGain = max(minBodyGain, voicePurity)
+                        cleanBody = speechBody * bodyGain
+
+                        // 2. Air Band (>3 kHz): Clamps fan wind rush & turbulence under vowels
+                        val hasHighFrequencySpeech = airEnvelope > (ambientAirFloor * (2.2f - levelNorm * 0.4f))
+                        val targetAirGain = if (hasHighFrequencySpeech) {
+                            1.0f
+                        } else {
+                            // Attenuate air hiss under speech by up to -14 dB based on noise slider
+                            (1.0f - levelNorm * 0.82f).coerceAtLeast(0.18f)
+                        }
+                        currentAirGain += 0.025f * (targetAirGain - currentAirGain)
+                        cleanAir = airBand * currentAirGain
+                    } else {
+                        cleanBody = speechBody
+                        cleanAir = airBand
+                        currentAirGain = 1.0f
                     }
 
-                    // D. Broadcast Vocal Clarity Presence Filter (+1 dB presence lift above 3 kHz)
-                    if (isGateOpen && currentGateGain > 0.5f) {
+                    var micClean = (cleanBody + cleanAir) * currentGateGain
+
+                    // E. Broadcast Vocal Clarity Presence Filter (Tuned to avoid boosting fan noise)
+                    val effectivePresence = PRESENCE_ALPHA * (1.0f - levelNorm * 0.8f).coerceAtLeast(0.0f)
+                    if (isGateOpen && currentGateGain > 0.5f && effectivePresence > 0.01f) {
                         val presenceDiff = micClean - presenceLowPass
                         presenceLowPass += 0.25f * presenceDiff
-                        micClean += (presenceDiff * PRESENCE_ALPHA)
+                        micClean += (presenceDiff * effectivePresence)
                     } else {
                         presenceLowPass = micClean
                     }
@@ -345,6 +396,7 @@ class AudioMixerProcessor {
                     processedMic = micClean * effectiveMicVol
                 } else {
                     currentGateGain = 1.0f
+                    currentAirGain = 1.0f
                     isGateOpen = true
                     processedMic = rawMic * effectiveMicVol
                 }
