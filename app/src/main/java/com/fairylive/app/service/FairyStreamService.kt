@@ -499,19 +499,8 @@ class FairyStreamService : Service() {
                     Log.i("FairyStreamService", "[CAPTURE-CHAIN] Projection resized callback: ${width}x${height}")
                 }
                 override fun onCapturedContentVisibilityChanged(visible: Boolean) {
-                    Log.i("FairyStreamService", "[CAPTURE-CHAIN] Projection visibility changed: $visible")
                     mainHandler.post {
-                        if (!visible) {
-                            Log.i("FairyStreamService", "Game hidden/minimized -> Automatically showing Be Right Back")
-                            isStreamPausedState = true
-                            overlayCompositor.setStreamPaused(true)
-                            syncAudioMuteState()
-                        } else {
-                            Log.i("FairyStreamService", "Game returned to foreground -> Automatically resuming stream")
-                            isStreamPausedState = false
-                            overlayCompositor.setStreamPaused(false)
-                            syncAudioMuteState()
-                        }
+                        handleVisibilityChange(visible, "MediaProjection.Callback")
                     }
                 }
             }, mainHandler)
@@ -566,17 +555,7 @@ class FairyStreamService : Service() {
             captureEngine.onVisibilityChanged = { visible ->
                 overlayCompositor.onVisibilityChanged(visible)
                 mainHandler.post {
-                    if (!visible) {
-                        Log.i("FairyStreamService", "captureEngine visibility = false -> Showing Be Right Back banner")
-                        isStreamPausedState = true
-                        overlayCompositor.setStreamPaused(true)
-                        syncAudioMuteState()
-                    } else {
-                        Log.i("FairyStreamService", "captureEngine visibility = true -> Resuming broadcast")
-                        isStreamPausedState = false
-                        overlayCompositor.setStreamPaused(false)
-                        syncAudioMuteState()
-                    }
+                    handleVisibilityChange(visible, "captureEngine")
                 }
             }
 
@@ -593,10 +572,17 @@ class FairyStreamService : Service() {
             if (!captureEngine.isCapturing || CaptureStateNotifier.currentState == CaptureState.ERROR) {
                 // VirtualDisplay creation failed — do not publish a video-less stream.
                 Log.e("FairyStreamService", "Capture engine failed to start; aborting broadcast")
+                val isSingleApp = (settings?.captureSource ?: com.fairylive.app.core.settings.CaptureSource.SINGLE_APP) == com.fairylive.app.core.settings.CaptureSource.SINGLE_APP
                 com.fairylive.app.core.common.CreatorErrorNotifier.postError(
-                    title = "Capture Failed to Start",
-                    message = "Android could not create the virtual display for screen capture.",
-                    resolution = "Tap GO LIVE again to retry. If this persists, force-stop and reopen the app."
+                    title = if (isSingleApp) "Single-App Capture Unavailable" else "Capture Failed to Start",
+                    message = if (isSingleApp)
+                        "Your device could not bind to the selected app window. Please select 'Entire Screen' in Settings for 100% compatible streaming."
+                    else
+                        "Android could not create the virtual display for screen capture.",
+                    resolution = if (isSingleApp)
+                        "Open Settings -> Change Capture Source to 'Entire Screen' -> Tap GO LIVE."
+                    else
+                        "Tap GO LIVE again to retry. If this persists, force-stop and reopen the app."
                 )
                 stopStreamService()
                 return
@@ -821,12 +807,49 @@ class FairyStreamService : Service() {
         }
     }
 
+    private var pendingVisibilityPauseRunnable: Runnable? = null
+
+    private fun handleVisibilityChange(visible: Boolean, source: String) {
+        Log.i("FairyStreamService", "[CAPTURE-CHAIN] handleVisibilityChange(visible=$visible, source=$source)")
+        pendingVisibilityPauseRunnable?.let { mainHandler.removeCallbacks(it) }
+        pendingVisibilityPauseRunnable = null
+
+        if (visible) {
+            Log.i("FairyStreamService", "Game visible -> Resuming broadcast from $source")
+            isStreamPausedState = false
+            overlayCompositor.setStreamPaused(false)
+            syncAudioMuteState()
+        } else {
+            // Debounce pause: On OEM devices (Xiaomi Game Turbo, Realme Game Space, Samsung Game Booster, Floating HUD),
+            // a floating overlay triggers a bogus onCapturedContentVisibilityChanged(false).
+            // Check if capture frames are still actively arriving before showing Be Right Back!
+            val initialFrames = maxOf(overlayCompositor.totalCaptureFrames, captureEngine.totalFramesCaptured)
+            val runnable = Runnable {
+                val currentFrames = maxOf(overlayCompositor.totalCaptureFrames, captureEngine.totalFramesCaptured)
+                if (currentFrames > initialFrames + 2) {
+                    Log.i("FairyStreamService", "Suppressed false-alarm visibility=false: Game frames actively arriving ($initialFrames -> $currentFrames)")
+                    isStreamPausedState = false
+                    overlayCompositor.setStreamPaused(false)
+                } else {
+                    Log.i("FairyStreamService", "Game truly hidden/minimized (no new frames: $initialFrames -> $currentFrames) -> Showing Be Right Back banner")
+                    isStreamPausedState = true
+                    overlayCompositor.setStreamPaused(true)
+                    syncAudioMuteState()
+                }
+            }
+            pendingVisibilityPauseRunnable = runnable
+            mainHandler.postDelayed(runnable, 1200L)
+        }
+    }
+
     private fun updateNotificationContent(statusText: String) {
         val manager = getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
         manager?.notify(NOTIFICATION_ID, buildForegroundNotification(statusText))
     }
 
     private fun stopStreamService() {
+        pendingVisibilityPauseRunnable?.let { mainHandler.removeCallbacks(it) }
+        pendingVisibilityPauseRunnable = null
         cameraEngine.stop()
         overlayCompositor.updateFacecamConfig(overlayCompositor.facecamConfig.copy(enabled = false))
         captureEngine.stop()

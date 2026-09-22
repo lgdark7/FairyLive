@@ -65,6 +65,9 @@ class OverlayCompositor(
     private val duplicateRendersSkipped = AtomicLong(0L)
     private val framesComposited = AtomicLong(0L)
 
+    val totalCaptureFrames: Long
+        get() = captureFramesReceived.get()
+
     @Volatile
     var facecamConfig: FacecamConfig = FacecamConfig(enabled = false)
         private set

@@ -45,7 +45,8 @@ class ScreenCaptureEngine {
     var isPaused: Boolean = false
         private set
 
-    private var totalFramesCaptured: Long = 0L
+    var totalFramesCaptured: Long = 0L
+        private set
     private var lastFpsCalcTime: Long = 0L
     private var lastFrameCount: Long = 0L
     private var currentFps: Double = 0.0
@@ -260,25 +261,36 @@ class ScreenCaptureEngine {
             this.captureSurface = targetSurface
         }
 
-        val flags = DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR
+        // Resilient flag candidates:
+        // 1. AUTO_MIRROR (standard full-display mirroring)
+        // 2. 0 (default fallback for task-based virtual displays on OEM ROMs)
+        // 3. PUBLIC (some vendor HALs like Xiaomi / Samsung require PUBLIC for off-screen rendering)
+        var vd: VirtualDisplay? = null
+        val flagCandidates = intArrayOf(
+            DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
+            0,
+            DisplayManager.VIRTUAL_DISPLAY_FLAG_PUBLIC
+        )
 
-        val vd = try {
-            projection.createVirtualDisplay(
-                VIRTUAL_DISPLAY_NAME,
-                alignedWidth,
-                alignedHeight,
-                dpi,
-                flags,
-                targetSurface,
-                virtualDisplayCallback,
-                handler
-            )
-        } catch (se: SecurityException) {
-            Log.e("FairyCapture", "createVirtualDisplay SecurityException: ${se.message}")
-            null
-        } catch (ie: IllegalStateException) {
-            Log.e("FairyCapture", "createVirtualDisplay IllegalStateException: ${ie.message}")
-            null
+        for (candidateFlag in flagCandidates) {
+            try {
+                vd = projection.createVirtualDisplay(
+                    VIRTUAL_DISPLAY_NAME,
+                    alignedWidth,
+                    alignedHeight,
+                    dpi,
+                    candidateFlag,
+                    targetSurface,
+                    virtualDisplayCallback,
+                    handler
+                )
+                if (vd != null) {
+                    Log.i("FairyCapture", "createVirtualDisplay succeeded with flag: $candidateFlag")
+                    break
+                }
+            } catch (e: Exception) {
+                Log.w("FairyCapture", "createVirtualDisplay failed with flag $candidateFlag: ${e.message}")
+            }
         }
 
         if (vd == null) {

@@ -1902,12 +1902,7 @@ class CreatorStudioFragment : Fragment(),
 
         val projMgr = ctx.getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
         if (settings.captureSource == com.fairylive.app.core.settings.CaptureSource.SINGLE_APP && Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            com.fairylive.app.core.common.CreatorErrorNotifier.postError(
-                title = "Single-App Capture Unsupported",
-                message = "Single-App capture requires Android 14+ (API 34). Your device is running Android ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT}).",
-                resolution = "Switch Capture Source to 'Entire Screen' in Settings."
-            )
-            return
+            Toast.makeText(ctx, "Single-App capture requires Android 14+. Streaming Entire Screen.", Toast.LENGTH_SHORT).show()
         }
 
         val intent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
