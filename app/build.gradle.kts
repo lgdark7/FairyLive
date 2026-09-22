@@ -11,8 +11,8 @@ android {
         applicationId = "com.fairylive.app"
         minSdk = 24
         targetSdk = 34
-        versionCode = 126
-        versionName = "1.2.6"
+        versionCode = 127
+        versionName = "1.2.7"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 

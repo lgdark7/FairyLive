@@ -1,7 +1,7 @@
 {
-  "versionCode": 126,
-  "versionName": "1.2.6",
-  "releaseNotes": "• Fixed single-app audio capture (Free Fire & game streaming mic clarity)\n• Unlocked voice audio during game pause & Be Right Back screens\n• Frame-arrival self-healing on Xiaomi, Realme, Oppo, Vivo, Samsung devices\n• Dynamic room & fan noise cancellation intensity control",
-  "downloadUrl": "https://github.com/lgdark7/fairylive-releases/releases/download/v1.2.6/app-release.apk",
+  "versionCode": 127,
+  "versionName": "1.2.7",
+  "releaseNotes": "• Fixed Single-App & Game capture across OEM devices (Xiaomi, Realme, Vivo, Samsung)\n• Eliminated false-alarm 'Be Right Back' pause freezes caused by floating Game Turbo overlays\n• Continuous under-speech fan noise subtraction & air-band de-hissing in live mic DSP\n• Internal game audio continuity with automatic stereo capture fallback and bitwise downmixing\n• Auto-fallback to Entire Screen on Android 10–13 devices",
+  "downloadUrl": "https://github.com/lgdark7/fairylive-releases/releases/download/v1.2.7/app-release.apk",
   "isMandatory": false
 }
