@@ -313,26 +313,32 @@ class AudioMixerProcessor {
                     }
 
                     // Ambient room noise floor estimation (strictly tracks stationary room noise)
+                    // Must ONLY adapt when signal is below voice onset threshold (< 0.015f)
+                    // and use a long time-constant so incoming speech is NEVER learned as room noise.
                     if (!isGateOpen) {
-                        ambientNoiseFloor += 0.0005f * (micEnvelope - ambientNoiseFloor)
-                        ambientAirFloor += 0.0005f * (airEnvelope - ambientAirFloor)
+                        if (micEnvelope < 0.015f) {
+                            ambientNoiseFloor += 0.00005f * (micEnvelope - ambientNoiseFloor)
+                        }
+                        if (airEnvelope < 0.008f) {
+                            ambientAirFloor += 0.00005f * (airEnvelope - ambientAirFloor)
+                        }
                     } else {
                         if (micEnvelope < ambientNoiseFloor) {
-                            ambientNoiseFloor += 0.0002f * (micEnvelope - ambientNoiseFloor)
+                            ambientNoiseFloor += 0.0001f * (micEnvelope - ambientNoiseFloor)
                         }
                         if (airEnvelope < ambientAirFloor) {
-                            ambientAirFloor += 0.0002f * (airEnvelope - ambientAirFloor)
+                            ambientAirFloor += 0.0001f * (airEnvelope - ambientAirFloor)
                         }
                     }
-                    ambientNoiseFloor = ambientNoiseFloor.coerceIn(0.001f, 0.045f)
-                    ambientAirFloor = ambientAirFloor.coerceIn(0.0005f, 0.035f)
+                    ambientNoiseFloor = ambientNoiseFloor.coerceIn(0.001f, 0.008f)
+                    ambientAirFloor = ambientAirFloor.coerceIn(0.0005f, 0.005f)
                     estimatedNoiseFloorDb = (20.0 * log10(max(ambientNoiseFloor, 0.00001f).toDouble())).toFloat()
 
                     // C. Adaptive Downward Expander (Zero-Distortion Noise Gate)
-                    val baseClose = 0.004f + levelNorm * 0.026f
-                    val baseOpen = 0.009f + levelNorm * 0.045f
-                    val dynamicClose = max(baseClose, ambientNoiseFloor * (1.25f + levelNorm * 0.5f))
-                    val dynamicOpen = max(baseOpen, dynamicClose * (1.5f + levelNorm * 0.3f))
+                    val baseClose = 0.003f + levelNorm * 0.008f
+                    val baseOpen = 0.006f + levelNorm * 0.012f
+                    val dynamicClose = max(baseClose, ambientNoiseFloor * (1.10f + levelNorm * 0.30f))
+                    val dynamicOpen = max(baseOpen, ambientNoiseFloor * (1.50f + levelNorm * 0.60f))
 
                     if (micEnvelope >= dynamicOpen) {
                         isGateOpen = true
@@ -358,15 +364,15 @@ class AudioMixerProcessor {
 
                     if (isGodModeNoiseEnabled && isGateOpen && currentGateGain > 0.3f) {
                         // 1. Vocal Core: Wiener spectral subtraction against stationary room noise floor
-                        val overSub = 1.0f + 1.5f * levelNorm
+                        val overSub = 1.0f + 1.2f * levelNorm
                         val voiceMargin = max(0.0f, micEnvelope - (ambientNoiseFloor * overSub))
                         val voicePurity = if (micEnvelope > 0.0001f) voiceMargin / micEnvelope else 0.0f
-                        val minBodyGain = (1.0f - 0.70f * levelNorm).coerceIn(0.25f, 1.0f)
+                        val minBodyGain = (1.0f - 0.65f * levelNorm).coerceIn(0.35f, 1.0f)
                         val bodyGain = max(minBodyGain, voicePurity)
                         cleanBody = speechBody * bodyGain
 
                         // 2. Air Band (>3 kHz): Clamps fan wind rush & turbulence under vowels
-                        val hasHighFrequencySpeech = airEnvelope > (ambientAirFloor * (2.2f - levelNorm * 0.4f))
+                        val hasHighFrequencySpeech = airEnvelope > (ambientAirFloor * (1.8f - levelNorm * 0.3f))
                         val targetAirGain = if (hasHighFrequencySpeech) {
                             1.0f
                         } else {

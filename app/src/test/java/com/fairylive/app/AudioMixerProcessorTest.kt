@@ -465,4 +465,72 @@ class AudioMixerProcessorTest {
 
         assertTrue("Game audio must pass cleanly even when streamer is silent (peak was $peakOutGame)", peakOutGame > 7000)
     }
+
+    @Test
+    fun testConversationalSpeechOpensGateAndPassesThroughAtNormalVolume() {
+        val mixer = AudioMixerProcessor()
+        mixer.isNoiseSuppressionEnabled = true
+        mixer.isGodModeNoiseEnabled = true
+        mixer.noiseSuppressionLevel = 80 // Gaming preset level
+        mixer.micVolume = 1.0f
+
+        val numSamples = 2048
+        val bytes = numSamples * 2
+
+        // Conversational voice at arm's length (phone held during gaming: amplitude ~ 1200, approx -28 dBFS)
+        val speechBuffer = ByteArray(bytes)
+        for (i in 0 until numSamples) {
+            val angle = 2.0 * Math.PI * 400.0 * (i.toDouble() / 44100.0)
+            val sample = (1200.0 * Math.sin(angle)).toInt().toShort()
+            speechBuffer[i * 2] = (sample.toInt() and 0xFF).toByte()
+            speechBuffer[i * 2 + 1] = ((sample.toInt() shr 8) and 0xFF).toByte()
+        }
+
+        val outBuffer = ByteArray(bytes)
+        mixer.processAndMix(speechBuffer, null, outBuffer, bytes, isPaused = false)
+
+        // Gate must open for conversational voice
+        assertTrue("Gate must open for conversational speaking voice (~1200 amplitude)", mixer.isGateActive)
+
+        // Find peak amplitude in steady state (last 1000 samples)
+        var peakSample = 0
+        for (i in 1000 until numSamples) {
+            val s = abs(((outBuffer[i * 2 + 1].toInt() shl 8) or (outBuffer[i * 2].toInt() and 0xFF)).toShort().toInt())
+            if (s > peakSample) peakSample = s
+        }
+        assertTrue("Conversational speech must pass cleanly (> 900, was $peakSample)", peakSample > 900)
+    }
+
+    @Test
+    fun testWhisperSpeechOpensGateWithoutBeingSwallowed() {
+        val mixer = AudioMixerProcessor()
+        mixer.isNoiseSuppressionEnabled = true
+        mixer.isGodModeNoiseEnabled = true
+        mixer.noiseSuppressionLevel = 75 // Default Studio setting
+        mixer.micVolume = 1.0f
+
+        val numSamples = 2048
+        val bytes = numSamples * 2
+
+        // Soft whisper / quiet speech (amplitude ~ 700, approx -33 dBFS)
+        val whisperBuffer = ByteArray(bytes)
+        for (i in 0 until numSamples) {
+            val angle = 2.0 * Math.PI * 500.0 * (i.toDouble() / 44100.0)
+            val sample = (700.0 * Math.sin(angle)).toInt().toShort()
+            whisperBuffer[i * 2] = (sample.toInt() and 0xFF).toByte()
+            whisperBuffer[i * 2 + 1] = ((sample.toInt() shr 8) and 0xFF).toByte()
+        }
+
+        val outBuffer = ByteArray(bytes)
+        mixer.processAndMix(whisperBuffer, null, outBuffer, bytes, isPaused = false)
+
+        assertTrue("Gate must open for whisper speech (~700 amplitude)", mixer.isGateActive)
+
+        var peakWhisper = 0
+        for (i in 1000 until numSamples) {
+            val s = abs(((outBuffer[i * 2 + 1].toInt() shl 8) or (outBuffer[i * 2].toInt() and 0xFF)).toShort().toInt())
+            if (s > peakWhisper) peakWhisper = s
+        }
+        assertTrue("Whisper speech must pass through (> 500, was $peakWhisper)", peakWhisper > 500)
+    }
 }

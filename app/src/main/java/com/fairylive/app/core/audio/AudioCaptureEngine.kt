@@ -170,51 +170,63 @@ class AudioCaptureEngine {
         var micRec: AudioRecord? = null
         var playRec: AudioRecord? = null
 
-        // 1. Initialize Microphone AudioRecord
-        try {
-            val bufferSize = config.minBufferSize
-            val rec = AudioRecord(
-                MediaRecorder.AudioSource.MIC,
-                config.sampleRate,
-                config.channelConfig,
-                config.audioFormat,
-                bufferSize
-            )
-            if (rec.state == AudioRecord.STATE_INITIALIZED) {
-                micRec = rec
-                Log.i(TAG, "Initialized Standard Microphone AudioRecord (${config.sampleRate}Hz, buffer: $bufferSize)")
+        // 1. Initialize Microphone AudioRecord with resilient source fallback
+        // VOICE_RECOGNITION is prioritized because Android CDD 5.4.5 exempts it from
+        // concurrent capture privacy silencing when games or other apps take foreground focus.
+        val preferredSources = intArrayOf(
+            MediaRecorder.AudioSource.VOICE_RECOGNITION,
+            MediaRecorder.AudioSource.MIC,
+            MediaRecorder.AudioSource.VOICE_COMMUNICATION
+        )
+        for (source in preferredSources) {
+            try {
+                val bufferSize = config.minBufferSize
+                val rec = AudioRecord(
+                    source,
+                    config.sampleRate,
+                    config.channelConfig,
+                    config.audioFormat,
+                    bufferSize
+                )
+                if (rec.state == AudioRecord.STATE_INITIALIZED) {
+                    micRec = rec
+                    Log.i(TAG, "Initialized Microphone AudioRecord (source=$source, sampleRate=${config.sampleRate}Hz, buffer: $bufferSize)")
 
-                // Attach Hardware Noise Suppressor if supported by device chipset
-                if (android.media.audiofx.NoiseSuppressor.isAvailable()) {
-                    try {
-                        val ns = android.media.audiofx.NoiseSuppressor.create(rec.audioSessionId)
-                        ns?.enabled = true
-                        noiseSuppressor = ns
-                        Log.i(TAG, "Hardware NoiseSuppressor enabled: ${ns?.enabled}")
-                    } catch (e: Exception) {
-                        Log.w(TAG, "Failed to attach hardware NoiseSuppressor: ${e.message}")
+                    // Attach Hardware Acoustic Echo Canceler if supported
+                    if (android.media.audiofx.AcousticEchoCanceler.isAvailable()) {
+                        try {
+                            val aec = android.media.audiofx.AcousticEchoCanceler.create(rec.audioSessionId)
+                            aec?.enabled = true
+                            acousticEchoCanceler = aec
+                            Log.i(TAG, "Hardware AcousticEchoCanceler enabled: ${aec?.enabled}")
+                        } catch (e: Exception) {
+                            Log.w(TAG, "Failed to attach hardware AcousticEchoCanceler: ${e.message}")
+                        }
                     }
-                }
 
-                // Attach Hardware Acoustic Echo Canceler if supported
-                if (android.media.audiofx.AcousticEchoCanceler.isAvailable()) {
-                    try {
-                        val aec = android.media.audiofx.AcousticEchoCanceler.create(rec.audioSessionId)
-                        aec?.enabled = true
-                        acousticEchoCanceler = aec
-                        Log.i(TAG, "Hardware AcousticEchoCanceler enabled: ${aec?.enabled}")
-                    } catch (e: Exception) {
-                        Log.w(TAG, "Failed to attach hardware AcousticEchoCanceler: ${e.message}")
+                    // Attach Hardware Noise Suppressor ONLY if source is not VOICE_RECOGNITION
+                    // (VOICE_RECOGNITION already provides flat uncompressed response per CDD 5.4.2)
+                    if (source != MediaRecorder.AudioSource.VOICE_RECOGNITION &&
+                        android.media.audiofx.NoiseSuppressor.isAvailable()) {
+                        try {
+                            val ns = android.media.audiofx.NoiseSuppressor.create(rec.audioSessionId)
+                            ns?.enabled = true
+                            noiseSuppressor = ns
+                            Log.i(TAG, "Hardware NoiseSuppressor enabled: ${ns?.enabled}")
+                        } catch (e: Exception) {
+                            Log.w(TAG, "Failed to attach hardware NoiseSuppressor: ${e.message}")
+                        }
                     }
+                    break
+                } else {
+                    rec.release()
+                    Log.w(TAG, "Microphone AudioRecord failed to initialize for source=$source")
                 }
-            } else {
-                rec.release()
-                Log.w(TAG, "Microphone AudioRecord failed to initialize")
+            } catch (se: SecurityException) {
+                Log.e(TAG, "Microphone recording permission denied for source=$source: ${se.message}")
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to instantiate Microphone AudioRecord for source=$source: ${e.message}")
             }
-        } catch (se: SecurityException) {
-            Log.e(TAG, "Microphone recording permission denied: ${se.message}")
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to instantiate Microphone AudioRecord: ${e.message}")
         }
 
         // 2. Initialize Internal Playback AudioRecord if supported (Android 10+ and MediaProjection available)
@@ -446,10 +458,8 @@ class AudioCaptureEngine {
                     ringBuffer.read(gameBuffer, 0, bytesRead)
                 }
 
-                // If OS silenced mic (in-game mic active), zero out micBuffer completely so HAL noise cannot leak
-                if (isMicSilencedBySystem) {
-                    micBuffer.fill(0)
-                } else if (recoveryRampFrames > 0 && micRec != null) {
+                // If OS un-silences mic or recovers, apply smooth fade-in ramp
+                if (recoveryRampFrames > 0 && micRec != null) {
                     // Smooth linear ramp during post-silence recovery (prevents HAL mode-switch pop)
                     val totalRamp = (config.sampleRate * 0.15f).toInt().coerceAtLeast(1)
                     for (i in 0 until bytesRead - 1 step 2) {

@@ -591,6 +591,7 @@ class FairyStreamService : Service() {
             val audioBitrate = settings?.audioBitrateKbps ?: 128
             // Start audio pipeline concurrently if microphone permission is granted
             if (enableAudio && PermissionManager.hasAudioPermission(this)) {
+                com.fairylive.app.core.audio.AudioStudioRepository.init(this)
                 val audioConfig = AudioCaptureConfig(
                     sampleRate = 44100,
                     channelConfig = AudioFormat.CHANNEL_IN_MONO,
@@ -598,6 +599,19 @@ class FairyStreamService : Service() {
                     sourceType = AudioSourceType.MIC
                 )
                 audioPipeline.start(audioConfig, projection)
+                audioPipeline.setMicVolume(com.fairylive.app.core.audio.AudioStudioRepository.micVolume)
+                audioPipeline.setGameVolume(com.fairylive.app.core.audio.AudioStudioRepository.gameVolume)
+                audioPipeline.setMediaVolume(com.fairylive.app.core.audio.AudioStudioRepository.mediaVolume)
+                audioPipeline.setMasterVolume(com.fairylive.app.core.audio.AudioStudioRepository.masterVolume)
+                audioPipeline.setDspFilters(
+                    noiseGate = com.fairylive.app.core.audio.AudioStudioRepository.isNoiseSuppressionEnabled,
+                    agc = com.fairylive.app.core.audio.AudioStudioRepository.isAgcEnabled,
+                    compressor = com.fairylive.app.core.audio.AudioStudioRepository.isCompressorEnabled,
+                    limiter = com.fairylive.app.core.audio.AudioStudioRepository.isLimiterEnabled,
+                    godMode = com.fairylive.app.core.audio.AudioStudioRepository.isGodModeNoiseEnabled,
+                    noiseLevel = com.fairylive.app.core.audio.AudioStudioRepository.noiseSuppressionLevel
+                )
+                syncAudioMuteState()
             }
 
             // Start RTMP streaming transport if enabled
