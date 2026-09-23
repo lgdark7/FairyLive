@@ -768,3 +768,29 @@
      - Added `V122CaptureAndBitrateParityUnitTest.kt` (8 comprehensive tests).
      - Executed `./gradlew testDebugUnitTest`: **366 / 366 unit tests passing (100% PASS)**.
      - Built `./gradlew assembleRelease`: generated `app-release-v1.2.2.apk` (2.3 MB).
+
+---
+
+## 2026-09-23 — Audio Pipeline Reliability & DSP Quality Hardening
+- **Milestone**: Streamer Voice Isolation, Internal Game Audio Resilience & Telemetry
+- **Root Causes Diagnosed & Fixed**:
+  1. **Adaptive Noise Floor Speech Contamination**:
+     - `ambientNoiseFloor` was tracking voice energy and skyrocketing from ~0.003 up to 0.045 during active speech.
+     - Inflated dynamic gate threshold `dynamicOpen` to 0.0934 (~4128 PCM), causing normal conversational speech (~1200 PCM) to fail the gate test and locking gain permanently to 0.0f.
+     - *Fix*: Gated adaptation strictly to low-energy non-speech frames (`micEnvelope < 0.015f`), slowed time-constant to `0.00005f`, and clamped `ambientNoiseFloor` ceiling to `0.008f` (~262 PCM). Gate opens in 2ms on conversational speech and whispers.
+  2. **Android Concurrent Capture Mic Silencing**:
+     - Standard `AudioSource.MIC` gets silenced by Android AudioPolicy under CDD 5.4.5 when foreground games initialize their audio client.
+     - *Fix*: Implemented prioritized audio source fallback: `VOICE_RECOGNITION` (highest Android concurrency priority and uncompressed flat response) ➔ `MIC` ➔ `VOICE_COMMUNICATION`. Removed destructive userspace buffer zeroing.
+  3. **Silence Pacing & Audio Starvation Prevention**:
+     - When microphone was absent or in game-only capture mode, quiet game scenes caused 0 bytes read, stalling AAC encoding and starving RTMP audio.
+     - *Fix*: Injected timed silence frames pacing 44.1 kHz PCM flow continuously, preventing YouTube audio buffer starvation.
+  4. **PcmRingBuffer Block Acceleration & AudioRecord Error Recovery**:
+     - Replaced byte-by-byte circular buffer with `System.arraycopy` block transfers and exposed `availableBytes` depth.
+     - Added non-destructive error recovery in `playbackCaptureLoop` to prevent thread death on HAL route transitions.
+  5. **Comprehensive Audio Telemetry (Phase 8)**:
+     - Expanded `AudioMetrics` with: `micDb`, `gameDb`, `mediaDb`, `masterDb`, `micPeakPercent`, `gamePeakPercent`, `masterPeakPercent`, `noiseFloorDb`, `aacFps`, `aacInputTimeoutCount`, `pcmUnderruns`, `ringBufferDepth`, `rtmpAudioPacketsSent`, `isGameAudioActive`.
+     - Added structured periodic log: `[AUDIO-DIAGNOSTIC]`.
+     - Authoring `AUDIO_ARCHITECTURE.md` documenting end-to-end signal flow and DSP specifications.
+- **Verification**:
+  - 396 / 396 unit tests passed (`./gradlew testDebugUnitTest`).
+  - Production release APK built (`./gradlew assembleRelease`, 9.65 MB).

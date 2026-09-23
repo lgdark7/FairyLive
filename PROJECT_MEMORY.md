@@ -325,3 +325,22 @@ Rebuild **FAIRY LIVE** from scratch as a high-performance, professional native A
 - **Verification Status**:
   - Unit Tests: **366 / 366 unit tests passing (100% PASS)** (`V122CaptureAndBitrateParityUnitTest.kt`).
   - Production Release Binary: `app-release-v1.2.2.apk` (2.3 MB / 2,391,210 bytes).
+
+---
+
+## 11. Audio Reliability & DSP Quality Hardening Spec
+- **Streamer Voice Isolation & Noise Gate Lockout Fix**:
+  - `ambientNoiseFloor` updates restricted to low-energy non-speech frames (`micEnvelope < 0.015f`) with slow time constant (`0.00005f`) and hard cap at `0.008f` (~262 PCM). Voice can never elevate the floor or lock the gate shut.
+  - Conversational speech (~1200 PCM) and whispers (~700 PCM) open the gate in 2ms with 100% gain, while fan noise is silenced during pauses.
+- **Android CDD 5.4.5 Concurrent Capture**:
+  - Prioritized `AudioSource.VOICE_RECOGNITION` over `MIC` for game streaming concurrency and flat frequency response without OS silencing. Removed userspace zeroing.
+- **Internal Game Audio Resilience & Pacing**:
+  - Paced silence frame injection when microphone is disabled/absent, preventing AAC starvation and YouTube RTMP audio drops during quiet game menus.
+  - Accelerated `PcmRingBuffer` with block `System.arraycopy` transfers and tracked depth.
+  - Added non-destructive error recovery in `playbackCaptureLoop` on HAL route transitions.
+- **Comprehensive Audio Telemetry (Phase 8)**:
+  - Added real-time diagnostics: `micDb`, `gameDb`, `mediaDb`, `masterDb`, `micPeakPercent`, `gamePeakPercent`, `masterPeakPercent`, `noiseFloorDb`, `aacFps`, `aacInputTimeoutCount`, `pcmUnderruns`, `ringBufferDepth`, `rtmpAudioPacketsSent`, `isGameAudioActive`.
+  - Authoring `AUDIO_ARCHITECTURE.md` documenting end-to-end signal flow and DSP specifications.
+- **Verification Status**:
+  - Unit Tests: **396 / 396 unit tests passing (100% PASS)**.
+  - Production Release Binary: `app-release.apk` (9.65 MB).

@@ -58,7 +58,12 @@ class AacMediaCodecEncoder {
     private var totalBytesEncoded: Long = 0L
     private var lastMetricsCalcTime: Long = 0L
     private var lastBytesCount: Long = 0L
+    private var lastFramesCount: Long = 0L
     private var currentBitrateKbps: Long = 0L
+    private var currentAacFps: Float = 0.0f
+
+    val aacFps: Float
+        get() = currentAacFps
 
     fun setEncodedAudioFrameListener(listener: EncodedAudioFrameListener?) {
         this.frameListener = listener
@@ -259,14 +264,19 @@ class AacMediaCodecEncoder {
             val diff = now - lastMetricsCalcTime
             if (totalFramesEncoded == 1L || diff >= 1000L) {
                 val bytesInWindow = totalBytesEncoded - lastBytesCount
+                val framesInWindow = totalFramesEncoded - lastFramesCount
                 currentBitrateKbps = if (diff > 0) ((bytesInWindow * 8L * 1000L) / diff) / 1000L else 0L
+                currentAacFps = if (diff > 0) (framesInWindow * 1000.0f) / diff else 0.0f
                 lastMetricsCalcTime = now
                 lastBytesCount = totalBytesEncoded
+                lastFramesCount = totalFramesEncoded
 
                 AudioStateNotifier.updateMetrics(
                     AudioStateNotifier.currentMetrics.copy(
                         encodedFrames = totalFramesEncoded,
                         bitrateKbps = currentBitrateKbps,
+                        aacFps = currentAacFps,
+                        aacInputTimeoutCount = inputTimeoutCount.sum(),
                         encoderName = codecSelection?.codecName ?: "unknown",
                         encoderType = codecSelection?.encoderType ?: EncoderType.UNKNOWN
                     )

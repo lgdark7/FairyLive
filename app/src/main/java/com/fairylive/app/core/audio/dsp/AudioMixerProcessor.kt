@@ -99,7 +99,15 @@ class AudioMixerProcessor {
         private set
     @Volatile var gameDb: Float = -60.0f
         private set
+    @Volatile var mediaDb: Float = -60.0f
+        private set
     @Volatile var masterDb: Float = -60.0f
+        private set
+    @Volatile var micPeakPercent: Int = 0
+        private set
+    @Volatile var gamePeakPercent: Int = 0
+        private set
+    @Volatile var masterPeakPercent: Int = 0
         private set
     @Volatile var estimatedNoiseFloorDb: Float = -50.0f
         private set
@@ -235,7 +243,11 @@ class AudioMixerProcessor {
             }
             micDb = -60.0f
             gameDb = -60.0f
+            mediaDb = -60.0f
             masterDb = -60.0f
+            micPeakPercent = 0
+            gamePeakPercent = 0
+            masterPeakPercent = 0
             return
         }
 
@@ -246,7 +258,11 @@ class AudioMixerProcessor {
 
         var micSumSq = 0.0
         var gameSumSq = 0.0
+        var mediaSumSq = 0.0
         var masterSumSq = 0.0
+        var micMaxSample = 0
+        var gameMaxSample = 0
+        var masterMaxSample = 0
 
         for (i in 0 until bytesToProcess - 1 step 2) {
             // 1. Unpack 16-bit PCM Little-Endian
@@ -270,6 +286,13 @@ class AudioMixerProcessor {
             // Track input energy for VU meters
             micSumSq += (rawMic * rawMic)
             gameSumSq += (rawGame * rawGame)
+            mediaSumSq += (rawMedia * rawMedia)
+            val absRawMicSample = abs(rawMicSample.toInt())
+            if (absRawMicSample > micMaxSample) micMaxSample = absRawMicSample
+            if (gameBuffer != null) {
+                val absRawGameSample = abs(((gameBuffer[i + 1].toInt() shl 8) or (gameBuffer[i].toInt() and 0xFF)).toShort().toInt())
+                if (absRawGameSample > gameMaxSample) gameMaxSample = absRawGameSample
+            }
 
             // 2. Microphone Studio DSP Pipeline
             var processedMic = 0.0f
@@ -453,6 +476,9 @@ class AudioMixerProcessor {
 
             // 5. Convert back to 16-bit PCM Little Endian
             val finalSample = (mixed * 32767.0f).toInt().coerceIn(-32768, 32767).toShort()
+            val absMasterSample = abs(finalSample.toInt())
+            if (absMasterSample > masterMaxSample) masterMaxSample = absMasterSample
+
             outMixedBuffer[i] = (finalSample.toInt() and 0xFF).toByte()
             outMixedBuffer[i + 1] = ((finalSample.toInt() shr 8) and 0xFF).toByte()
         }
@@ -461,11 +487,16 @@ class AudioMixerProcessor {
         if (sampleCount > 0) {
             val micRms = sqrt(micSumSq / sampleCount).toFloat()
             val gameRms = sqrt(gameSumSq / sampleCount).toFloat()
+            val mediaRms = sqrt(mediaSumSq / sampleCount).toFloat()
             val masterRms = sqrt(masterSumSq / sampleCount).toFloat()
 
             micDb = if (micRms > 0.0001f) (20.0f * log10(micRms)).coerceIn(-60.0f, 0.0f) else -60.0f
             gameDb = if (gameRms > 0.0001f) (20.0f * log10(gameRms)).coerceIn(-60.0f, 0.0f) else -60.0f
+            mediaDb = if (mediaRms > 0.0001f) (20.0f * log10(mediaRms)).coerceIn(-60.0f, 0.0f) else -60.0f
             masterDb = if (masterRms > 0.0001f) (20.0f * log10(masterRms)).coerceIn(-60.0f, 0.0f) else -60.0f
+            micPeakPercent = (micMaxSample * 100 / 32767).coerceIn(0, 100)
+            gamePeakPercent = (gameMaxSample * 100 / 32767).coerceIn(0, 100)
+            masterPeakPercent = (masterMaxSample * 100 / 32767).coerceIn(0, 100)
             estimatedNoiseFloorDb = if (ambientNoiseFloor > 0.0001f) (20.0f * log10(ambientNoiseFloor)).coerceIn(-60.0f, 0.0f) else -60.0f
         }
     }

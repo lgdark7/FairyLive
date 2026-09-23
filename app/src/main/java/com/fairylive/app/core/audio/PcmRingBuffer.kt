@@ -13,29 +13,45 @@ class PcmRingBuffer(val capacity: Int) {
     private var available = 0
     private val lock = Any()
 
+    val availableBytes: Int
+        get() = synchronized(lock) { available }
+
     fun write(data: ByteArray, offset: Int, length: Int) {
         synchronized(lock) {
             val toWrite = min(length, capacity)
-            for (i in 0 until toWrite) {
-                buffer[writePos] = data[offset + (length - toWrite) + i]
-                writePos = (writePos + 1) % capacity
-                if (available < capacity) {
-                    available++
-                } else {
-                    readPos = (readPos + 1) % capacity
-                }
+            val dataStart = offset + (length - toWrite)
+
+            // If incoming data exceeds remaining capacity, discard oldest unread samples
+            val overflow = (available + toWrite) - capacity
+            if (overflow > 0) {
+                readPos = (readPos + overflow) % capacity
+                available -= overflow
             }
+
+            val firstChunk = min(toWrite, capacity - writePos)
+            System.arraycopy(data, dataStart, buffer, writePos, firstChunk)
+            val secondChunk = toWrite - firstChunk
+            if (secondChunk > 0) {
+                System.arraycopy(data, dataStart + firstChunk, buffer, 0, secondChunk)
+            }
+            writePos = (writePos + toWrite) % capacity
+            available += toWrite
         }
     }
 
     fun read(out: ByteArray, offset: Int, length: Int): Int {
         synchronized(lock) {
             val toRead = min(length, available)
-            for (i in 0 until toRead) {
-                out[offset + i] = buffer[readPos]
-                readPos = (readPos + 1) % capacity
+            if (toRead > 0) {
+                val firstChunk = min(toRead, capacity - readPos)
+                System.arraycopy(buffer, readPos, out, offset, firstChunk)
+                val secondChunk = toRead - firstChunk
+                if (secondChunk > 0) {
+                    System.arraycopy(buffer, 0, out, offset + firstChunk, secondChunk)
+                }
+                readPos = (readPos + toRead) % capacity
+                available -= toRead
             }
-            available -= toRead
             if (toRead < length) {
                 out.fill(0, offset + toRead, offset + length)
             }

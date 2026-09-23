@@ -103,4 +103,28 @@ object AudioStateNotifier {
         metricsListeners.clear()
         silencedListeners.clear()
     }
+
+    /**
+     * Formats current audio state and metrics into a comprehensive single-line diagnostic summary.
+     * Useful for developer logs, bug reports, and telemetry verification.
+     */
+    fun getDiagnosticSummary(): String {
+        val m = currentMetrics
+        val state = currentState
+        return buildString {
+            append("State=").append(state)
+            append(", Mic=").append(String.format(java.util.Locale.US, "%.1fdB (peak=%d%%)", m.micDb, m.micPeakPercent))
+            append(", Game=").append(String.format(java.util.Locale.US, "%.1fdB (peak=%d%%)", m.gameDb, m.gamePeakPercent))
+            append(", Master=").append(String.format(java.util.Locale.US, "%.1fdB (peak=%d%%)", m.masterDb, m.masterPeakPercent))
+            append(", NoiseFloor=").append(String.format(java.util.Locale.US, "%.1fdB", m.noiseFloorDb))
+            append(", GateOpen=").append(m.isGateOpen)
+            append(", RingDepth=").append(m.ringBufferDepth).append("B")
+            append(", AacFps=").append(String.format(java.util.Locale.US, "%.1f", m.aacFps))
+            append(", AacBitrate=").append(m.bitrateKbps).append("kbps")
+            append(", EncodedFrames=").append(m.encodedFrames)
+            append(", RtmpAudioSent=").append(m.rtmpAudioPacketsSent)
+            append(", SilencedByOS=").append(m.isMicSilencedBySystem)
+            append(", GameActive=").append(m.isGameAudioActive)
+        }
+    }
 }

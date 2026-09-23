@@ -51,6 +51,9 @@ class AudioCaptureEngine {
         private set
 
     private var playbackRingBuffer: PcmRingBuffer? = null
+    private var mediaProjectionRef: MediaProjection? = null
+    private var isPlaybackStereo: Boolean = false
+    private var lastTelemetryLogTime: Long = 0L
 
     val audioMixer = com.fairylive.app.core.audio.dsp.AudioMixerProcessor()
 
@@ -230,14 +233,14 @@ class AudioCaptureEngine {
         }
 
         // 2. Initialize Internal Playback AudioRecord if supported (Android 10+ and MediaProjection available)
-        var isPlaybackStereo = false
+        var playbackStereo = false
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && mediaProjection != null) {
             try {
                 val result = AudioPlaybackCaptureHelper.createPlaybackCaptureRecord(mediaProjection, config)
                 if (result != null && result.record.state == AudioRecord.STATE_INITIALIZED) {
                     playRec = result.record
-                    isPlaybackStereo = result.isStereo
-                    Log.i(TAG, "Initialized AudioPlaybackCapture (Internal Game/Device Audio, stereo=$isPlaybackStereo)")
+                    playbackStereo = result.isStereo
+                    Log.i(TAG, "Initialized AudioPlaybackCapture (Internal Game/Device Audio, stereo=$playbackStereo)")
                 }
             } catch (e: Exception) {
                 Log.w(TAG, "Failed to initialize AudioPlaybackCapture: ${e.message}")
@@ -250,6 +253,8 @@ class AudioCaptureEngine {
             return
         }
 
+        this.mediaProjectionRef = mediaProjection
+        this.isPlaybackStereo = playbackStereo
         this.micRecord = micRec
         this.playbackRecord = playRec
         this.totalSamplesRead = 0L
@@ -344,13 +349,14 @@ class AudioCaptureEngine {
     }
 
     private fun playbackCaptureLoop(playRec: AudioRecord, ringBuffer: PcmRingBuffer, isStereo: Boolean) {
+        val currentRec = playRec
         if (isStereo) {
             val stereoBufferSize = config.minBufferSize * 2
             val stereoBuffer = ByteArray(stereoBufferSize)
             val monoBuffer = ByteArray(config.minBufferSize)
 
             while (isCapturing.get()) {
-                val bytesRead = playRec.read(stereoBuffer, 0, stereoBuffer.size)
+                val bytesRead = currentRec.read(stereoBuffer, 0, stereoBuffer.size)
                 if (bytesRead > 0) {
                     // Downmix interleaved 16-bit PCM stereo (L, R) to mono ((L + R) / 2) with zero heap allocation
                     var outIdx = 0
@@ -369,17 +375,41 @@ class AudioCaptureEngine {
                         ringBuffer.write(monoBuffer, 0, outIdx)
                     }
                 } else if (bytesRead < 0) {
-                    if (bytesRead == AudioRecord.ERROR_INVALID_OPERATION) break
+                    Log.w(TAG, "AudioPlaybackCapture read error: $bytesRead")
+                    if (isCapturing.get()) {
+                        try {
+                            Thread.sleep(100)
+                        } catch (_: Exception) {}
+                        if (currentRec.recordingState != AudioRecord.RECORDSTATE_RECORDING) {
+                            try {
+                                currentRec.startRecording()
+                            } catch (e: Exception) {
+                                Log.w(TAG, "AudioPlaybackCapture restart attempt failed: ${e.message}")
+                            }
+                        }
+                    }
                 }
             }
         } else {
             val buffer = ByteArray(config.minBufferSize)
             while (isCapturing.get()) {
-                val bytesRead = playRec.read(buffer, 0, buffer.size)
+                val bytesRead = currentRec.read(buffer, 0, buffer.size)
                 if (bytesRead > 0) {
                     ringBuffer.write(buffer, 0, bytesRead)
                 } else if (bytesRead < 0) {
-                    if (bytesRead == AudioRecord.ERROR_INVALID_OPERATION) break
+                    Log.w(TAG, "AudioPlaybackCapture read error: $bytesRead")
+                    if (isCapturing.get()) {
+                        try {
+                            Thread.sleep(100)
+                        } catch (_: Exception) {}
+                        if (currentRec.recordingState != AudioRecord.RECORDSTATE_RECORDING) {
+                            try {
+                                currentRec.startRecording()
+                            } catch (e: Exception) {
+                                Log.w(TAG, "AudioPlaybackCapture restart attempt failed: ${e.message}")
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -397,12 +427,16 @@ class AudioCaptureEngine {
                 micRec.read(micBuffer, 0, micBuffer.size)
             } else {
                 // If no microphone, pace by reading game audio directly
-                ringBuffer.read(gameBuffer, 0, gameBuffer.size).also { readCount ->
-                    if (readCount <= 0) {
-                        try {
-                            Thread.sleep(20)
-                        } catch (_: Exception) {}
-                    }
+                val readCount = ringBuffer.read(gameBuffer, 0, gameBuffer.size)
+                if (readCount <= 0) {
+                    val frameDurationMs = (gameBuffer.size.toLong() * 1000L) / (config.sampleRate.toLong() * bytesPerFrame)
+                    try {
+                        Thread.sleep(frameDurationMs.coerceIn(10L, 50L))
+                    } catch (_: Exception) {}
+                    gameBuffer.fill(0)
+                    gameBuffer.size
+                } else {
+                    readCount
                 }
             }
 
@@ -504,13 +538,35 @@ class AudioCaptureEngine {
                             peakAmplitudePercent = amplitudePercent,
                             micDb = audioMixer.micDb,
                             gameDb = audioMixer.gameDb,
+                            mediaDb = audioMixer.mediaDb,
                             masterDb = audioMixer.masterDb,
+                            micPeakPercent = audioMixer.micPeakPercent,
+                            gamePeakPercent = audioMixer.gamePeakPercent,
+                            masterPeakPercent = audioMixer.masterPeakPercent,
+                            pcmUnderruns = pcmDroppedCount.sum(),
+                            ringBufferDepth = playbackRingBuffer?.availableBytes ?: 0,
+                            lastPresentationTimeUs = currentPtsUs,
+                            rtmpAudioPacketsSent = com.fairylive.app.core.stream.StreamTelemetryNotifier.currentTelemetry.audioFramesSent,
                             isMuted = (audioMixer.isMicMuted && audioMixer.isGameMuted) || isMuted,
                             isDeviceAudio = playbackRecord != null,
+                            isDeviceAudioStereo = isPlaybackStereo,
                             isMicSilencedBySystem = isMicSilencedBySystem,
+                            isGameAudioActive = audioMixer.gameDb > -50.0f,
                             isGateOpen = audioMixer.isGateActive,
                             noiseFloorDb = audioMixer.estimatedNoiseFloorDb
                         )
+                    )
+                }
+
+                if (now - lastTelemetryLogTime >= 5000L) {
+                    lastTelemetryLogTime = now
+                    val rtmpA = com.fairylive.app.core.stream.StreamTelemetryNotifier.currentTelemetry.audioFramesSent
+                    Log.i(
+                        TAG,
+                        "[AUDIO-DIAGNOSTIC] mic=${audioMixer.micDb}dB (${audioMixer.micPeakPercent}%) " +
+                        "game=${audioMixer.gameDb}dB (${audioMixer.gamePeakPercent}%) " +
+                        "master=${audioMixer.masterDb}dB ringDepth=${playbackRingBuffer?.availableBytes ?: 0}B " +
+                        "gateOpen=${audioMixer.isGateActive} rtmpAudioSent=$rtmpA"
                     )
                 }
 
@@ -522,8 +578,17 @@ class AudioCaptureEngine {
                 }
             } else if (bytesRead < 0) {
                 Log.w(TAG, "AudioRecord read error: $bytesRead")
-                if (bytesRead == AudioRecord.ERROR_INVALID_OPERATION) {
-                    break
+                if (isCapturing.get()) {
+                    try {
+                        Thread.sleep(50)
+                    } catch (_: Exception) {}
+                    if (micRec != null && micRec.recordingState != AudioRecord.RECORDSTATE_RECORDING) {
+                        try {
+                            micRec.startRecording()
+                        } catch (e: Exception) {
+                            Log.w(TAG, "Failed to re-start mic recording: ${e.message}")
+                        }
+                    }
                 }
             }
         }
@@ -601,6 +666,8 @@ class AudioCaptureEngine {
 
         playbackRingBuffer?.clear()
         playbackRingBuffer = null
+        mediaProjectionRef = null
+        isPlaybackStereo = false
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             val cb = recordingCallback as? android.media.AudioManager.AudioRecordingCallback

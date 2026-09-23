@@ -533,4 +533,144 @@ class AudioMixerProcessorTest {
         }
         assertTrue("Whisper speech must pass through (> 500, was $peakWhisper)", peakWhisper > 500)
     }
+
+    @Test
+    fun testGameAudioIsolationAndZeroSuppression() {
+        val mixer = AudioMixerProcessor()
+        mixer.isNoiseSuppressionEnabled = true
+        mixer.isGodModeNoiseEnabled = true
+        mixer.noiseSuppressionLevel = 100 // Maximum noise suppression on mic
+        mixer.micVolume = 1.0f
+        mixer.gameVolume = 1.0f
+
+        val numSamples = 2048
+        val bytes = numSamples * 2
+
+        // Mic is completely silent (gate remains closed)
+        val silentMic = ByteArray(bytes)
+
+        // Game audio has 1000Hz tone with amplitude 10,000
+        val gameBuffer = ByteArray(bytes)
+        for (i in 0 until numSamples) {
+            val angle = 2.0 * Math.PI * 1000.0 * (i.toDouble() / 44100.0)
+            val sample = (10000.0 * Math.sin(angle)).toInt().toShort()
+            gameBuffer[i * 2] = (sample.toInt() and 0xFF).toByte()
+            gameBuffer[i * 2 + 1] = ((sample.toInt() shr 8) and 0xFF).toByte()
+        }
+
+        val outBuffer = ByteArray(bytes)
+        mixer.processAndMix(silentMic, gameBuffer, outBuffer, bytes, isPaused = false)
+
+        // Find peak game output
+        var peakOut = 0
+        for (i in 0 until numSamples) {
+            val s = abs(((outBuffer[i * 2 + 1].toInt() shl 8) or (outBuffer[i * 2].toInt() and 0xFF)).toShort().toInt())
+            if (s > peakOut) peakOut = s
+        }
+
+        // Game audio must pass through completely unhindered (amplitude ~ 10,000), not suppressed by mic noise gate
+        assertTrue("Game audio must retain full amplitude (>9500, was $peakOut) regardless of mic suppression", peakOut > 9500)
+        assertTrue("Game dB must reflect game energy (~ -10dBFS, was ${mixer.gameDb})", mixer.gameDb > -15.0f)
+    }
+
+    @Test
+    fun testLoudSpeechAndGameAudioMasterLimiter() {
+        val mixer = AudioMixerProcessor()
+        mixer.isLimiterEnabled = true
+        mixer.micVolume = 1.0f
+        mixer.gameVolume = 1.0f
+        mixer.masterVolume = 1.0f
+
+        val numSamples = 2048
+        val bytes = numSamples * 2
+
+        // Shouting streamer: amplitude 28,000
+        val shoutingMic = ByteArray(bytes)
+        // Loud game explosion: amplitude 28,000
+        val loudGame = ByteArray(bytes)
+
+        for (i in 0 until numSamples) {
+            val micSample = 28000.toShort()
+            shoutingMic[i * 2] = (micSample.toInt() and 0xFF).toByte()
+            shoutingMic[i * 2 + 1] = ((micSample.toInt() shr 8) and 0xFF).toByte()
+
+            val gameSample = 28000.toShort()
+            loudGame[i * 2] = (gameSample.toInt() and 0xFF).toByte()
+            loudGame[i * 2 + 1] = ((gameSample.toInt() shr 8) and 0xFF).toByte()
+        }
+
+        val outBuffer = ByteArray(bytes)
+        mixer.processAndMix(shoutingMic, loudGame, outBuffer, bytes, isPaused = false)
+
+        // Check every output sample: must never overflow or wrap around into negative
+        for (i in 0 until numSamples) {
+            val sample = ((outBuffer[i * 2 + 1].toInt() shl 8) or (outBuffer[i * 2].toInt() and 0xFF)).toShort()
+            // Sample must be positive and within 32767
+            assertTrue("Master limiter must prevent overflow wrapping (sample=$sample)", sample > 0 && sample <= 32767)
+        }
+    }
+
+    @Test
+    fun testDynamicVolumeAdjustmentWithoutRestart() {
+        val mixer = AudioMixerProcessor()
+        mixer.micVolume = 1.0f
+        mixer.gameVolume = 1.0f
+
+        val numSamples = 1024
+        val bytes = numSamples * 2
+
+        val gameBuffer = ByteArray(bytes)
+        for (i in 0 until numSamples) {
+            val sample = 10000.toShort()
+            gameBuffer[i * 2] = (sample.toInt() and 0xFF).toByte()
+            gameBuffer[i * 2 + 1] = ((sample.toInt() shr 8) and 0xFF).toByte()
+        }
+
+        val out1 = ByteArray(bytes)
+        mixer.processAndMix(null, gameBuffer, out1, bytes, isPaused = false)
+        val sampleAt100 = ((out1[1].toInt() shl 8) or (out1[0].toInt() and 0xFF)).toShort()
+        assertTrue("Sample at 100% volume must be ~10000 (was $sampleAt100)", abs(sampleAt100 - 10000) <= 2)
+
+        // Change game volume dynamically to 50%
+        mixer.gameVolume = 0.5f
+        val out2 = ByteArray(bytes)
+        mixer.processAndMix(null, gameBuffer, out2, bytes, isPaused = false)
+        val sampleAt50 = ((out2[1].toInt() shl 8) or (out2[0].toInt() and 0xFF)).toShort()
+        assertTrue("Sample at 50% volume must be ~5000 (was $sampleAt50)", abs(sampleAt50 - 5000) <= 2)
+
+        // Change game volume dynamically to 0% (mute)
+        mixer.gameVolume = 0.0f
+        val out3 = ByteArray(bytes)
+        mixer.processAndMix(null, gameBuffer, out3, bytes, isPaused = false)
+        val sampleAt0 = ((out3[1].toInt() shl 8) or (out3[0].toInt() and 0xFF)).toShort()
+        assertEquals(0.toShort(), sampleAt0)
+    }
+
+    @Test
+    fun testVuMeterTelemetryAccuracy() {
+        val mixer = AudioMixerProcessor()
+        mixer.micVolume = 1.0f
+        mixer.gameVolume = 1.0f
+        mixer.masterVolume = 1.0f
+
+        val numSamples = 1024
+        val bytes = numSamples * 2
+
+        // Mic sine wave at ~16384 (50% full scale, approx -6 dBFS)
+        val micBuffer = ByteArray(bytes)
+        for (i in 0 until numSamples) {
+            val angle = 2.0 * Math.PI * 440.0 * (i.toDouble() / 44100.0)
+            val sample = (16384.0 * Math.sin(angle)).toInt().toShort()
+            micBuffer[i * 2] = (sample.toInt() and 0xFF).toByte()
+            micBuffer[i * 2 + 1] = ((sample.toInt() shr 8) and 0xFF).toByte()
+        }
+
+        val outBuffer = ByteArray(bytes)
+        mixer.processAndMix(micBuffer, null, outBuffer, bytes, isPaused = false)
+
+        assertTrue("Mic dB must be approximately -9 to -6 dBFS (was ${mixer.micDb})", mixer.micDb in -10.0f..-5.0f)
+        assertTrue("Mic peak percent must be approx 50% (was ${mixer.micPeakPercent}%)", mixer.micPeakPercent in 48..52)
+        assertEquals(-60.0f, mixer.gameDb, 0.1f)
+        assertEquals(0, mixer.gamePeakPercent)
+    }
 }
