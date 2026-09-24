@@ -56,8 +56,12 @@ class AudioMixerProcessor {
         // 1st-order High-Pass Rumble Filter alpha (~80Hz cutoff at 44.1kHz)
         private const val HP_ALPHA = 0.988f
 
-        // Vocal Presence Enhancement (subtle +1 dB clarity lift above 3 kHz)
-        private const val PRESENCE_ALPHA = 0.10f
+        // Vocal Presence Enhancement (+1.5 dB clarity lift above 2.8 kHz for crystal-clear Telugu consonants)
+        private const val PRESENCE_ALPHA = 0.16f
+
+        // Auto-Ducking (Sidechain Ducking)
+        private const val DUCK_TRIGGER_THRESHOLD = 0.009f     // Speech envelope trigger (~ -41 dBFS)
+        private const val DUCK_HOLD_SAMPLES = 14000           // ~320ms hold at 44.1kHz to prevent pumping between words
     }
 
     enum class AudioPreset {
@@ -68,11 +72,11 @@ class AudioMixerProcessor {
         LOW_END
     }
 
-    // Channels
-    @Volatile var micVolume: Float = 0.9f
+    // Channels - User voice is strict top priority
+    @Volatile var micVolume: Float = 1.25f
     @Volatile var isMicMuted: Boolean = false
 
-    @Volatile var gameVolume: Float = 0.8f
+    @Volatile var gameVolume: Float = 0.30f
     @Volatile var isGameMuted: Boolean = false
 
     @Volatile var mediaVolume: Float = 0.5f
@@ -83,10 +87,18 @@ class AudioMixerProcessor {
     // DSP Toggles
     @Volatile var isNoiseSuppressionEnabled: Boolean = true
     @Volatile var isGodModeNoiseEnabled: Boolean = true
-    @Volatile var noiseSuppressionLevel: Int = 75
-    @Volatile var isAgcEnabled: Boolean = false
+    @Volatile var noiseSuppressionLevel: Int = 80
+    @Volatile var isAgcEnabled: Boolean = true
     @Volatile var isCompressorEnabled: Boolean = true
     @Volatile var isLimiterEnabled: Boolean = true
+
+    // Dynamic Sidechain Auto-Ducking (Ducks game audio automatically when user speaks)
+    @Volatile var isAutoDuckingEnabled: Boolean = true
+    @Volatile var duckingAttenuation: Float = 0.30f // Ducks game volume down to 30% during speech
+    @Volatile var currentDuckingMultiplier: Float = 1.0f
+        private set
+    private var currentDuckingGain = 1.0f
+    private var duckHoldCounter = 0
 
     // Gate Telemetry
     val isGateActive: Boolean get() = isGateOpen
@@ -148,6 +160,9 @@ class AudioMixerProcessor {
         presenceLowPass = 0.0f
         agcGain = 1.0f
         compEnvelope = 0.0f
+        currentDuckingGain = 1.0f
+        currentDuckingMultiplier = 1.0f
+        duckHoldCounter = 0
         micDb = -60.0f
         gameDb = -60.0f
         masterDb = -60.0f
@@ -159,8 +174,8 @@ class AudioMixerProcessor {
         activePreset = preset
         when (preset) {
             AudioPreset.GAMING -> {
-                gameVolume = 0.8f
-                micVolume = 0.9f
+                gameVolume = 0.30f
+                micVolume = 1.25f
                 mediaVolume = 0.5f
                 masterVolume = 1.0f
                 isNoiseSuppressionEnabled = true
@@ -168,7 +183,9 @@ class AudioMixerProcessor {
                 noiseSuppressionLevel = 80
                 isCompressorEnabled = true
                 isLimiterEnabled = true
-                isAgcEnabled = false
+                isAgcEnabled = true
+                isAutoDuckingEnabled = true
+                duckingAttenuation = 0.30f
             }
             AudioPreset.VOICE_FOCUS -> {
                 gameVolume = 0.4f
@@ -181,6 +198,8 @@ class AudioMixerProcessor {
                 isCompressorEnabled = true
                 isLimiterEnabled = true
                 isAgcEnabled = true
+                isAutoDuckingEnabled = true
+                duckingAttenuation = 0.25f
             }
             AudioPreset.MUSIC -> {
                 gameVolume = 0.6f
@@ -193,22 +212,25 @@ class AudioMixerProcessor {
                 isCompressorEnabled = false
                 isLimiterEnabled = true
                 isAgcEnabled = false
+                isAutoDuckingEnabled = false
             }
             AudioPreset.BALANCED -> {
-                gameVolume = 0.7f
-                micVolume = 0.8f
+                gameVolume = 0.40f
+                micVolume = 1.15f
                 mediaVolume = 0.6f
                 masterVolume = 1.0f
                 isNoiseSuppressionEnabled = true
                 isGodModeNoiseEnabled = true
-                noiseSuppressionLevel = 65
+                noiseSuppressionLevel = 75
                 isCompressorEnabled = true
                 isLimiterEnabled = true
-                isAgcEnabled = false
+                isAgcEnabled = true
+                isAutoDuckingEnabled = true
+                duckingAttenuation = 0.35f
             }
             AudioPreset.LOW_END -> {
-                gameVolume = 0.8f
-                micVolume = 0.8f
+                gameVolume = 0.30f
+                micVolume = 1.20f
                 mediaVolume = 0.5f
                 masterVolume = 1.0f
                 isNoiseSuppressionEnabled = false
@@ -217,6 +239,8 @@ class AudioMixerProcessor {
                 isCompressorEnabled = false
                 isLimiterEnabled = false
                 isAgcEnabled = false
+                isAutoDuckingEnabled = true
+                duckingAttenuation = 0.30f
             }
         }
         Log.i(TAG, "Applied audio preset: $preset")
@@ -459,8 +483,28 @@ class AudioMixerProcessor {
                 currentGateGain = 0.0f
             }
 
-            // 3. 4-Channel Summing Bus (Mic + Game + Media) scaled by Master Volume
-            var mixed = (processedMic + rawGame + rawMedia) * effectiveMasterVol
+            // Dynamic Sidechain Auto-Ducking
+            // Priority 1: User's voice always dominates. Game audio ducks smoothly when user speaks.
+            if (isAutoDuckingEnabled && effectiveMicVol > 0.0f && micBuffer != null) {
+                val isSpeaking = isGateOpen && (micEnvelope > DUCK_TRIGGER_THRESHOLD)
+                if (isSpeaking) {
+                    duckHoldCounter = DUCK_HOLD_SAMPLES
+                } else if (duckHoldCounter > 0) {
+                    duckHoldCounter--
+                }
+
+                val targetDuck = if (isSpeaking || duckHoldCounter > 0) duckingAttenuation else 1.0f
+                val rampSpeed = if (targetDuck < currentDuckingGain) 0.006f else 0.0003f
+                currentDuckingGain += rampSpeed * (targetDuck - currentDuckingGain)
+            } else {
+                currentDuckingGain = 1.0f
+                duckHoldCounter = 0
+            }
+
+            val duckedGame = rawGame * currentDuckingGain
+
+            // 3. 4-Channel Summing Bus (Mic + Ducked Game + Media) scaled by Master Volume
+            var mixed = (processedMic + duckedGame + rawMedia) * effectiveMasterVol
 
             // 4. Continuous Soft-Knee Brickwall Limiter (prevents digital clipping)
             if (isLimiterEnabled) {
@@ -484,6 +528,7 @@ class AudioMixerProcessor {
         }
 
         // 6. Update VU meter dB values & telemetry
+        currentDuckingMultiplier = currentDuckingGain
         if (sampleCount > 0) {
             val micRms = sqrt(micSumSq / sampleCount).toFloat()
             val gameRms = sqrt(gameSumSq / sampleCount).toFloat()

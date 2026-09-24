@@ -12,8 +12,8 @@ class AudioMixerProcessorTest {
     @Test
     fun testDefaultSettings() {
         val mixer = AudioMixerProcessor()
-        assertEquals(0.9f, mixer.micVolume, 0.001f)
-        assertEquals(0.8f, mixer.gameVolume, 0.001f)
+        assertEquals(1.25f, mixer.micVolume, 0.001f)
+        assertEquals(0.30f, mixer.gameVolume, 0.001f)
         assertEquals(0.5f, mixer.mediaVolume, 0.001f)
         assertEquals(1.0f, mixer.masterVolume, 0.001f)
         assertFalse(mixer.isMicMuted)
@@ -21,6 +21,7 @@ class AudioMixerProcessorTest {
         assertTrue(mixer.isNoiseSuppressionEnabled)
         assertTrue(mixer.isCompressorEnabled)
         assertTrue(mixer.isLimiterEnabled)
+        assertTrue(mixer.isAutoDuckingEnabled)
     }
 
     @Test
@@ -672,5 +673,44 @@ class AudioMixerProcessorTest {
         assertTrue("Mic peak percent must be approx 50% (was ${mixer.micPeakPercent}%)", mixer.micPeakPercent in 48..52)
         assertEquals(-60.0f, mixer.gameDb, 0.1f)
         assertEquals(0, mixer.gamePeakPercent)
+    }
+
+    @Test
+    fun testAutoDuckingAttenuatesGameDuringSpeech() {
+        val mixer = AudioMixerProcessor()
+        mixer.isAutoDuckingEnabled = true
+        mixer.duckingAttenuation = 0.30f
+        mixer.gameVolume = 1.0f
+        mixer.micVolume = 1.0f
+
+        val numSamples = 2048
+        val bytes = numSamples * 2
+
+        // Synthesize speech tone on mic (amplitude 16,000)
+        val speechMic = ByteArray(bytes)
+        for (i in 0 until numSamples) {
+            val angle = 2.0 * Math.PI * 440.0 * (i.toDouble() / 44100.0)
+            val sample = (16000.0 * Math.sin(angle)).toInt().toShort()
+            speechMic[i * 2] = (sample.toInt() and 0xFF).toByte()
+            speechMic[i * 2 + 1] = ((sample.toInt() shr 8) and 0xFF).toByte()
+        }
+
+        // Synthesize game audio (amplitude 10,000)
+        val gameAudio = ByteArray(bytes)
+        for (i in 0 until numSamples) {
+            val sample = 10000.toShort()
+            gameAudio[i * 2] = (sample.toInt() and 0xFF).toByte()
+            gameAudio[i * 2 + 1] = ((sample.toInt() shr 8) and 0xFF).toByte()
+        }
+
+        val outBuffer = ByteArray(bytes)
+
+        // Process a few chunks to let envelope rise and ducking engage
+        for (step in 0 until 5) {
+            mixer.processAndMix(speechMic, gameAudio, outBuffer, bytes, isPaused = false)
+        }
+
+        // Game audio ducking must have engaged smoothly (duckingMultiplier around 0.30)
+        assertTrue("Ducking must drop multiplier to <= 0.45 during speech (was ${mixer.currentDuckingMultiplier})", mixer.currentDuckingMultiplier <= 0.45f)
     }
 }

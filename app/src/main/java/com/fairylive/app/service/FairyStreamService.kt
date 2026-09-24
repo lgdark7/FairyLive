@@ -620,6 +620,7 @@ class FairyStreamService : Service() {
                     godMode = com.fairylive.app.core.audio.AudioStudioRepository.isGodModeNoiseEnabled,
                     noiseLevel = com.fairylive.app.core.audio.AudioStudioRepository.noiseSuppressionLevel
                 )
+                audioPipeline.setAutoDucking(com.fairylive.app.core.audio.AudioStudioRepository.isAutoDuckingEnabled)
                 syncAudioMuteState()
             }
 
@@ -791,6 +792,7 @@ class FairyStreamService : Service() {
             limiter = com.fairylive.app.core.audio.AudioStudioRepository.isLimiterEnabled,
             godMode = com.fairylive.app.core.audio.AudioStudioRepository.isGodModeNoiseEnabled
         )
+        audioPipeline.setAutoDucking(com.fairylive.app.core.audio.AudioStudioRepository.isAutoDuckingEnabled)
     }
 
     private fun startStreamForeground(statusText: String, withMediaProjection: Boolean = false) {

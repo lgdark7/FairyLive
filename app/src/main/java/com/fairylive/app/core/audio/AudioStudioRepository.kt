@@ -38,10 +38,11 @@ object AudioStudioRepository {
     private const val KEY_AGC = "agc_enabled"
     private const val KEY_COMPRESSOR = "compressor_enabled"
     private const val KEY_LIMITER = "limiter_enabled"
+    private const val KEY_DUCKING = "auto_ducking_enabled"
     private const val KEY_PRESET = "active_preset"
 
-    @Volatile var micVolume: Float = 0.9f
-    @Volatile var gameVolume: Float = 0.8f
+    @Volatile var micVolume: Float = 1.25f
+    @Volatile var gameVolume: Float = 0.30f
     @Volatile var mediaVolume: Float = 0.5f
     @Volatile var masterVolume: Float = 1.0f
 
@@ -51,10 +52,11 @@ object AudioStudioRepository {
 
     @Volatile var isNoiseSuppressionEnabled: Boolean = true
     @Volatile var isGodModeNoiseEnabled: Boolean = true
-    @Volatile var noiseSuppressionLevel: Int = 75
-    @Volatile var isAgcEnabled: Boolean = false
+    @Volatile var noiseSuppressionLevel: Int = 80
+    @Volatile var isAgcEnabled: Boolean = true
     @Volatile var isCompressorEnabled: Boolean = true
     @Volatile var isLimiterEnabled: Boolean = true
+    @Volatile var isAutoDuckingEnabled: Boolean = true
     @Volatile var activePreset: String = "GAMING"
 
     @Volatile private var isInitialized: Boolean = false
@@ -64,10 +66,21 @@ object AudioStudioRepository {
         if (isInitialized) return
         try {
             val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            micVolume = prefs.getFloat(KEY_MIC_VOL, 0.9f)
-            gameVolume = prefs.getFloat(KEY_GAME_VOL, 0.8f)
+            micVolume = prefs.getFloat(KEY_MIC_VOL, 1.25f)
+            gameVolume = prefs.getFloat(KEY_GAME_VOL, 0.30f)
             mediaVolume = prefs.getFloat(KEY_MEDIA_VOL, 0.5f)
             masterVolume = prefs.getFloat(KEY_MASTER_VOL, 1.0f)
+
+            // Transparent migration: If device has old defaults where game drowned mic (0.8f game, 0.9f mic),
+            // auto-upgrade to studio voice-priority balance (1.25f mic, 0.30f game)
+            if (gameVolume >= 0.79f && gameVolume <= 0.81f) {
+                gameVolume = 0.30f
+                prefs.edit().putFloat(KEY_GAME_VOL, 0.30f).apply()
+            }
+            if (micVolume >= 0.89f && micVolume <= 0.91f) {
+                micVolume = 1.25f
+                prefs.edit().putFloat(KEY_MIC_VOL, 1.25f).apply()
+            }
 
             isMicMuted = prefs.getBoolean(KEY_MIC_MUTED, false)
             isGameMuted = prefs.getBoolean(KEY_GAME_MUTED, false)
@@ -75,13 +88,14 @@ object AudioStudioRepository {
 
             isNoiseSuppressionEnabled = prefs.getBoolean(KEY_NOISE_GATE, true)
             isGodModeNoiseEnabled = prefs.getBoolean(KEY_GOD_MODE_NOISE, true)
-            noiseSuppressionLevel = prefs.getInt(KEY_NOISE_LEVEL, 75).coerceIn(0, 100)
-            isAgcEnabled = prefs.getBoolean(KEY_AGC, false)
+            noiseSuppressionLevel = prefs.getInt(KEY_NOISE_LEVEL, 80).coerceIn(0, 100)
+            isAgcEnabled = prefs.getBoolean(KEY_AGC, true)
             isCompressorEnabled = prefs.getBoolean(KEY_COMPRESSOR, true)
             isLimiterEnabled = prefs.getBoolean(KEY_LIMITER, true)
+            isAutoDuckingEnabled = prefs.getBoolean(KEY_DUCKING, true)
             activePreset = prefs.getString(KEY_PRESET, "GAMING") ?: "GAMING"
             isInitialized = true
-            Log.i(TAG, "Initialized AudioStudioRepository (mic=${micVolume}, game=${gameVolume}, media=${mediaVolume}, master=${masterVolume}, ns=${isNoiseSuppressionEnabled}, godModeNs=${isGodModeNoiseEnabled})")
+            Log.i(TAG, "Initialized AudioStudioRepository (mic=${micVolume}, game=${gameVolume}, media=${mediaVolume}, master=${masterVolume}, ns=${isNoiseSuppressionEnabled}, ducking=${isAutoDuckingEnabled})")
         } catch (e: Exception) {
             Log.w(TAG, "Failed to load AudioStudio prefs: ${e.message}")
         }

@@ -88,6 +88,8 @@ class AudioPipeline {
     fun setMediaMuted(muted: Boolean) = captureEngine.setMediaMuted(muted)
     fun setDspFilters(noiseGate: Boolean, agc: Boolean, compressor: Boolean, limiter: Boolean, godMode: Boolean = true, noiseLevel: Int? = null) =
         captureEngine.setDspFilters(noiseGate, agc, compressor, limiter, godMode, noiseLevel)
+    fun setAutoDucking(enabled: Boolean, attenuation: Float = 0.30f) =
+        captureEngine.setAutoDucking(enabled, attenuation)
     fun applyPreset(preset: com.fairylive.app.core.audio.dsp.AudioMixerProcessor.AudioPreset) =
         captureEngine.applyPreset(preset)
     fun getAudioMixer() = captureEngine.audioMixer

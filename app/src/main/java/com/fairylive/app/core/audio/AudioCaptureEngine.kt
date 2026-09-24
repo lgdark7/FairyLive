@@ -144,6 +144,12 @@ class AudioCaptureEngine {
         audioMixer.isLimiterEnabled = limiter
     }
 
+    fun setAutoDucking(enabled: Boolean, attenuation: Float = 0.30f) {
+        audioMixer.isAutoDuckingEnabled = enabled
+        audioMixer.duckingAttenuation = attenuation.coerceIn(0.05f, 1.0f)
+        Log.i(TAG, "Auto-ducking set: enabled=$enabled, attenuation=$attenuation")
+    }
+
     fun applyPreset(preset: com.fairylive.app.core.audio.dsp.AudioMixerProcessor.AudioPreset) {
         audioMixer.applyPreset(preset)
     }
@@ -378,7 +384,7 @@ class AudioCaptureEngine {
                     Log.w(TAG, "AudioPlaybackCapture read error: $bytesRead")
                     if (isCapturing.get()) {
                         try {
-                            Thread.sleep(100)
+                            Thread.sleep(20)
                         } catch (_: Exception) {}
                         if (currentRec.recordingState != AudioRecord.RECORDSTATE_RECORDING) {
                             try {
@@ -400,7 +406,7 @@ class AudioCaptureEngine {
                     Log.w(TAG, "AudioPlaybackCapture read error: $bytesRead")
                     if (isCapturing.get()) {
                         try {
-                            Thread.sleep(100)
+                            Thread.sleep(20)
                         } catch (_: Exception) {}
                         if (currentRec.recordingState != AudioRecord.RECORDSTATE_RECORDING) {
                             try {
@@ -419,7 +425,6 @@ class AudioCaptureEngine {
         val micBuffer = ByteArray(config.minBufferSize)
         val gameBuffer = ByteArray(config.minBufferSize)
         val mixedBuffer = ByteArray(config.minBufferSize)
-        val silenceBuffer = ByteArray(config.minBufferSize)
         val bytesPerFrame = config.bytesPerFrame
 
         while (isCapturing.get()) {
@@ -454,34 +459,16 @@ class AudioCaptureEngine {
 
                 val accumulatedPtsUs = startTimestampUs + (totalSamplesRead * 1_000_000L) / config.sampleRate
 
-                // Gap handling & loss prevention
+                // Clock drift synchronization without silence flooding
+                // Prevents the 1-second audio cut/dropout on low-end devices & heavy gaming CPU spikes
                 val driftUs = wallClockPtsUs - accumulatedPtsUs
                 if (driftUs > GAP_COMPENSATION_THRESHOLD_US) {
-                    val missingFrames = (driftUs * config.sampleRate) / 1_000_000L
-                    val cappedMissingFrames = missingFrames.coerceAtMost(config.sampleRate * 3L)
-                    var framesToBridge = cappedMissingFrames
-                    val silenceChunkFrames = (silenceBuffer.size / bytesPerFrame).toLong()
-
-                    while (framesToBridge > 0L && isCapturing.get()) {
-                        val chunkFrames = kotlin.math.min(framesToBridge, silenceChunkFrames).toInt()
-                        val chunkBytes = chunkFrames * bytesPerFrame
-                        val silencePtsUs = startTimestampUs + (totalSamplesRead * 1_000_000L) / config.sampleRate
-                        totalSamplesRead += chunkFrames
-                        totalSilenceFramesInserted += chunkFrames
-                        framesToBridge -= chunkFrames
-
-                        val listener = sampleListener
-                        if (listener != null) {
-                            listener.onAudioSample(silenceBuffer, chunkBytes, silencePtsUs)
-                        } else {
-                            pcmDroppedCount.increment()
-                        }
-                    }
-
-                    val residualDriftUs = driftUs - ((cappedMissingFrames * 1_000_000L) / config.sampleRate)
-                    if (residualDriftUs > GAP_COMPENSATION_THRESHOLD_US) {
-                        startTimestampUs += residualDriftUs
-                    }
+                    // Under CPU load or thread scheduling jitter, smoothly re-anchor timeline to wall clock.
+                    // Never flood the AAC encoder queue with 1-3 seconds of fake silence chunks!
+                    startTimestampUs = wallClockPtsUs - (totalSamplesRead * 1_000_000L) / config.sampleRate
+                    Log.i(TAG, "Audio clock resynchronized to wall clock (drift=${driftUs / 1000}ms, zero silence cut)")
+                } else if (driftUs < -GAP_COMPENSATION_THRESHOLD_US) {
+                    startTimestampUs = wallClockPtsUs - (totalSamplesRead * 1_000_000L) / config.sampleRate
                 }
 
                 val currentPtsUs = startTimestampUs + (totalSamplesRead * 1_000_000L) / config.sampleRate
