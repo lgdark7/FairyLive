@@ -44,24 +44,24 @@ class AudioMixerProcessor {
         private const val TAG = "AudioMixerProcessor"
 
         // Base DSP Thresholds
-        private const val BASE_GATE_OPEN_THRESHOLD = 0.008f   // ~ -42 dBFS (speech onset)
-        private const val BASE_GATE_CLOSE_THRESHOLD = 0.003f  // ~ -50 dBFS (silence onset)
-        private const val GATE_HOLD_SAMPLES = 3500            // ~80ms hold at 44.1kHz
+        private const val BASE_GATE_OPEN_THRESHOLD = 0.0035f  // ~ -49 dBFS (speech onset - highly sensitive)
+        private const val BASE_GATE_CLOSE_THRESHOLD = 0.0018f // ~ -55 dBFS (silence onset)
 
-        private const val AGC_TARGET_LEVEL = 0.25f            // Target speech RMS level
-        private const val COMPRESSOR_THRESHOLD = 0.22f        // ~ -13 dBFS
-        private const val COMPRESSOR_RATIO = 3.5f
+        private const val AGC_TARGET_LEVEL = 0.22f            // Target speech RMS level
+        private const val COMPRESSOR_THRESHOLD = 0.25f        // ~ -12 dBFS
+        private const val COMPRESSOR_RATIO = 2.5f
         private const val LIMITER_CEILING = 0.92f             // Transparent headroom ceiling
 
-        // 1st-order High-Pass Rumble Filter alpha (~80Hz cutoff at 44.1kHz)
-        private const val HP_ALPHA = 0.988f
+        // 1st-order High-Pass Rumble Filter alpha (~75Hz cutoff at 44.1kHz)
+        private const val HP_ALPHA = 0.989f
 
-        // Vocal Presence Enhancement (+1.5 dB clarity lift above 2.8 kHz for crystal-clear Telugu consonants)
-        private const val PRESENCE_ALPHA = 0.16f
+        // Vocal Presence Enhancement (+2.2 dB clarity lift above 2.8 kHz for crystal-clear speech articulation)
+        private const val PRESENCE_ALPHA = 0.22f
 
         // Auto-Ducking (Sidechain Ducking)
-        private const val DUCK_TRIGGER_THRESHOLD = 0.009f     // Speech envelope trigger (~ -41 dBFS)
-        private const val DUCK_HOLD_SAMPLES = 14000           // ~320ms hold at 44.1kHz to prevent pumping between words
+        private const val DUCK_TRIGGER_THRESHOLD = 0.005f     // Speech envelope trigger (~ -46 dBFS)
+        private const val DUCK_HOLD_SAMPLES = 20000           // ~450ms hold at 44.1kHz to prevent pumping between words
+        private const val GATE_HOLD_SAMPLES = 20000           // ~450ms hold to guarantee words/syllables are NEVER chopped
     }
 
     enum class AudioPreset {
@@ -381,15 +381,15 @@ class AudioMixerProcessor {
                     ambientAirFloor = ambientAirFloor.coerceIn(0.0005f, 0.005f)
                     estimatedNoiseFloorDb = (20.0 * log10(max(ambientNoiseFloor, 0.00001f).toDouble())).toFloat()
 
-                    // C. Adaptive Downward Expander (Zero-Distortion Noise Gate)
-                    val baseClose = 0.003f + levelNorm * 0.008f
-                    val baseOpen = 0.006f + levelNorm * 0.012f
-                    val dynamicClose = max(baseClose, ambientNoiseFloor * (1.10f + levelNorm * 0.30f))
-                    val dynamicOpen = max(baseOpen, ambientNoiseFloor * (1.50f + levelNorm * 0.60f))
+                    // C. Adaptive Downward Expander (Smooth studio broadcast expander - Zero Chopping)
+                    val baseClose = 0.0025f + levelNorm * 0.006f
+                    val baseOpen = 0.0050f + levelNorm * 0.010f
+                    val dynamicClose = max(baseClose, ambientNoiseFloor * 1.2f)
+                    val dynamicOpen = max(baseOpen, ambientNoiseFloor * 1.5f)
 
                     if (micEnvelope >= dynamicOpen) {
                         isGateOpen = true
-                        gateHoldCounter = (GATE_HOLD_SAMPLES * (1.0f - levelNorm * 0.3f)).toInt()
+                        gateHoldCounter = GATE_HOLD_SAMPLES
                     } else if (micEnvelope < dynamicClose) {
                         if (gateHoldCounter > 0) {
                             gateHoldCounter--
@@ -398,35 +398,41 @@ class AudioMixerProcessor {
                         }
                     }
 
-                    val targetGateGain = if (isGateOpen) 1.0f else 0.0f
-                    val rampSpeed = if (targetGateGain > currentGateGain) 0.008f else 0.004f
+                    // Soft downward expansion target gain:
+                    // When levelNorm is high (>= 0.70f), clamp to near-zero for aggressive fan/noise cancellation.
+                    // When levelNorm is balanced (default 50), provide smooth downward expansion (-16 to -20 dB) so speech is never chopped.
+                    val targetGateGain = if (isGateOpen) {
+                        1.0f
+                    } else if (levelNorm >= 0.70f) {
+                        0.0f
+                    } else {
+                        (0.12f - levelNorm * 0.08f).coerceAtLeast(0.02f)
+                    }
+                    val rampSpeed = if (targetGateGain > currentGateGain) 0.025f else 0.008f
                     currentGateGain += rampSpeed * (targetGateGain - currentGateGain)
                     if (!isGateOpen && currentGateGain < 0.002f) {
-                        currentGateGain = 0.0f // Pitch-black silence during pauses
+                        currentGateGain = 0.0f
                     }
 
                     // D. Under-Speech Multi-Band Fan & Room Noise Eraser (Zero Distortion)
                     val cleanBody: Float
                     val cleanAir: Float
 
-                    if (isGodModeNoiseEnabled && isGateOpen && currentGateGain > 0.3f) {
-                        // 1. Vocal Core: Wiener spectral subtraction against stationary room noise floor
-                        val overSub = 1.0f + 1.2f * levelNorm
+                    if (isGodModeNoiseEnabled && isGateOpen && currentGateGain > 0.4f) {
+                        // 1. Vocal Core: Gentle stationary room noise reduction without voice distortion
+                        val overSub = 0.4f + 0.4f * levelNorm
                         val voiceMargin = max(0.0f, micEnvelope - (ambientNoiseFloor * overSub))
-                        val voicePurity = if (micEnvelope > 0.0001f) voiceMargin / micEnvelope else 0.0f
-                        val minBodyGain = (1.0f - 0.65f * levelNorm).coerceIn(0.35f, 1.0f)
-                        val bodyGain = max(minBodyGain, voicePurity)
-                        cleanBody = speechBody * bodyGain
+                        val voicePurity = if (micEnvelope > 0.0001f) (voiceMargin / micEnvelope).coerceIn(0.65f, 1.0f) else 1.0f
+                        cleanBody = speechBody * voicePurity
 
-                        // 2. Air Band (>3 kHz): Clamps fan wind rush & turbulence under vowels
-                        val hasHighFrequencySpeech = airEnvelope > (ambientAirFloor * (1.8f - levelNorm * 0.3f))
+                        // 2. Air Band (>3 kHz): Clamps fan wind rush under vowels
+                        val hasHighFrequencySpeech = airEnvelope > (ambientAirFloor * 1.5f)
                         val targetAirGain = if (hasHighFrequencySpeech) {
                             1.0f
                         } else {
-                            // Attenuate air hiss under speech by up to -14 dB based on noise slider
-                            (1.0f - levelNorm * 0.82f).coerceAtLeast(0.18f)
+                            (1.0f - levelNorm * 0.70f).coerceAtLeast(0.30f)
                         }
-                        currentAirGain += 0.025f * (targetAirGain - currentAirGain)
+                        currentAirGain += 0.02f * (targetAirGain - currentAirGain)
                         cleanAir = airBand * currentAirGain
                     } else {
                         cleanBody = speechBody
@@ -436,12 +442,11 @@ class AudioMixerProcessor {
 
                     var micClean = (cleanBody + cleanAir) * currentGateGain
 
-                    // E. Broadcast Vocal Clarity Presence Filter (Tuned to avoid boosting fan noise)
-                    val effectivePresence = PRESENCE_ALPHA * (1.0f - levelNorm * 0.8f).coerceAtLeast(0.0f)
-                    if (isGateOpen && currentGateGain > 0.5f && effectivePresence > 0.01f) {
+                    // E. Broadcast Vocal Clarity Presence Filter (+2.2 dB clarity boost around 3 kHz)
+                    if (isGateOpen && currentGateGain > 0.5f) {
                         val presenceDiff = micClean - presenceLowPass
-                        presenceLowPass += 0.25f * presenceDiff
-                        micClean += (presenceDiff * effectivePresence)
+                        presenceLowPass += 0.28f * presenceDiff
+                        micClean += (presenceDiff * PRESENCE_ALPHA)
                     } else {
                         presenceLowPass = micClean
                     }
@@ -454,12 +459,12 @@ class AudioMixerProcessor {
                     processedMic = rawMic * effectiveMicVol
                 }
 
-                // E. Speech-Aware AGC (automatic speech leveling)
+                // E. Speech-Aware AGC (automatic gentle leveling)
                 if (isAgcEnabled) {
-                    if (isGateOpen && currentGateGain > 0.8f && micEnvelope > 0.015f) {
+                    if (isGateOpen && currentGateGain > 0.7f && micEnvelope > 0.006f) {
                         val error = AGC_TARGET_LEVEL - micEnvelope
-                        agcGain += error * 0.0002f
-                        agcGain = agcGain.coerceIn(0.7f, 1.6f)
+                        agcGain += error * 0.000015f
+                        agcGain = agcGain.coerceIn(0.85f, 1.35f)
                     }
                     processedMic *= agcGain
                 }

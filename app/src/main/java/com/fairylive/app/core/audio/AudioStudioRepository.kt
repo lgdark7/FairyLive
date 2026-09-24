@@ -51,12 +51,13 @@ object AudioStudioRepository {
     @Volatile var isMediaMuted: Boolean = false
 
     @Volatile var isNoiseSuppressionEnabled: Boolean = true
-    @Volatile var isGodModeNoiseEnabled: Boolean = true
-    @Volatile var noiseSuppressionLevel: Int = 80
+    @Volatile var isGodModeNoiseEnabled: Boolean = false
+    @Volatile var noiseSuppressionLevel: Int = 50
     @Volatile var isAgcEnabled: Boolean = true
     @Volatile var isCompressorEnabled: Boolean = true
     @Volatile var isLimiterEnabled: Boolean = true
     @Volatile var isAutoDuckingEnabled: Boolean = true
+    @Volatile var isGameAudioEnabled: Boolean = false
     @Volatile var activePreset: String = "GAMING"
 
     @Volatile private var isInitialized: Boolean = false
@@ -87,8 +88,16 @@ object AudioStudioRepository {
             isMediaMuted = prefs.getBoolean(KEY_MEDIA_MUTED, false)
 
             isNoiseSuppressionEnabled = prefs.getBoolean(KEY_NOISE_GATE, true)
-            isGodModeNoiseEnabled = prefs.getBoolean(KEY_GOD_MODE_NOISE, true)
-            noiseSuppressionLevel = prefs.getInt(KEY_NOISE_LEVEL, 80).coerceIn(0, 100)
+            isGodModeNoiseEnabled = prefs.getBoolean(KEY_GOD_MODE_NOISE, false)
+            noiseSuppressionLevel = prefs.getInt(KEY_NOISE_LEVEL, 50).coerceIn(0, 100)
+            if (noiseSuppressionLevel == 80) {
+                noiseSuppressionLevel = 50
+                prefs.edit().putInt(KEY_NOISE_LEVEL, 50).apply()
+            }
+            if (isGodModeNoiseEnabled) {
+                isGodModeNoiseEnabled = false
+                prefs.edit().putBoolean(KEY_GOD_MODE_NOISE, false).apply()
+            }
             isAgcEnabled = prefs.getBoolean(KEY_AGC, true)
             isCompressorEnabled = prefs.getBoolean(KEY_COMPRESSOR, true)
             isLimiterEnabled = prefs.getBoolean(KEY_LIMITER, true)

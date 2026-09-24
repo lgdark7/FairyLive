@@ -42,8 +42,6 @@ class AudioCaptureEngine {
 
     private var recordingCallback: Any? = null
     private var recordingExecutor: java.util.concurrent.ExecutorService? = null
-    private var noiseSuppressor: android.media.audiofx.NoiseSuppressor? = null
-    private var acousticEchoCanceler: android.media.audiofx.AcousticEchoCanceler? = null
     @Volatile private var recoveryRampFrames: Int = 0
 
     @Volatile
@@ -179,13 +177,15 @@ class AudioCaptureEngine {
         var micRec: AudioRecord? = null
         var playRec: AudioRecord? = null
 
-        // 1. Initialize Microphone AudioRecord with resilient source fallback
-        // VOICE_RECOGNITION is prioritized because Android CDD 5.4.5 exempts it from
-        // concurrent capture privacy silencing when games or other apps take foreground focus.
+        // 1. Initialize Microphone AudioRecord with high-fidelity source fallback
+        // MIC and DEFAULT provide raw uncompressed 20Hz-20kHz response with zero phone carrier filtering.
+        // We strictly DO NOT attach AcousticEchoCanceler or hardware NoiseSuppressor because mobile OEM
+        // HAL implementations cause aggressive phase-cancellation, robotic flutter, and breaking voice.
         val preferredSources = intArrayOf(
-            MediaRecorder.AudioSource.VOICE_RECOGNITION,
             MediaRecorder.AudioSource.MIC,
-            MediaRecorder.AudioSource.VOICE_COMMUNICATION
+            MediaRecorder.AudioSource.DEFAULT,
+            MediaRecorder.AudioSource.CAMCORDER,
+            MediaRecorder.AudioSource.VOICE_RECOGNITION
         )
         for (source in preferredSources) {
             try {
@@ -199,33 +199,7 @@ class AudioCaptureEngine {
                 )
                 if (rec.state == AudioRecord.STATE_INITIALIZED) {
                     micRec = rec
-                    Log.i(TAG, "Initialized Microphone AudioRecord (source=$source, sampleRate=${config.sampleRate}Hz, buffer: $bufferSize)")
-
-                    // Attach Hardware Acoustic Echo Canceler if supported
-                    if (android.media.audiofx.AcousticEchoCanceler.isAvailable()) {
-                        try {
-                            val aec = android.media.audiofx.AcousticEchoCanceler.create(rec.audioSessionId)
-                            aec?.enabled = true
-                            acousticEchoCanceler = aec
-                            Log.i(TAG, "Hardware AcousticEchoCanceler enabled: ${aec?.enabled}")
-                        } catch (e: Exception) {
-                            Log.w(TAG, "Failed to attach hardware AcousticEchoCanceler: ${e.message}")
-                        }
-                    }
-
-                    // Attach Hardware Noise Suppressor ONLY if source is not VOICE_RECOGNITION
-                    // (VOICE_RECOGNITION already provides flat uncompressed response per CDD 5.4.2)
-                    if (source != MediaRecorder.AudioSource.VOICE_RECOGNITION &&
-                        android.media.audiofx.NoiseSuppressor.isAvailable()) {
-                        try {
-                            val ns = android.media.audiofx.NoiseSuppressor.create(rec.audioSessionId)
-                            ns?.enabled = true
-                            noiseSuppressor = ns
-                            Log.i(TAG, "Hardware NoiseSuppressor enabled: ${ns?.enabled}")
-                        } catch (e: Exception) {
-                            Log.w(TAG, "Failed to attach hardware NoiseSuppressor: ${e.message}")
-                        }
-                    }
+                    Log.i(TAG, "Initialized Microphone AudioRecord (source=$source, sampleRate=${config.sampleRate}Hz, buffer: $bufferSize, clean raw audio)")
                     break
                 } else {
                     rec.release()
@@ -238,19 +212,27 @@ class AudioCaptureEngine {
             }
         }
 
-        // 2. Initialize Internal Playback AudioRecord if supported (Android 10+ and MediaProjection available)
+        // 2. Initialize Internal Playback AudioRecord ONLY if explicitly requested via sourceType
+        // When sourceType is MIC (default), internal playback capture is strictly disabled so NO notification
+        // sounds, ringtones, or device sounds ever leak into the stream.
         var playbackStereo = false
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && mediaProjection != null) {
+        val shouldCapturePlayback = config.sourceType == AudioSourceType.INTERNAL_PLAYBACK &&
+                Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q &&
+                mediaProjection != null
+
+        if (shouldCapturePlayback) {
             try {
-                val result = AudioPlaybackCaptureHelper.createPlaybackCaptureRecord(mediaProjection, config)
+                val result = AudioPlaybackCaptureHelper.createPlaybackCaptureRecord(mediaProjection!!, config)
                 if (result != null && result.record.state == AudioRecord.STATE_INITIALIZED) {
                     playRec = result.record
                     playbackStereo = result.isStereo
-                    Log.i(TAG, "Initialized AudioPlaybackCapture (Internal Game/Device Audio, stereo=$playbackStereo)")
+                    Log.i(TAG, "Initialized AudioPlaybackCapture (Internal Game Audio, stereo=$playbackStereo, notifications excluded)")
                 }
             } catch (e: Exception) {
                 Log.w(TAG, "Failed to initialize AudioPlaybackCapture: ${e.message}")
             }
+        } else {
+            Log.i(TAG, "AudioPlaybackCapture skipped: strictly Microphone Only mode (sourceType=${config.sourceType})")
         }
 
         if (micRec == null && playRec == null) {
@@ -318,10 +300,6 @@ class AudioCaptureEngine {
                             if (wasSilenced && !silenced) {
                                 audioMixer.resetDspState()
                                 recoveryRampFrames = (config.sampleRate * 0.15f).toInt()
-                                try {
-                                    noiseSuppressor?.enabled = true
-                                    acousticEchoCanceler?.enabled = true
-                                } catch (_: Exception) {}
                                 Log.i(TAG, "Post-silence audio recovery initiated: DSP reset, 150ms ramp armed")
                             }
                         }
@@ -474,9 +452,12 @@ class AudioCaptureEngine {
                 val currentPtsUs = startTimestampUs + (totalSamplesRead * 1_000_000L) / config.sampleRate
                 totalSamplesRead += framesRead
 
-                // If microphone was read, fetch matching game audio from ring buffer
-                if (micRec != null) {
-                    ringBuffer.read(gameBuffer, 0, bytesRead)
+                // If microphone was read and internal audio is active, fetch matching game audio from ring buffer
+                if (micRec != null && playbackRecord != null) {
+                    val readBytes = ringBuffer.read(gameBuffer, 0, bytesRead)
+                    if (readBytes < bytesRead) {
+                        gameBuffer.fill(0, readBytes, bytesRead)
+                    }
                 }
 
                 // If OS un-silences mic or recovers, apply smooth fade-in ramp
@@ -499,15 +480,15 @@ class AudioCaptureEngine {
                 // Creator's mic is ONLY muted if explicitly requested by user or master engine mute.
                 // It must NEVER be muted when game video is paused / minimized (BRB active).
                 audioMixer.isMicMuted = isMuted || isMicMuted
-                // Game audio is muted if stream is paused (game minimized/BRB) or explicitly muted by user
-                audioMixer.isGameMuted = isMuted || isGameMuted || isStreamPaused
+                // Game audio is muted if stream is paused (game minimized/BRB), explicitly muted, or playback capture inactive
+                audioMixer.isGameMuted = isMuted || isGameMuted || isStreamPaused || (playbackRecord == null)
 
                 // Real-time 16-bit PCM mixing & DSP audio processing
                 // Only bypass the mixer if all active channels are muted
-                val isCompletelySilent = audioMixer.isMicMuted && audioMixer.isGameMuted && audioMixer.isMediaMuted
+                val isCompletelySilent = audioMixer.isMicMuted && (playbackRecord == null || audioMixer.isGameMuted) && audioMixer.isMediaMuted
                 audioMixer.processAndMix(
                     micBuffer = if (micRec != null) micBuffer else null,
-                    gameBuffer = gameBuffer,
+                    gameBuffer = if (playbackRecord != null) gameBuffer else null,
                     outMixedBuffer = mixedBuffer,
                     bytesToProcess = bytesRead,
                     isPaused = isCompletelySilent
@@ -628,15 +609,6 @@ class AudioCaptureEngine {
         } catch (_: Exception) {}
         playbackThread = null
         captureThread = null
-
-        try {
-            noiseSuppressor?.release()
-            noiseSuppressor = null
-        } catch (_: Exception) {}
-        try {
-            acousticEchoCanceler?.release()
-            acousticEchoCanceler = null
-        } catch (_: Exception) {}
         recoveryRampFrames = 0
 
         try {

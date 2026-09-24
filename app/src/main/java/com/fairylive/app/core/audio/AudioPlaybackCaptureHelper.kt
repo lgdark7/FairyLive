@@ -37,17 +37,33 @@ object AudioPlaybackCaptureHelper {
      * Note: Subject to app manifest opt-outs (allowAudioPlaybackCapture=false) and call exclusions.
      */
     @RequiresApi(Build.VERSION_CODES.Q)
+    private fun buildPlaybackConfig(mediaProjection: MediaProjection): AudioPlaybackCaptureConfiguration {
+        val builder = AudioPlaybackCaptureConfiguration.Builder(mediaProjection)
+            .addMatchingUsage(AudioAttributes.USAGE_MEDIA)
+            .addMatchingUsage(AudioAttributes.USAGE_GAME)
+            
+        // Explicitly exclude all system alerts, notifications, ringtones, UI sounds
+        builder.excludeUsage(AudioAttributes.USAGE_NOTIFICATION)
+        builder.excludeUsage(AudioAttributes.USAGE_NOTIFICATION_RINGTONE)
+        builder.excludeUsage(AudioAttributes.USAGE_NOTIFICATION_COMMUNICATION_REQUEST)
+        builder.excludeUsage(AudioAttributes.USAGE_NOTIFICATION_COMMUNICATION_INSTANT)
+        builder.excludeUsage(AudioAttributes.USAGE_NOTIFICATION_COMMUNICATION_DELAYED)
+        builder.excludeUsage(AudioAttributes.USAGE_NOTIFICATION_EVENT)
+        builder.excludeUsage(AudioAttributes.USAGE_ALARM)
+        builder.excludeUsage(AudioAttributes.USAGE_ASSISTANCE_SONIFICATION)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            builder.excludeUsage(AudioAttributes.USAGE_ASSISTANT)
+        }
+        return builder.build()
+    }
+
     fun createPlaybackCaptureRecord(
         mediaProjection: MediaProjection,
         config: AudioCaptureConfig
     ): PlaybackRecordResult? {
         // Attempt 1: Config's native channel mask (e.g. MONO)
         try {
-            val playbackConfig = AudioPlaybackCaptureConfiguration.Builder(mediaProjection)
-                .addMatchingUsage(AudioAttributes.USAGE_MEDIA)
-                .addMatchingUsage(AudioAttributes.USAGE_GAME)
-                .addMatchingUsage(AudioAttributes.USAGE_UNKNOWN)
-                .build()
+            val playbackConfig = buildPlaybackConfig(mediaProjection)
 
             val primaryFormat = AudioFormat.Builder()
                 .setEncoding(config.audioFormat)
@@ -63,7 +79,7 @@ object AudioPlaybackCaptureHelper {
 
             if (rec.state == AudioRecord.STATE_INITIALIZED) {
                 val isStereo = config.channelConfig == AudioFormat.CHANNEL_IN_STEREO
-                Log.i(TAG, "Initialized native AudioPlaybackCapture (mono=${!isStereo})")
+                Log.i(TAG, "Initialized native AudioPlaybackCapture (mono=${!isStereo}, notifications excluded)")
                 return PlaybackRecordResult(rec, isStereo)
             } else {
                 rec.release()
@@ -77,11 +93,7 @@ object AudioPlaybackCaptureHelper {
         // Most OEM HALs that reject mono playback capture strictly require stereo.
         if (config.channelConfig != AudioFormat.CHANNEL_IN_STEREO) {
             try {
-                val playbackConfig = AudioPlaybackCaptureConfiguration.Builder(mediaProjection)
-                    .addMatchingUsage(AudioAttributes.USAGE_MEDIA)
-                    .addMatchingUsage(AudioAttributes.USAGE_GAME)
-                    .addMatchingUsage(AudioAttributes.USAGE_UNKNOWN)
-                    .build()
+                val playbackConfig = buildPlaybackConfig(mediaProjection)
 
                 val stereoFormat = AudioFormat.Builder()
                     .setEncoding(config.audioFormat)
