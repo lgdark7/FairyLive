@@ -27,6 +27,9 @@
     <!-- In-App OTA Auto-Updater permission (Android 8.0+ / API 26+) -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
+    <!-- Uninterrupted background mic & encoding (prevents OEM battery killers from muting mic) -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+
     <!-- Declare hardware features as optional to ensure compatibility on all devices -->
     <uses-feature android:name="android.hardware.microphone" android:required="false" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />

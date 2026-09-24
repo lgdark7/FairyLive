@@ -1085,6 +1085,14 @@ class StreamerFloatingHudManager(private val context: Context) {
                 isMicMuted = metrics.isMuted
                 updateMicStatusUi(view)
 
+                if (!wasSilenced && metrics.isMicSilencedBySystem) {
+                    displayEphemeralMessage(
+                        "Microphone Silenced",
+                        "Game or OS silenced mic! Turn off in-game mic to restore.",
+                        isSystem = true
+                    )
+                }
+
                 if ((wasSilenced || wasMuted) && !metrics.isMicSilencedBySystem && !metrics.isMuted) {
                     flashLiveMicActivePill(view)
                 }

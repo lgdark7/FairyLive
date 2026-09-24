@@ -11,6 +11,7 @@ import android.media.projection.MediaProjectionConfig
 import android.media.projection.MediaProjectionManager
 import android.os.Build
 import android.os.Bundle
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -233,24 +234,7 @@ class DashboardFragment : Fragment(),
                 return@setOnClickListener
             }
 
-            if (settings.captureSource == com.fairylive.app.core.settings.CaptureSource.SINGLE_APP && Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                Toast.makeText(ctx, "Single-App capture requires Android 14+. Streaming Entire Screen.", Toast.LENGTH_SHORT).show()
-            }
-
-            CaptureStateNotifier.updateState(CaptureState.AUTHORIZING)
-            val projectionManager = ctx.getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
-            val captureIntent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                val config = if (settings.captureSource == com.fairylive.app.core.settings.CaptureSource.SINGLE_APP) {
-                    MediaProjectionConfig.createConfigForUserChoice()
-                } else {
-                    MediaProjectionConfig.createConfigForDefaultDisplay()
-                }
-                projectionManager.createScreenCaptureIntent(config)
-            } else {
-                @Suppress("DEPRECATION")
-                projectionManager.createScreenCaptureIntent()
-            }
-            projectionLauncher.launch(captureIntent)
+            checkBackgroundOptimizationAndProceed(settings)
         }
 
         // Camera Quick Toggle
@@ -761,5 +745,69 @@ class DashboardFragment : Fragment(),
                 }
             }
         }
+    }
+
+    private fun checkBackgroundOptimizationAndProceed(settings: com.fairylive.app.core.settings.StreamSettings) {
+        val ctx = context ?: return
+        val isIgnored = PermissionManager.isIgnoringBatteryOptimizations(ctx)
+        val isOem = PermissionManager.isOemRestrictedDevice()
+
+        if (!isIgnored) {
+            val oemBrand = PermissionManager.getOemBrand()
+            androidx.appcompat.app.AlertDialog.Builder(ctx)
+                .setTitle("Unrestricted Live Audio")
+                .setMessage(
+                    "On $oemBrand devices, battery optimization can pause your microphone when you switch to the game.\n\n" +
+                    "• Tap 'Enable (1-Tap)' to allow uninterrupted background mic.\n" +
+                    "• Tip: Keep in-game team mic off in Free Fire to prevent audio preemption."
+                )
+                .setPositiveButton("Enable (1-Tap)") { _, _ ->
+                    try {
+                        val intent = PermissionManager.createIgnoreBatteryOptimizationIntent(ctx)
+                        startActivity(intent)
+                    } catch (e: Exception) {
+                        Log.w("DashboardFragment", "Could not start battery optimization intent: ${e.message}")
+                    }
+                    launchCaptureAuthorization(settings)
+                }
+                .setNegativeButton("Continue") { _, _ ->
+                    launchCaptureAuthorization(settings)
+                }
+                .apply {
+                    val oemIntent = PermissionManager.getOemBackgroundSettingsIntent(ctx)
+                    if (isOem && oemIntent != null) {
+                        setNeutralButton("$oemBrand Settings") { _, _ ->
+                            try {
+                                startActivity(oemIntent)
+                            } catch (_: Exception) {}
+                        }
+                    }
+                }
+                .show()
+        } else {
+            launchCaptureAuthorization(settings)
+        }
+    }
+
+    private fun launchCaptureAuthorization(settings: com.fairylive.app.core.settings.StreamSettings) {
+        val ctx = context ?: return
+        if (settings.captureSource == com.fairylive.app.core.settings.CaptureSource.SINGLE_APP && Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            Toast.makeText(ctx, "Single-App capture requires Android 14+. Streaming Entire Screen.", Toast.LENGTH_SHORT).show()
+        }
+
+        CaptureStateNotifier.updateState(CaptureState.AUTHORIZING)
+        val projectionManager = ctx.getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
+        val captureIntent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            val config = if (settings.captureSource == com.fairylive.app.core.settings.CaptureSource.SINGLE_APP) {
+                MediaProjectionConfig.createConfigForUserChoice()
+            } else {
+                MediaProjectionConfig.createConfigForDefaultDisplay()
+            }
+            projectionManager.createScreenCaptureIntent(config)
+        } else {
+            @Suppress("DEPRECATION")
+            projectionManager.createScreenCaptureIntent()
+        }
+        projectionLauncher.launch(captureIntent)
     }
 }

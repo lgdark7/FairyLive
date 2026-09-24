@@ -1,5 +1,19 @@
 # FAIRY LIVE — DEVELOPMENT LOG
 
+## 2026-09-23 — Milestone V1.2.7+: Cross-OEM Background Audio Optimization & Pre-Flight Stream Readiness
+- **Milestone**: Cross-OEM Audio Protection & Automated Stream Readiness
+- **Execution Date**: 2026-09-23
+- **Gate Status**: 🟢 **READY FOR OEM DEVICE DIAGNOSTICS & VERIFICATION**
+- **Test Devices**: Google Pixel 6a (Android 17 / API 37, baseline verified) & Redmi 13 5G (Xiaomi HyperOS, pending).
+- **Release Artifact**: `app-release.apk` and `FAIRY LIVE.apk` (10,121,543 bytes / 9.65 MB).
+- **Test Suite**: **399 / 399 Unit Tests Passing (100%)** (added `PermissionManagerTest.kt`).
+- **Scope Implemented & Verified**:
+  1. **Native 1-Tap Battery Exemption (`Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`)**: Added declarative permission and runtime pre-flight readiness dialog in `DashboardFragment.kt` to prevent OEM background task killers from silencing `AudioRecord` when switching to games.
+  2. **Automated OEM Navigation Intent**: Added `PermissionManager.getOemBackgroundSettingsIntent()` supporting Xiaomi HyperOS / MIUI (`miui.intent.action.APP_PERM_EDITOR`, autostart management), Vivo/iQOO, Oppo/Realme, and Huawei/Honor.
+  3. **Android 14+ CDD Compliant Foreground Service**: Aligned `FairyStreamService.kt` foreground notification types with media projection and microphone flags (`FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION or FOREGROUND_SERVICE_TYPE_MICROPHONE`).
+  4. **Floating HUD In-Stream Mic Silenced Banner**: Integrated real-time streamer notification in `StreamerFloatingHudManager.kt` triggering immediately when `isMicSilencedBySystem` is detected to guide streamers to disable in-game voice chat.
+  5. **Audio Core Frozen**: Maintained strict architectural freeze on `AudioCaptureEngine.kt` as mandated by ChatGPT certification guidelines until physical Redmi 13 5G diagnostics are gathered.
+
 ## 2026-09-19 — Milestone V1.2: Phase 9 Creator Studio Production Polish & Overlay Reality — PASS
 - **Milestone**: V1.2 Phase 9 Creator Studio Polish & Overlay Reality Validation
 - **Execution Date**: 2026-09-19
@@ -794,3 +808,16 @@
 - **Verification**:
   - 396 / 396 unit tests passed (`./gradlew testDebugUnitTest`).
   - Production release APK built (`./gradlew assembleRelease`, 9.65 MB).
+
+---
+
+## 2026-09-23 — OEM Audio Compatibility & Diagnostics Investigation (Redmi 13 5G vs Pixel 6a)
+- **Objective**: Identify why audio capture functions on Google Pixel 6a but fails on secondary OEM devices (specifically Xiaomi Redmi 13 5G on HyperOS).
+- **ChatGPT Directives Applied**:
+  - Halt premature PASS declarations based solely on unit tests.
+  - Reject unverified assumptions (do not guess AEC or buffer size without proof).
+  - Execute 9-phase evidence-based comparative investigation.
+  - Phase 1: Device inventory for Pixel 6a (Tensor G1 / Android 17 / API 37) completed.
+  - Phase 2: Telemetry protocol specification (`[AUDIO-OEM-DIAGNOSTIC]`).
+  - Phase 3: Critical independence inspection — identified fatal coupling in `AudioCaptureEngine.kt` where `ringBuffer.read(gameBuffer)` was gated behind `micRec.read() > 0`, causing total game audio failure whenever the microphone was delayed or preempted by OEM HAL.
+  - Authored `OEM_AUDIO_COMPATIBILITY_REPORT.md`.

@@ -344,3 +344,24 @@ Rebuild **FAIRY LIVE** from scratch as a high-performance, professional native A
 - **Verification Status**:
   - Unit Tests: **396 / 396 unit tests passing (100% PASS)**.
   - Production Release Binary: `app-release.apk` (9.65 MB).
+
+---
+
+## 12. OEM Audio Compatibility & Diagnostics Spec (Redmi 13 5G vs Pixel 6a)
+- **Objective**: Resolve multi-OEM audio failures (specifically Xiaomi Redmi 13 5G on HyperOS) through evidence-based cross-device pipeline inspection.
+- **Critical Discovery (Phase 3 Architectural Coupling)**:
+  - In `AudioCaptureEngine.kt`, internal game audio reads from `PcmRingBuffer` were gated inside `if (bytesRead > 0)` from `micRec.read()`.
+  - On OEM devices (Xiaomi / HyperOS), when foreground games open or preempt the mic HAL, `micRec.read()` fails or pauses. Because game audio dispatch was locked to mic read success, internal game sound was also completely killed.
+  - *Remediation*: Full decoupling into independent capture workers (Mic Thread $\to$ Mic Buffer, Playback Thread $\to$ Game Buffer) feeding an independent clock-paced summing bus.
+- **Documentation**: Comprehensive comparative matrix recorded in `OEM_AUDIO_COMPATIBILITY_REPORT.md`.
+
+---
+
+## 13. Cross-OEM Automated Background Audio Optimization & Stream Readiness
+- **Objective**: Programmatic, zero-friction resolution for OEM background microphone muting and task killer policies (Xiaomi HyperOS, Redmi, Samsung OneUI, ColorOS).
+- **Core Improvements**:
+  1. **Native 1-Tap Battery Exemption**: System dialog integration via `Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` in `PermissionManager.kt` and `DashboardFragment.kt`.
+  2. **Direct OEM Intent Fallbacks**: Programmatic jump to OEM-specific permission centers (MIUI/HyperOS `APP_PERM_EDITOR`, autostart management) for devices requiring "Display pop-up windows while running in the background".
+  3. **Android 14+ CDD Foreground Alignment**: Explicitly bound `FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION or FOREGROUND_SERVICE_TYPE_MICROPHONE` in `FairyStreamService.kt`.
+  4. **Floating HUD Preemption Alert**: Added real-time warning banner in `StreamerFloatingHudManager.kt` notifying the streamer immediately if the system or game silences the hardware microphone.
+  5. **Verification**: 399 / 399 unit tests passing (100% PASS), binary verified under 15MB budget (`app-release.apk` & `FAIRY LIVE.apk` at 9.65 MB). Baseline verified on Google Pixel 6a (Android 17 / API 37).
