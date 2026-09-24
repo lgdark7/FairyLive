@@ -482,15 +482,24 @@ class FairyStreamService : Service() {
             // is registered — this is what causes the null VirtualDisplay on API 35.
             projection.registerCallback(object : android.media.projection.MediaProjection.Callback() {
                 override fun onStop() {
-                    Log.i("FairyStreamService", "MediaProjection stopped (game closed/swiped from recents) -> Automatically showing Be Right Back banner")
+                    Log.i("FairyStreamService", "MediaProjection stopped (game closed/swiped from recents) -> Showing Be Right Back banner; Mic remains continuously connected (Discord VC mode)")
                     mainHandler.post {
                         isStreamPausedState = true
                         overlayCompositor.setStreamPaused(true)
                         syncAudioMuteState()
+                        // Ensure foreground service transitions to persistent MICROPHONE service so Android 14/15 keeps audio alive indefinitely
+                        if (Build.VERSION.SDK_INT >= 34) {
+                            try {
+                                val notification = buildForegroundNotification("Broadcasting • Mic Live (Game Paused)")
+                                startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE)
+                            } catch (e: Exception) {
+                                Log.w("FairyStreamService", "Failed to update foreground service type to MICROPHONE: ${e.message}")
+                            }
+                        }
                         CaptureStateNotifier.updateState(CaptureState.PAUSED)
                         floatingHudManager?.displayEphemeralMessage(
                             "FairyLive",
-                            "Game closed — Be Right Back banner is active on stream",
+                            "Game closed — Be Right Back banner is active on stream, Mic stays live",
                             isSystem = true
                         )
                     }
@@ -791,17 +800,30 @@ class FairyStreamService : Service() {
             val notification = buildForegroundNotification(statusText)
 
             if (Build.VERSION.SDK_INT >= 34) { // Android 14+ (UPSIDE_DOWN_CAKE)
-                val baseType = ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION
-                val fullType = if (PermissionManager.hasAudioPermission(this)) {
-                    baseType or ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
+                val hasAudio = PermissionManager.hasAudioPermission(this)
+                val serviceType = if (withMediaProjection) {
+                    if (hasAudio) {
+                        ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION or ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
+                    } else {
+                        ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION
+                    }
                 } else {
-                    baseType
+                    if (hasAudio) {
+                        ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
+                    } else {
+                        ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION
+                    }
                 }
                 try {
-                    startForeground(NOTIFICATION_ID, notification, fullType)
+                    startForeground(NOTIFICATION_ID, notification, serviceType)
                 } catch (se: SecurityException) {
-                    Log.w("FairyStreamService", "startForeground with microphone failed, falling back to MEDIA_PROJECTION only: ${se.message}")
-                    startForeground(NOTIFICATION_ID, notification, baseType)
+                    Log.w("FairyStreamService", "startForeground with requested type ($serviceType) failed: ${se.message}")
+                    // Fallback to MICROPHONE or basic foreground service
+                    if (hasAudio) {
+                        startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE)
+                    } else {
+                        startForeground(NOTIFICATION_ID, notification)
+                    }
                 }
             } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 var serviceType = ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
