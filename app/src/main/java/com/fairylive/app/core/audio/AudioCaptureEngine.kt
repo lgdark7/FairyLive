@@ -521,6 +521,7 @@ class AudioCaptureEngine {
                             isMicSilencedBySystem = isMicSilencedBySystem,
                             isGameAudioActive = audioMixer.gameDb > -50.0f,
                             isGateOpen = audioMixer.isGateActive,
+                            isVoiceDetected = audioMixer.isVoiceDetected,
                             noiseFloorDb = audioMixer.estimatedNoiseFloorDb
                         )
                     )
@@ -534,7 +535,7 @@ class AudioCaptureEngine {
                         "[AUDIO-DIAGNOSTIC] mic=${audioMixer.micDb}dB (${audioMixer.micPeakPercent}%) " +
                         "game=${audioMixer.gameDb}dB (${audioMixer.gamePeakPercent}%) " +
                         "master=${audioMixer.masterDb}dB ringDepth=${playbackRingBuffer?.availableBytes ?: 0}B " +
-                        "gateOpen=${audioMixer.isGateActive} rtmpAudioSent=$rtmpA"
+                        "gateOpen=${audioMixer.isGateActive} vad=${audioMixer.isVoiceDetected} rtmpAudioSent=$rtmpA"
                     )
                 }
 

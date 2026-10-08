@@ -162,11 +162,11 @@ class AudioStudioBottomSheetDialog : BottomSheetDialogFragment() {
             b.vuProgressMaster.progress = masterPercent
             b.tvVuMasterDb.text = "${metrics.masterDb.toInt()} dB"
 
-            if (metrics.isGateOpen) {
-                b.tvStudioGateStatus.text = "🟢 Gate: Open (Speaking)"
+            if (metrics.isVoiceDetected || metrics.isGateOpen) {
+                b.tvStudioGateStatus.text = "🟢 Gate: Open (Voice Active)"
                 b.tvStudioGateStatus.setTextColor(requireContext().getColor(R.color.status_green))
             } else {
-                b.tvStudioGateStatus.text = "🔒 Gate: Silenced (Fan Cut)"
+                b.tvStudioGateStatus.text = "🔒 Gate: Silenced (Fan/Noise Cut)"
                 b.tvStudioGateStatus.setTextColor(requireContext().getColor(R.color.text_secondary))
             }
             b.tvStudioRoomNoiseDb.text = "Room Noise: ${metrics.noiseFloorDb.toInt()} dB"

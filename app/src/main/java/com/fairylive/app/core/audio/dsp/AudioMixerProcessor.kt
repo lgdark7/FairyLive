@@ -100,6 +100,12 @@ class AudioMixerProcessor {
     private var currentDuckingGain = 1.0f
     private var duckHoldCounter = 0
 
+    // Voice Activity Detection (VAD) Engine (Pure-Kotlin Zero-Allocation Acoustic Discriminator)
+    val vad = VoiceActivityDetector()
+    @Volatile var isVadEnabled: Boolean = true
+    val isVoiceDetected: Boolean get() = if (isVadEnabled) vad.isVoiceActive else isGateOpen
+    val voiceProbability: Float get() = if (isVadEnabled) vad.voiceProbability else if (isGateOpen) 1.0f else 0.0f
+
     // Gate Telemetry
     val isGateActive: Boolean get() = isGateOpen
 
@@ -167,6 +173,7 @@ class AudioMixerProcessor {
         gameDb = -60.0f
         masterDb = -60.0f
         estimatedNoiseFloorDb = -50.0f
+        vad.reset()
         Log.i(TAG, "DSP internal state reset (crystal clear studio filters initialized)")
     }
 
@@ -381,16 +388,22 @@ class AudioMixerProcessor {
                     ambientAirFloor = ambientAirFloor.coerceIn(0.0005f, 0.005f)
                     estimatedNoiseFloorDb = (20.0 * log10(max(ambientNoiseFloor, 0.00001f).toDouble())).toFloat()
 
-                    // C. Adaptive Downward Expander (Smooth studio broadcast expander - Zero Chopping)
+                    // C. Adaptive Downward Expander with Acoustic VAD (Zero Chopping, Zero False Gate Open)
                     val baseClose = 0.0025f + levelNorm * 0.006f
                     val baseOpen = 0.0050f + levelNorm * 0.010f
                     val dynamicClose = max(baseClose, ambientNoiseFloor * 1.2f)
                     val dynamicOpen = max(baseOpen, ambientNoiseFloor * 1.5f)
 
-                    if (micEnvelope >= dynamicOpen) {
+                    val isVoiceDetectedSample = if (isVadEnabled) {
+                        vad.processSample(micSignal) || (micEnvelope >= 0.10f)
+                    } else {
+                        micEnvelope >= dynamicOpen
+                    }
+
+                    if (isVoiceDetectedSample) {
                         isGateOpen = true
                         gateHoldCounter = GATE_HOLD_SAMPLES
-                    } else if (micEnvelope < dynamicClose) {
+                    } else if (micEnvelope < dynamicClose || (isVadEnabled && !vad.isVoiceActive)) {
                         if (gateHoldCounter > 0) {
                             gateHoldCounter--
                         } else {
@@ -491,7 +504,11 @@ class AudioMixerProcessor {
             // Dynamic Sidechain Auto-Ducking
             // Priority 1: User's voice always dominates. Game audio ducks smoothly when user speaks.
             if (isAutoDuckingEnabled && effectiveMicVol > 0.0f && micBuffer != null) {
-                val isSpeaking = isGateOpen && (micEnvelope > DUCK_TRIGGER_THRESHOLD)
+                val isSpeaking = if (isVadEnabled) {
+                    vad.isVoiceActive && (micEnvelope > DUCK_TRIGGER_THRESHOLD)
+                } else {
+                    isGateOpen && (micEnvelope > DUCK_TRIGGER_THRESHOLD)
+                }
                 if (isSpeaking) {
                     duckHoldCounter = DUCK_HOLD_SAMPLES
                 } else if (duckHoldCounter > 0) {
