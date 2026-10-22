@@ -1,5 +1,21 @@
 # FAIRY LIVE — DEVELOPMENT LOG
 
+## 2026-10-18 — Provisional Acceptance: Narrow AVC Sequence-Header Repair (RTMP P7 Physical Verification)
+- **Decision**: Narrow AVC Sequence-Header Ordering Repair Provisionally Accepted
+- **Execution Date**: 2026-10-18
+- **Gate Status**: 🟡 **PROVISIONALLY ACCEPTED (Narrow AVC Repair Only)** — **Milestone 1 remains NOT APPROVED; Milestone 2 remains STRICTLY BLOCKED**
+- **Test Devices**: Google Pixel 6a (physical, `26081JEGR07015`, Android 17 / API 37, build `CP3A.261005.002.A1`).
+- **Release / Verification Artifacts**:
+  - Raw Physical Capture: `evidence/p7_repaired_rtmp_20261018_2100/repaired_stream.flv` (1,309,342 bytes, SHA-256: `fcccadb1bec02e8130f7136d7b016cce5c3ac9e69d00fadd44096a452ea34bc3`).
+  - Host Debug APK: `app/build/outputs/apk/debug/app-debug.apk` (SHA-256: `2f236909e63931d1a7c5bc72c45679f26a24153dfbb6557424162f052ef7064a`).
+  - On-Device Installed APK: `/data/app/.../base.apk` (SHA-256: `2f236909e63931d1a7c5bc72c45679f26a24153dfbb6557424162f052ef7064a`, 100% exact match).
+- **Test Suite**: **441 / 441 JVM Unit Tests Passing (100%)**; **31 / 31 Connected Physical Instrumented Tests Passing (100%)**.
+- **Scope Implemented & Verified**:
+  1. **Wire-Order AVC Sequence Header Enqueue**: Verified Tag #1 is Script (`onMetaData`), Tag #2 is Audio (`AAC Sequence Header`), Tag #3 is Video (`AVC Sequence Header`, 37 B, PTS=0 ms), and Tag #4 is Video (`First IDR Keyframe`, 9,648 B, PTS=204 ms). Zero pre-IDR P-frames emitted.
+  2. **Direct FFmpeg Wire-Order Decode**: Verified 0 decoder errors, 0 warnings, 272/272 video frames decoded, and 428/428 audio frames decoded cleanly directly from raw `repaired_stream.flv` without tag reconstruction or reordering.
+  3. **Strict Checkpoint Preservation**: Preserved `checkpoint-pre-noise-rebuild` and `restore-checkpoint-pre-vad` at `d715fc7b622d4d860c26736881c3fc6e82eb06e7`.
+  4. **Gate Enforcements**: Milestone 1 remains NOT APPROVED pending physical acoustic speech validation and YouTube Live ingest verification. Milestone 2 remains STRICTLY BLOCKED.
+
 ## 2026-09-23 — Milestone V1.2.7+: Cross-OEM Background Audio Optimization & Pre-Flight Stream Readiness
 - **Milestone**: Cross-OEM Audio Protection & Automated Stream Readiness
 - **Execution Date**: 2026-09-23

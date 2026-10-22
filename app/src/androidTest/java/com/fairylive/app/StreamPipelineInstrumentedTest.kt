@@ -102,6 +102,14 @@ class StreamPipelineInstrumentedTest {
                                 writer.writeMessage(3, 20, 0, 0L, out.toByteArray())
                             } else if (cmd == "publish") {
                                 publishReceived.countDown()
+                                val out = ByteArrayOutputStream()
+                                Amf0Codec.writeString(out, "onStatus")
+                                Amf0Codec.writeNumber(out, 0.0)
+                                Amf0Codec.writeNull(out)
+                                val info = mapOf("level" to "status", "code" to "NetStream.Publish.Start")
+                                Amf0Codec.writeObject(out, info)
+                                writer.writeMessage(3, 20, 1, 0L, out.toByteArray())
+                                outStream.flush()
                             }
                         }
                         18 -> { // Metadata (@setDataFrame onMetaData)
@@ -116,8 +124,15 @@ class StreamPipelineInstrumentedTest {
                         }
                         8 -> { // Audio
                             audioPacketsCount.incrementAndGet()
-                            // Check if AAC sequence header (byte 0 = 0xAE, byte 1 = 0x00)
-                            if (msg.payload.size >= 2 && (msg.payload[0].toInt() and 0xFF) == 0xAE && msg.payload[1] == 0x00.toByte()) {
+                            if (msg.payload.size >= 2) {
+                                val b0 = msg.payload[0].toInt() and 0xFF
+                                val b1 = msg.payload[1].toInt() and 0xFF
+                                android.util.Log.i("StreamPipelineInstrumentedTest",
+                                    String.format("Audio packet #%d: size=%d, [0x%02X, 0x%02X]",
+                                        audioPacketsCount.get(), msg.payload.size, b0, b1))
+                            }
+                            // Check if AAC sequence header (byte 0 = 0xAF per Adobe FLV v10.1 spec, byte 1 = 0x00)
+                            if (msg.payload.size >= 2 && (msg.payload[0].toInt() and 0xFF) == 0xAF && msg.payload[1] == 0x00.toByte()) {
                                 aacHeaderReceived.countDown()
                             }
                         }

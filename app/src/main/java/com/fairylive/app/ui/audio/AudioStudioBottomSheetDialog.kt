@@ -399,7 +399,9 @@ class AudioStudioBottomSheetDialog : BottomSheetDialogFragment() {
             agc = b.switchAgc.isChecked,
             compressor = b.switchCompressor.isChecked,
             limiter = b.switchLimiter.isChecked,
-            noiseLevel = currentNoiseLevel
+            noiseLevel = currentNoiseLevel,
+            spectralNoise = com.fairylive.app.core.audio.AudioStudioRepository.isSpectralNoiseEnabled,
+            hardwareNs = com.fairylive.app.core.audio.AudioStudioRepository.isHardwareNsEnabled
         )
         FairyStreamService.setAudioDspFilters(
             context = context,
@@ -408,7 +410,9 @@ class AudioStudioBottomSheetDialog : BottomSheetDialogFragment() {
             agc = b.switchAgc.isChecked,
             compressor = b.switchCompressor.isChecked,
             limiter = b.switchLimiter.isChecked,
-            noiseLevel = currentNoiseLevel
+            noiseLevel = currentNoiseLevel,
+            spectralNoise = com.fairylive.app.core.audio.AudioStudioRepository.isSpectralNoiseEnabled,
+            hardwareNs = com.fairylive.app.core.audio.AudioStudioRepository.isHardwareNsEnabled
         )
     }
 

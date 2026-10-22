@@ -267,8 +267,10 @@ class FairyStreamService : Service() {
                     val agc = intent.getBooleanExtra(EXTRA_DSP_AGC, false)
                     val comp = intent.getBooleanExtra(EXTRA_DSP_COMPRESSOR, true)
                     val lim = intent.getBooleanExtra(EXTRA_DSP_LIMITER, true)
-                    audioPipeline.setDspFilters(noise, agc, comp, lim, godMode, noiseLevel)
-                    com.fairylive.app.core.audio.AudioStudioRepository.saveDsp(this, noise, godMode, agc, comp, lim, noiseLevel)
+                    val spectral = if (intent.hasExtra(EXTRA_DSP_SPECTRAL_NOISE)) intent.getBooleanExtra(EXTRA_DSP_SPECTRAL_NOISE, true) else null
+                    val hwNs = if (intent.hasExtra(EXTRA_DSP_HARDWARE_NS)) intent.getBooleanExtra(EXTRA_DSP_HARDWARE_NS, false) else null
+                    audioPipeline.setDspFilters(noise, agc, comp, lim, godMode, noiseLevel, spectral, hwNs)
+                    com.fairylive.app.core.audio.AudioStudioRepository.saveDsp(this, noise, godMode, agc, comp, lim, noiseLevel, spectral, hwNs)
                 }
 
                 val presetName = intent?.getStringExtra(EXTRA_AUDIO_PRESET)
@@ -475,6 +477,19 @@ class FairyStreamService : Service() {
                 fps = fps
             )
             val encoderSurface = videoEncoder.initialize(encoderConfig)
+
+            // Register encoder callbacks BEFORE starting the encoder so INFO_OUTPUT_FORMAT_CHANGED
+            // csd-0 / csd-1 configuration is never missed on startup
+            videoEncoder.onSpsPpsAvailable = { sps, pps ->
+                streamPipeline.setSpsPps(sps, pps)
+            }
+            videoEncoder.setEncodedFrameListener { frame ->
+                streamPipeline.onVideoFrame(frame)
+            }
+            streamPipeline.onRequestKeyFrame = {
+                videoEncoder.requestKeyFrame()
+            }
+
             videoEncoder.start()
 
             // Register projection lifecycle callback BEFORE creating the virtual display.
@@ -618,7 +633,9 @@ class FairyStreamService : Service() {
                     compressor = com.fairylive.app.core.audio.AudioStudioRepository.isCompressorEnabled,
                     limiter = com.fairylive.app.core.audio.AudioStudioRepository.isLimiterEnabled,
                     godMode = com.fairylive.app.core.audio.AudioStudioRepository.isGodModeNoiseEnabled,
-                    noiseLevel = com.fairylive.app.core.audio.AudioStudioRepository.noiseSuppressionLevel
+                    noiseLevel = com.fairylive.app.core.audio.AudioStudioRepository.noiseSuppressionLevel,
+                    spectralNoise = com.fairylive.app.core.audio.AudioStudioRepository.isSpectralNoiseEnabled,
+                    hardwareNs = com.fairylive.app.core.audio.AudioStudioRepository.isHardwareNsEnabled
                 )
                 audioPipeline.setAutoDucking(com.fairylive.app.core.audio.AudioStudioRepository.isAutoDuckingEnabled)
                 syncAudioMuteState()
@@ -790,7 +807,10 @@ class FairyStreamService : Service() {
             agc = com.fairylive.app.core.audio.AudioStudioRepository.isAgcEnabled,
             compressor = com.fairylive.app.core.audio.AudioStudioRepository.isCompressorEnabled,
             limiter = com.fairylive.app.core.audio.AudioStudioRepository.isLimiterEnabled,
-            godMode = com.fairylive.app.core.audio.AudioStudioRepository.isGodModeNoiseEnabled
+            godMode = com.fairylive.app.core.audio.AudioStudioRepository.isGodModeNoiseEnabled,
+            noiseLevel = com.fairylive.app.core.audio.AudioStudioRepository.noiseSuppressionLevel,
+            spectralNoise = com.fairylive.app.core.audio.AudioStudioRepository.isSpectralNoiseEnabled,
+            hardwareNs = com.fairylive.app.core.audio.AudioStudioRepository.isHardwareNsEnabled
         )
         audioPipeline.setAutoDucking(com.fairylive.app.core.audio.AudioStudioRepository.isAutoDuckingEnabled)
     }
@@ -1127,6 +1147,8 @@ class FairyStreamService : Service() {
         const val EXTRA_MEDIA_MUTED = "extra_media_muted"
         const val EXTRA_DSP_NOISE_GATE = "extra_dsp_noise_gate"
         const val EXTRA_DSP_GOD_MODE_NOISE = "extra_dsp_god_mode_noise"
+        const val EXTRA_DSP_SPECTRAL_NOISE = "extra_dsp_spectral_noise"
+        const val EXTRA_DSP_HARDWARE_NS = "extra_dsp_hardware_ns"
         const val EXTRA_DSP_NOISE_LEVEL = "extra_dsp_noise_level"
         const val EXTRA_DSP_AGC = "extra_dsp_agc"
         const val EXTRA_DSP_COMPRESSOR = "extra_dsp_compressor"
@@ -1343,7 +1365,9 @@ class FairyStreamService : Service() {
             compressor: Boolean,
             limiter: Boolean,
             godMode: Boolean = true,
-            noiseLevel: Int? = null
+            noiseLevel: Int? = null,
+            spectralNoise: Boolean? = null,
+            hardwareNs: Boolean? = null
         ) {
             val intent = Intent(context, FairyStreamService::class.java).apply {
                 action = ACTION_SET_AUDIO_VOLUMES
@@ -1353,6 +1377,8 @@ class FairyStreamService : Service() {
                 putExtra(EXTRA_DSP_AGC, agc)
                 putExtra(EXTRA_DSP_COMPRESSOR, compressor)
                 putExtra(EXTRA_DSP_LIMITER, limiter)
+                if (spectralNoise != null) putExtra(EXTRA_DSP_SPECTRAL_NOISE, spectralNoise)
+                if (hardwareNs != null) putExtra(EXTRA_DSP_HARDWARE_NS, hardwareNs)
             }
             context.startService(intent)
         }

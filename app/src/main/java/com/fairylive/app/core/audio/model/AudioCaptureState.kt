@@ -45,7 +45,9 @@ data class AudioMetrics(
     val encoderType: EncoderType = EncoderType.UNKNOWN,
     val isGateOpen: Boolean = false,
     val isVoiceDetected: Boolean = false,
-    val noiseFloorDb: Float = -50.0f
+    val noiseFloorDb: Float = -50.0f,
+    val isHardwareNsActive: Boolean = false,
+    val isSpectralNsActive: Boolean = false
 ) {
     val aacBitrateKbps: Long
         get() = bitrateKbps

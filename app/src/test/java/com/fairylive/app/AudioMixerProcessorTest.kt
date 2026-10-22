@@ -713,4 +713,338 @@ class AudioMixerProcessorTest {
         // Game audio ducking must have engaged smoothly (duckingMultiplier around 0.30)
         assertTrue("Ducking must drop multiplier to <= 0.45 during speech (was ${mixer.currentDuckingMultiplier})", mixer.currentDuckingMultiplier <= 0.45f)
     }
+
+    @Test
+    fun testVadActiveAndInactiveStatesInConfigBAndConfigD() {
+        val sampleRate = 44100
+        val chunkSize = 2048
+        val bytes = chunkSize * 2
+
+        // Synthesize normal speech chunk (440 Hz + 880 Hz harmonic)
+        val speechMic = ByteArray(bytes)
+        for (i in 0 until chunkSize) {
+            val angle = 2.0 * Math.PI * 440.0 * (i.toDouble() / sampleRate)
+            val sample = (12000.0 * Math.sin(angle) + 4000.0 * Math.sin(angle * 2.0)).toInt().toShort()
+            speechMic[i * 2] = (sample.toInt() and 0xFF).toByte()
+            speechMic[i * 2 + 1] = ((sample.toInt() shr 8) and 0xFF).toByte()
+        }
+
+        val silenceMic = ByteArray(bytes)
+        val gameBuffer = ByteArray(bytes)
+        val outBuffer = ByteArray(bytes)
+
+        // --- CONFIG B: Software Spectral Suppression Only (Expander disabled) ---
+        val mixerConfigB = AudioMixerProcessor()
+        mixerConfigB.isNoiseSuppressionEnabled = false // Expander disabled
+        mixerConfigB.isSpectralNoiseSuppressionEnabled = true
+        mixerConfigB.spectralSuppressor.intensity = 0.70f
+        mixerConfigB.isVadEnabled = true
+
+        // Feed speech chunk
+        mixerConfigB.processAndMix(speechMic, gameBuffer, outBuffer, bytes, isPaused = false)
+        assertTrue("Config B: VAD must be active during speech even when expander is disabled", mixerConfigB.vad.isVoiceActive)
+
+        // Feed silence chunks to exceed hangover (~450 ms)
+        for (step in 0 until 12) {
+            mixerConfigB.processAndMix(silenceMic, gameBuffer, outBuffer, bytes, isPaused = false)
+        }
+        assertFalse("Config B: VAD must transition to inactive after silence hangover expires", mixerConfigB.vad.isVoiceActive)
+
+        // --- CONFIG D: Hybrid (Hardware NS + Software Spectral + Expander enabled) ---
+        val mixerConfigD = AudioMixerProcessor()
+        mixerConfigD.isNoiseSuppressionEnabled = true // Expander enabled
+        mixerConfigD.noiseSuppressionLevel = 80
+        mixerConfigD.isSpectralNoiseSuppressionEnabled = true
+        mixerConfigD.spectralSuppressor.intensity = 0.75f
+        mixerConfigD.isVadEnabled = true
+
+        // Feed speech chunk
+        mixerConfigD.processAndMix(speechMic, gameBuffer, outBuffer, bytes, isPaused = false)
+        assertTrue("Config D: VAD must be active during speech in hybrid mode", mixerConfigD.vad.isVoiceActive)
+
+        // Feed silence chunks
+        for (step in 0 until 12) {
+            mixerConfigD.processAndMix(silenceMic, gameBuffer, outBuffer, bytes, isPaused = false)
+        }
+        assertFalse("Config D: VAD must transition to inactive after silence hangover in hybrid mode", mixerConfigD.vad.isVoiceActive)
+    }
+
+    @Test
+    fun testSpeechDynamicsNormalQuietPausesAndCompetingSpeaker() {
+        val sampleRate = 44100
+        val chunkSize = 2048
+        val bytes = chunkSize * 2
+        val gameBuffer = ByteArray(bytes)
+        val outBuffer = ByteArray(bytes)
+        val mixer = AudioMixerProcessor()
+        mixer.isSpectralNoiseSuppressionEnabled = true
+        mixer.spectralSuppressor.intensity = 0.70f
+
+        // 1. Normal Speech (440 Hz @ -9 dBFS)
+        val normalSpeech = ByteArray(bytes)
+        for (i in 0 until chunkSize) {
+            val angle = 2.0 * Math.PI * 440.0 * (i.toDouble() / sampleRate)
+            val sample = (12000.0 * Math.sin(angle)).toInt().toShort()
+            normalSpeech[i * 2] = (sample.toInt() and 0xFF).toByte()
+            normalSpeech[i * 2 + 1] = ((sample.toInt() shr 8) and 0xFF).toByte()
+        }
+        mixer.processAndMix(normalSpeech, gameBuffer, outBuffer, bytes, isPaused = false)
+        assertTrue("Normal speech must trigger voice active", mixer.vad.isVoiceActive)
+
+        // 2. Quiet Speech (330 Hz @ -26 dBFS, amplitude 1600)
+        val mixerQuiet = AudioMixerProcessor()
+        val quietSpeech = ByteArray(bytes)
+        for (i in 0 until chunkSize) {
+            val angle = 2.0 * Math.PI * 330.0 * (i.toDouble() / sampleRate)
+            val sample = (1600.0 * Math.sin(angle) + 600.0 * Math.sin(angle * 2.0)).toInt().toShort()
+            quietSpeech[i * 2] = (sample.toInt() and 0xFF).toByte()
+            quietSpeech[i * 2 + 1] = ((sample.toInt() shr 8) and 0xFF).toByte()
+        }
+        mixerQuiet.processAndMix(quietSpeech, gameBuffer, outBuffer, bytes, isPaused = false)
+        assertTrue("Quiet speech must trigger voice active", mixerQuiet.vad.isVoiceActive)
+
+        // 3. Pauses (500 ms of zero samples)
+        val silence = ByteArray(bytes)
+        for (step in 0 until 12) {
+            mixerQuiet.processAndMix(silence, gameBuffer, outBuffer, bytes, isPaused = false)
+        }
+        assertFalse("Voice active must expire during pause", mixerQuiet.vad.isVoiceActive)
+
+        // 4. Competing Speaker (Different fundamental: 520 Hz female pitch burst)
+        val competingSpeaker = ByteArray(bytes)
+        for (i in 0 until chunkSize) {
+            val angle = 2.0 * Math.PI * 520.0 * (i.toDouble() / sampleRate)
+            val sample = (10000.0 * Math.sin(angle)).toInt().toShort()
+            competingSpeaker[i * 2] = (sample.toInt() and 0xFF).toByte()
+            competingSpeaker[i * 2 + 1] = ((sample.toInt() shr 8) and 0xFF).toByte()
+        }
+        mixerQuiet.processAndMix(competingSpeaker, gameBuffer, outBuffer, bytes, isPaused = false)
+        assertTrue("Competing speaker burst must trigger voice active", mixerQuiet.vad.isVoiceActive)
+    }
+
+    @Test
+    fun testLowPitch95HzSpeechWithRumbleFanNoise() {
+        val sampleRate = 44100
+        val chunkSize = 2048
+        val bytes = chunkSize * 2
+        val gameBuffer = ByteArray(bytes)
+        val outBuffer = ByteArray(bytes)
+        val mixer = AudioMixerProcessor()
+        mixer.isSpectralNoiseSuppressionEnabled = true
+        mixer.spectralSuppressor.intensity = 0.70f
+
+        // Synthesize 95 Hz male fundamental + 650 Hz vocal formant mixed with 60 Hz electrical hum & air turbulence
+        val lowPitchWithRumble = ByteArray(bytes)
+        var prng = 424242L
+        for (i in 0 until chunkSize) {
+            val t = i.toDouble() / sampleRate
+            val v95 = 2000.0 * Math.sin(2.0 * Math.PI * 95.0 * t) // quiet 95 Hz fundamental
+            val v650 = 1200.0 * Math.sin(2.0 * Math.PI * 650.0 * t) // 650 Hz vocal vowel formant
+            val hum60 = 800.0 * Math.sin(2.0 * Math.PI * 60.0 * t) // 60 Hz electrical rumble
+            prng = prng * 6364136223846793005L + 1442695040888963407L
+            val hiss = ((prng ushr 32).toInt().toShort() / 32768.0) * 300.0 // fan turbulence
+
+            val sample = (v95 + v650 + hum60 + hiss).toInt().coerceIn(-32768, 32767).toShort()
+            lowPitchWithRumble[i * 2] = (sample.toInt() and 0xFF).toByte()
+            lowPitchWithRumble[i * 2 + 1] = ((sample.toInt() shr 8) and 0xFF).toByte()
+        }
+
+        mixer.processAndMix(lowPitchWithRumble, gameBuffer, outBuffer, bytes, isPaused = false)
+        assertTrue("95 Hz quiet speech with rumble must trigger voice active without rejection", mixer.vad.isVoiceActive)
+    }
+
+    @Test
+    fun testNoiseSuppressionPathsIntegrity() {
+        val sampleRate = 44100
+        val chunkSize = 1024
+        val bytes = chunkSize * 2
+        val micInput = ByteArray(bytes)
+        val gameInput = ByteArray(bytes)
+        val outBuffer = ByteArray(bytes)
+
+        // Synthesize test tone
+        for (i in 0 until chunkSize) {
+            val angle = 2.0 * Math.PI * 440.0 * (i.toDouble() / sampleRate)
+            val s = (8000.0 * Math.sin(angle)).toInt().toShort()
+            micInput[i * 2] = (s.toInt() and 0xFF).toByte()
+            micInput[i * 2 + 1] = ((s.toInt() shr 8) and 0xFF).toByte()
+            gameInput[i * 2] = 2000.toShort().toByte()
+            gameInput[i * 2 + 1] = (2000 shr 8).toByte()
+        }
+
+        // Path 1: Disabled (Config A)
+        val m1 = AudioMixerProcessor()
+        m1.isNoiseSuppressionEnabled = false
+        m1.isSpectralNoiseSuppressionEnabled = false
+        m1.processAndMix(micInput, gameInput, outBuffer, bytes, isPaused = false)
+        assertTrue("Disabled path must yield valid non-zero audio", outBuffer.any { it != 0.toByte() })
+
+        // Path 2: Software-Only (Config B)
+        val m2 = AudioMixerProcessor()
+        m2.isNoiseSuppressionEnabled = false
+        m2.isSpectralNoiseSuppressionEnabled = true
+        m2.spectralSuppressor.intensity = 0.70f
+        m2.processAndMix(micInput, gameInput, outBuffer, bytes, isPaused = false)
+        assertTrue("Software-only path must yield valid non-zero audio", outBuffer.any { it != 0.toByte() })
+
+        // Path 3: Hardware-Only (Config C)
+        val m3 = AudioMixerProcessor()
+        m3.isNoiseSuppressionEnabled = true
+        m3.noiseSuppressionLevel = 80
+        m3.isSpectralNoiseSuppressionEnabled = false
+        m3.processAndMix(micInput, gameInput, outBuffer, bytes, isPaused = false)
+        assertTrue("Hardware-only path must yield valid non-zero audio", outBuffer.any { it != 0.toByte() })
+
+        // Path 4: Hybrid (Config D)
+        val m4 = AudioMixerProcessor()
+        m4.isNoiseSuppressionEnabled = true
+        m4.noiseSuppressionLevel = 80
+        m4.isSpectralNoiseSuppressionEnabled = true
+        m4.spectralSuppressor.intensity = 0.75f
+        m4.processAndMix(micInput, gameInput, outBuffer, bytes, isPaused = false)
+        assertTrue("Hybrid path must yield valid non-zero audio", outBuffer.any { it != 0.toByte() })
+    }
+
+    @Test
+    fun testMicReadFailureAndRecoveryClockIndependence() {
+        val chunkSize = 1024
+        val bytes = chunkSize * 2
+        val mixer = AudioMixerProcessor()
+        mixer.gameVolume = 1.0f
+        mixer.micVolume = 1.0f
+        mixer.isNoiseSuppressionEnabled = false
+        mixer.isSpectralNoiseSuppressionEnabled = false
+
+        val gameAudio = ByteArray(bytes)
+        for (i in 0 until chunkSize) {
+            val sample = 5000.toShort()
+            gameAudio[i * 2] = (sample.toInt() and 0xFF).toByte()
+            gameAudio[i * 2 + 1] = ((sample.toInt() shr 8) and 0xFF).toByte()
+        }
+
+        val outBuffer = ByteArray(bytes)
+
+        // 1. Normal state: both mic and game present
+        val micAudio = ByteArray(bytes) { 0 }
+        mixer.processAndMix(micAudio, gameAudio, outBuffer, bytes, isPaused = false)
+        val outInitial = ((outBuffer[1].toInt() shl 8) or (outBuffer[0].toInt() and 0xFF)).toShort()
+        assertTrue("Game audio must mix correctly with normal mic present", Math.abs(outInitial - 5000) <= 2)
+
+        // 2. Mic Read Failure: micBuffer is NULL (AudioRecord buffer underflow or HAL disconnect)
+        // Game audio and master mixer clock must continue flawlessly without dropping samples or crashing!
+        for (dropFrame in 0 until 10) {
+            outBuffer.fill(0)
+            mixer.processAndMix(null, gameAudio, outBuffer, bytes, isPaused = false)
+            val outDuringDrop = ((outBuffer[1].toInt() shl 8) or (outBuffer[0].toInt() and 0xFF)).toShort()
+            assertTrue("Game audio must mix seamlessly during mic dropout", Math.abs(outDuringDrop - 5000) <= 2)
+        }
+
+        // 3. Mic Recovery: mic returns with valid speech signal
+        val speechAudio = ByteArray(bytes)
+        for (i in 0 until chunkSize) {
+            val sample = 3000.toShort()
+            speechAudio[i * 2] = (sample.toInt() and 0xFF).toByte()
+            speechAudio[i * 2 + 1] = ((sample.toInt() shr 8) and 0xFF).toByte()
+        }
+        mixer.processAndMix(speechAudio, gameAudio, outBuffer, bytes, isPaused = false)
+        val outRecovered = ((outBuffer[1].toInt() shl 8) or (outBuffer[0].toInt() and 0xFF)).toShort()
+        assertTrue("Master mix must cleanly sum recovered mic and game audio", Math.abs(outRecovered - 8000) <= 2)
+    }
+
+    @Test
+    fun testAuditStageContributionsConfigBVsConfigD() {
+        // Focused audit test: Isolates and quantifies the exact dB contribution of each stage
+        // across Config A (Raw), Config B (Spectral Only), Config C (Expander Only), and Config D (Hybrid)
+        val sampleRate = 44100
+        val chunkSize = 1024
+        val bytes = chunkSize * 2
+        val gameBuffer = ByteArray(bytes) // Game audio silent
+
+        fun calculateRms(buffer: ByteArray): Double {
+            var sum = 0.0
+            val samples = buffer.size / 2
+            for (i in 0 until samples) {
+                val s = ((buffer[i * 2 + 1].toInt() shl 8) or (buffer[i * 2].toInt() and 0xFF)).toShort().toDouble()
+                sum += s * s
+            }
+            val rmsRaw = Math.sqrt(sum / samples)
+            val rmsNorm = rmsRaw / 32768.0
+            return if (rmsNorm > 1e-9) 20.0 * Math.log10(rmsNorm) else -120.0
+        }
+
+        fun generateFanChunk(step: Int): ByteArray {
+            val buf = ByteArray(bytes)
+            for (i in 0 until chunkSize) {
+                val totalIdx = step * chunkSize + i
+                val angle = 2.0 * Math.PI * 120.0 * (totalIdx.toDouble() / sampleRate)
+                val s = (1960.0 * Math.sin(angle)).toInt().toShort()
+                buf[i * 2] = (s.toInt() and 0xFF).toByte()
+                buf[i * 2 + 1] = ((s.toInt() shr 8) and 0xFF).toByte()
+            }
+            return buf
+        }
+
+        val inRms = calculateRms(generateFanChunk(0))
+
+        // 1. Config A: Baseline / Raw (No spectral, no expander)
+        val mixerA = AudioMixerProcessor()
+        mixerA.isSpectralNoiseSuppressionEnabled = false
+        mixerA.isNoiseSuppressionEnabled = false
+        mixerA.isGodModeNoiseEnabled = false
+        mixerA.micVolume = 1.0f
+        val outA = ByteArray(bytes)
+        for (step in 0 until 50) mixerA.processAndMix(generateFanChunk(step), gameBuffer, outA, bytes, isPaused = false)
+        val rmsA = calculateRms(outA)
+        val attA = inRms - rmsA
+
+        // 2. Config B: Spectral Noise Suppressor Only (Expander disabled)
+        val mixerB = AudioMixerProcessor()
+        mixerB.isSpectralNoiseSuppressionEnabled = true
+        mixerB.spectralSuppressor.intensity = 0.70f
+        mixerB.isNoiseSuppressionEnabled = false // Expander disabled
+        mixerB.isGodModeNoiseEnabled = false
+        mixerB.micVolume = 1.0f
+        val outB = ByteArray(bytes)
+        for (step in 0 until 50) mixerB.processAndMix(generateFanChunk(step), gameBuffer, outB, bytes, isPaused = false)
+        val rmsB = calculateRms(outB)
+        val attB = inRms - rmsB
+
+        // 3. Config C: Downward Expander Only (Spectral SNS disabled)
+        val mixerC = AudioMixerProcessor()
+        mixerC.isSpectralNoiseSuppressionEnabled = false
+        mixerC.isNoiseSuppressionEnabled = true // Expander enabled
+        mixerC.noiseSuppressionLevel = 80
+        mixerC.isGodModeNoiseEnabled = false
+        mixerC.micVolume = 1.0f
+        val outC = ByteArray(bytes)
+        for (step in 0 until 50) mixerC.processAndMix(generateFanChunk(step), gameBuffer, outC, bytes, isPaused = false)
+        val rmsC = calculateRms(outC)
+        val attC = inRms - rmsC
+
+        // 4. Config D: Hybrid Pipeline (Both SNS and Downward Expander enabled)
+        val mixerD = AudioMixerProcessor()
+        mixerD.isSpectralNoiseSuppressionEnabled = true
+        mixerD.spectralSuppressor.intensity = 0.70f
+        mixerD.isNoiseSuppressionEnabled = true // Expander enabled
+        mixerD.noiseSuppressionLevel = 80
+        mixerD.isGodModeNoiseEnabled = false
+        mixerD.micVolume = 1.0f
+        val outD = ByteArray(bytes)
+        for (step in 0 until 50) mixerD.processAndMix(generateFanChunk(step), gameBuffer, outD, bytes, isPaused = false)
+        val rmsD = calculateRms(outD)
+        val attD = inRms - rmsD
+
+        println("=== STAGE CONTRIBUTION AUDIT RESULTS ===")
+        println("Input Fan Noise: ${String.format("%.2f", inRms)} dBFS")
+        println("Config A (Raw Baseline):       Output = ${String.format("%.2f", rmsA)} dBFS | Attenuation = ${String.format("%.2f", attA)} dB")
+        println("Config B (Spectral Only):     Output = ${String.format("%.2f", rmsB)} dBFS | Attenuation = ${String.format("%.2f", attB)} dB")
+        println("Config C (Expander Only):     Output = ${String.format("%.2f", rmsC)} dBFS | Attenuation = ${String.format("%.2f", attC)} dB")
+        println("Config D (Hybrid Complete):   Output = ${String.format("%.2f", rmsD)} dBFS | Attenuation = ${String.format("%.2f", attD)} dB")
+        println("Hybrid Extra Attenuation over Spectral (Config D - Config B): ${String.format("%.2f", attD - attB)} dB")
+
+        // Assertions verifying stage execution
+        assertTrue("Config B must provide significant spectral attenuation (>= 15 dB)", attB >= 15.0)
+        assertTrue("Config D must provide hybrid attenuation exceeding Config B on stationary noise", attD > attB + 10.0)
+        assertTrue("Config D stationary fan attenuation must meet >= 15.0 dB acceptance criterion", attD >= 15.0)
+    }
 }

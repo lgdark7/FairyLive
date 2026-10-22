@@ -335,4 +335,35 @@ class AudioPipelineTest {
         assertTrue(pipeline.isGameMuted)
         assertTrue(pipeline.isMediaMuted)
     }
+
+    @Test
+    fun testAudioCaptureStateHardwareAndSpectralFlags() {
+        val metrics = AudioMetrics(
+            isHardwareNsActive = true,
+            isSpectralNsActive = true
+        )
+        assertTrue(metrics.isHardwareNsActive)
+        assertTrue(metrics.isSpectralNsActive)
+
+        val defaultMetrics = AudioMetrics()
+        assertFalse(defaultMetrics.isHardwareNsActive)
+        assertFalse(defaultMetrics.isSpectralNsActive)
+    }
+
+    @Test
+    fun testAudioPipelineDspFiltersSpectralAndHardwareFlags() {
+        val pipeline = AudioPipeline()
+        pipeline.setDspFilters(
+            noiseGate = true,
+            agc = true,
+            compressor = true,
+            limiter = true,
+            godMode = true,
+            noiseLevel = 80,
+            spectralNoise = true,
+            hardwareNs = false
+        )
+        // Verify captureEngine received call without throwing and state remains coherent
+        assertFalse(pipeline.isMicMuted)
+    }
 }

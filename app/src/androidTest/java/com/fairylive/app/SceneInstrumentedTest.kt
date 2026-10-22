@@ -257,6 +257,14 @@ class SceneInstrumentedTest {
                                 writer.writeMessage(3, 20, 0, 0L, out.toByteArray())
                             } else if (cmd == "publish") {
                                 publishReceived.countDown()
+                                val out = java.io.ByteArrayOutputStream()
+                                com.fairylive.app.core.stream.rtmp.amf.Amf0Codec.writeString(out, "onStatus")
+                                com.fairylive.app.core.stream.rtmp.amf.Amf0Codec.writeNumber(out, 0.0)
+                                com.fairylive.app.core.stream.rtmp.amf.Amf0Codec.writeNull(out)
+                                val info = mapOf("level" to "status", "code" to "NetStream.Publish.Start")
+                                com.fairylive.app.core.stream.rtmp.amf.Amf0Codec.writeObject(out, info)
+                                writer.writeMessage(3, 20, 1, 0L, out.toByteArray())
+                                outStream.flush()
                             }
                         }
                         9 -> {

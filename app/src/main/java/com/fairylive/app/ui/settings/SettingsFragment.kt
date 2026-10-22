@@ -216,7 +216,10 @@ class SettingsFragment : Fragment() {
     // =========================================================================
 
     private fun setupAudioStudioSection() {
-        binding.switchHardwareNs.isChecked = AudioStudioRepository.isNoiseSuppressionEnabled
+        val isHwAvailable = android.media.audiofx.NoiseSuppressor.isAvailable()
+        binding.switchHardwareNs.isEnabled = isHwAvailable
+        binding.switchHardwareNs.isChecked = isHwAvailable && AudioStudioRepository.isHardwareNsEnabled
+
         binding.switchDspNoiseGate.isChecked = AudioStudioRepository.isNoiseSuppressionEnabled
         binding.switchGodModeNoise.isChecked = AudioStudioRepository.isGodModeNoiseEnabled
 
@@ -225,7 +228,18 @@ class SettingsFragment : Fragment() {
         updateSettingsNoiseLevelText(currentLevel)
 
         binding.switchHardwareNs.setOnCheckedChangeListener { _, isChecked ->
-            AudioStudioRepository.saveDsp(requireContext(), noiseGate = isChecked)
+            AudioStudioRepository.saveDsp(requireContext(), hardwareNs = isChecked)
+            com.fairylive.app.service.FairyStreamService.setAudioDspFilters(
+                context = requireContext(),
+                noiseGate = AudioStudioRepository.isNoiseSuppressionEnabled,
+                godMode = AudioStudioRepository.isGodModeNoiseEnabled,
+                agc = AudioStudioRepository.isAgcEnabled,
+                compressor = AudioStudioRepository.isCompressorEnabled,
+                limiter = AudioStudioRepository.isLimiterEnabled,
+                noiseLevel = AudioStudioRepository.noiseSuppressionLevel,
+                spectralNoise = AudioStudioRepository.isSpectralNoiseEnabled,
+                hardwareNs = isChecked
+            )
             updateAudioStudioStatus()
         }
 

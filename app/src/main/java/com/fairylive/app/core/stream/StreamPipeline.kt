@@ -34,6 +34,7 @@ class StreamPipeline(
     private val videoPacketizer = H264FlvPacketizer()
     private var audioPacketizer = AacFlvPacketizer()
     private val packetQueue = BoundedStreamQueue(maxQueuePackets, maxQueueBytes)
+    internal val packetQueueRef: BoundedStreamQueue get() = packetQueue
     private val rtmpClient = RtmpClient()
 
     // Network Resilience Engines
@@ -144,7 +145,12 @@ class StreamPipeline(
         this.streamAudioChannels = audioChannels
 
         this.audioPacketizer = AacFlvPacketizer(audioSampleRate, audioChannels)
+        val existingSps = this.videoPacketizer.cachedSps
+        val existingPps = this.videoPacketizer.cachedPps
         this.videoPacketizer.reset()
+        if (existingSps != null && existingPps != null) {
+            this.videoPacketizer.setSpsPps(existingSps, existingPps)
+        }
         this.packetQueue.clear()
         this.networkMonitor.reset()
         this.reconnectionManager.reset()
@@ -190,6 +196,17 @@ class StreamPipeline(
         // Inject initial AAC sequence header (timestamp 0)
         packetQueue.offer(audioPacketizer.buildAacSequenceHeader(0L))
 
+        // Inject initial AVC sequence header (timestamp 0) if SPS/PPS are available
+        val sps = videoPacketizer.cachedSps
+        val pps = videoPacketizer.cachedPps
+        if (sps != null && pps != null && !videoPacketizer.isHeaderGenerated) {
+            val header = videoPacketizer.buildAvcSequenceHeader(sps, pps, 0L)
+            videoPacketizer.markHeaderGenerated()
+            packetQueue.offer(header)
+            onRequestKeyFrame?.invoke()
+            Log.i(TAG, "Queued initial AVC Sequence Header (timestamp 0) at pipeline start")
+        }
+
         val thread = Thread({ networkLoop(endpoint) }, "FairyStreamSenderThread").apply {
             priority = Thread.NORM_PRIORITY + 1
             start()
@@ -231,6 +248,7 @@ class StreamPipeline(
                     val pps = videoPacketizer.cachedPps
                     if (sps != null && pps != null) {
                         packetQueue.offer(videoPacketizer.buildAvcSequenceHeader(sps, pps, 0L))
+                        videoPacketizer.markHeaderGenerated()
                     }
                     onRequestKeyFrame?.invoke()
                     Log.i(TAG, "Reconnected: re-injected metadata, sequence headers, and requested sync keyframe")
@@ -470,9 +488,13 @@ class StreamPipeline(
 
     fun setSpsPps(sps: ByteArray, pps: ByteArray) {
         videoPacketizer.setSpsPps(sps, pps)
-        val header = videoPacketizer.buildAvcSequenceHeader(sps, pps, 0L)
-        packetQueue.offer(header)
-        Log.i(TAG, "Queued initial AVC Sequence Header (timestamp 0) from csd-0/csd-1")
+        if (isRunning.get() && !videoPacketizer.isHeaderGenerated) {
+            val header = videoPacketizer.buildAvcSequenceHeader(sps, pps, 0L)
+            videoPacketizer.markHeaderGenerated()
+            packetQueue.offer(header)
+            onRequestKeyFrame?.invoke()
+            Log.i(TAG, "Queued initial AVC Sequence Header (timestamp 0) from csd-0/csd-1")
+        }
     }
 
     fun setAudioSpecificConfig(config: ByteArray) {

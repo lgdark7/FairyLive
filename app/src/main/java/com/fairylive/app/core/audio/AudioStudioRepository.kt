@@ -34,6 +34,8 @@ object AudioStudioRepository {
 
     private const val KEY_NOISE_GATE = "noise_gate_enabled"
     private const val KEY_GOD_MODE_NOISE = "god_mode_noise_enabled"
+    private const val KEY_SPECTRAL_NOISE = "spectral_noise_enabled"
+    private const val KEY_HARDWARE_NS = "hardware_ns_enabled"
     private const val KEY_NOISE_LEVEL = "noise_suppression_level"
     private const val KEY_AGC = "agc_enabled"
     private const val KEY_COMPRESSOR = "compressor_enabled"
@@ -51,6 +53,8 @@ object AudioStudioRepository {
     @Volatile var isMediaMuted: Boolean = false
 
     @Volatile var isNoiseSuppressionEnabled: Boolean = true
+    @Volatile var isSpectralNoiseEnabled: Boolean = true
+    @Volatile var isHardwareNsEnabled: Boolean = false
     @Volatile var isGodModeNoiseEnabled: Boolean = false
     @Volatile var noiseSuppressionLevel: Int = 50
     @Volatile var isAgcEnabled: Boolean = true
@@ -88,6 +92,8 @@ object AudioStudioRepository {
             isMediaMuted = prefs.getBoolean(KEY_MEDIA_MUTED, false)
 
             isNoiseSuppressionEnabled = prefs.getBoolean(KEY_NOISE_GATE, true)
+            isSpectralNoiseEnabled = prefs.getBoolean(KEY_SPECTRAL_NOISE, true)
+            isHardwareNsEnabled = prefs.getBoolean(KEY_HARDWARE_NS, false)
             isGodModeNoiseEnabled = prefs.getBoolean(KEY_GOD_MODE_NOISE, false)
             noiseSuppressionLevel = prefs.getInt(KEY_NOISE_LEVEL, 50).coerceIn(0, 100)
             if (noiseSuppressionLevel == 80) {
@@ -153,7 +159,9 @@ object AudioStudioRepository {
         agc: Boolean? = null,
         compressor: Boolean? = null,
         limiter: Boolean? = null,
-        noiseLevel: Int? = null
+        noiseLevel: Int? = null,
+        spectralNoise: Boolean? = null,
+        hardwareNs: Boolean? = null
     ) {
         init(context)
         noiseGate?.let { isNoiseSuppressionEnabled = it }
@@ -162,6 +170,8 @@ object AudioStudioRepository {
         agc?.let { isAgcEnabled = it }
         compressor?.let { isCompressorEnabled = it }
         limiter?.let { isLimiterEnabled = it }
+        spectralNoise?.let { isSpectralNoiseEnabled = it }
+        hardwareNs?.let { isHardwareNsEnabled = it }
 
         try {
             val editor = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
@@ -171,6 +181,8 @@ object AudioStudioRepository {
             agc?.let { editor.putBoolean(KEY_AGC, it) }
             compressor?.let { editor.putBoolean(KEY_COMPRESSOR, it) }
             limiter?.let { editor.putBoolean(KEY_LIMITER, it) }
+            spectralNoise?.let { editor.putBoolean(KEY_SPECTRAL_NOISE, it) }
+            hardwareNs?.let { editor.putBoolean(KEY_HARDWARE_NS, it) }
             editor.apply()
         } catch (e: Exception) {
             Log.w(TAG, "Failed to save DSP filters: ${e.message}")

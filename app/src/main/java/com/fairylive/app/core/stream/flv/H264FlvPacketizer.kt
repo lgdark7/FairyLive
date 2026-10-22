@@ -15,6 +15,8 @@ class H264FlvPacketizer {
         private set
     var isHeaderGenerated: Boolean = false
         private set
+    var hasSeenFirstIdr: Boolean = false
+        private set
 
     /**
      * Updates SPS/PPS cache if provided by MediaFormat csd-0 / csd-1.
@@ -24,10 +26,15 @@ class H264FlvPacketizer {
         this.cachedPps = stripStartCode(pps)
     }
 
+    fun markHeaderGenerated() {
+        isHeaderGenerated = true
+    }
+
     fun reset() {
         cachedSps = null
         cachedPps = null
         isHeaderGenerated = false
+        hasSeenFirstIdr = false
     }
 
     /**
@@ -50,14 +57,25 @@ class H264FlvPacketizer {
             when (type) {
                 NAL_SPS -> cachedSps = nal
                 NAL_PPS -> cachedPps = nal
-                NAL_IDR -> containsIdr = true
+                NAL_IDR -> {
+                    containsIdr = true
+                    hasSeenFirstIdr = true
+                }
             }
         }
 
         val isKeyFrame = containsIdr || isKeyFrameHint
+        if (isKeyFrameHint && !hasSeenFirstIdr) {
+            hasSeenFirstIdr = true
+        }
+
+        // Discard pre-IDR video frames: non-IDR slices cannot be decoded without a prior IDR reference
+        if (!hasSeenFirstIdr) {
+            return emptyList()
+        }
 
         // Emit AVC sequence header (AVCDecoderConfigurationRecord) on first keyframe
-        if (isKeyFrame && !isHeaderGenerated) {
+        if (!isHeaderGenerated) {
             val sps = cachedSps
             val pps = cachedPps
             if (sps != null && pps != null) {

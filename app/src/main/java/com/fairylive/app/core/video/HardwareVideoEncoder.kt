@@ -32,7 +32,21 @@ class HardwareVideoEncoder {
     private val isDraining = AtomicBoolean(false)
 
     private var frameListener: EncodedFrameListener? = null
+
+    var cachedSps: ByteArray? = null
+        internal set
+    var cachedPps: ByteArray? = null
+        internal set
+
     var onSpsPpsAvailable: ((ByteArray, ByteArray) -> Unit)? = null
+        set(value) {
+            field = value
+            val sps = cachedSps
+            val pps = cachedPps
+            if (value != null && sps != null && pps != null) {
+                value.invoke(sps, pps)
+            }
+        }
 
     @Volatile
     var isEncoding: Boolean = false
@@ -157,7 +171,7 @@ class HardwareVideoEncoder {
                             val pps = ByteArray(ppsBuf.remaining())
                             ppsBuf.get(pps)
                             Log.i(TAG, "Extracted SPS (${sps.size}B) and PPS (${pps.size}B) from MediaFormat csd-0/csd-1")
-                            onSpsPpsAvailable?.invoke(sps, pps)
+                            onFormatSpsPpsExtracted(sps, pps)
                         }
                     } catch (e: Exception) {
                         Log.w(TAG, "Failed to extract SPS/PPS from outputFormat", e)
@@ -254,6 +268,12 @@ class HardwareVideoEncoder {
         }
     }
 
+    internal fun onFormatSpsPpsExtracted(sps: ByteArray, pps: ByteArray) {
+        cachedSps = sps
+        cachedPps = pps
+        onSpsPpsAvailable?.invoke(sps, pps)
+    }
+
     fun requestKeyFrame() {
         val codec = mediaCodec ?: return
         try {
@@ -300,6 +320,9 @@ class HardwareVideoEncoder {
 
     @Synchronized
     fun stop() {
+        cachedSps = null
+        cachedPps = null
+
         if (!isEncoding && mediaCodec == null) return
 
         EncoderStateNotifier.updateState(EncoderState.STOPPING)
@@ -325,6 +348,8 @@ class HardwareVideoEncoder {
 
         isEncoding = false
         isPaused = false
+        cachedSps = null
+        cachedPps = null
 
         com.fairylive.app.core.lifecycle.StreamLifecycleDiagnostics.encoderStopped()
         EncoderStateNotifier.updateState(EncoderState.IDLE)

@@ -12,9 +12,13 @@ import com.fairylive.app.core.stream.rtmp.RtmpClient
 import com.fairylive.app.core.stream.rtmp.RtmpEndpoint
 import com.fairylive.app.core.stream.rtmp.RtmpHandshake
 import com.fairylive.app.core.stream.rtmp.amf.Amf0Codec
+import com.fairylive.app.core.stream.StreamPipeline
+import com.fairylive.app.core.audio.model.EncodedAudioFrame
+import com.fairylive.app.core.video.model.EncodedFrame
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.ByteArrayInputStream
@@ -295,6 +299,151 @@ class StreamPipelineTest {
 
         assertTrue("Sequence header must never be dropped under backpressure", foundSeqHeader)
         assertTrue("Keyframe must be preserved under backpressure", foundKeyFrame)
+    }
+
+    // --- 6. AVC SEQUENCE HEADER & QUEUE ORDERING INTEGRATION TESTS ---
+
+    @Test
+    fun testAvcSequenceHeaderPrecedesAllVideoMediaPackets() {
+        val pipeline = StreamPipeline()
+        val sps = byteArrayOf(0x67, 0x42, 0x00, 0x1E)
+        val pps = byteArrayOf(0x68, 0xCE.toByte())
+
+        // Supply SPS/PPS from encoder format change
+        pipeline.setSpsPps(sps, pps)
+
+        // Start pipeline
+        pipeline.start(
+            endpoint = RtmpEndpoint("127.0.0.1", 1935, "live", "key"),
+            videoWidth = 480,
+            videoHeight = 854,
+            videoFps = 30,
+            videoBitrateKbps = 1000,
+            audioSampleRate = 44100,
+            audioBitrateKbps = 96,
+            audioChannels = 1
+        )
+
+        val queue = pipeline.packetQueueRef
+
+        // Poll initial configuration packets
+        val tag1 = queue.poll(50)
+        assertNotNull("Tag 1 must be onMetaData", tag1)
+        assertEquals(FlvPacket.TYPE_DATA, tag1?.packetType)
+        assertEquals(0L, tag1?.timestampMs)
+
+        val tag2 = queue.poll(50)
+        assertNotNull("Tag 2 must be AAC sequence header", tag2)
+        assertEquals(FlvPacket.TYPE_AUDIO, tag2?.packetType)
+        assertTrue(tag2?.isSequenceHeader == true)
+        assertEquals(0L, tag2?.timestampMs)
+
+        val tag3 = queue.poll(50)
+        assertNotNull("Tag 3 must be AVC sequence header", tag3)
+        assertEquals(FlvPacket.TYPE_VIDEO, tag3?.packetType)
+        assertTrue(tag3?.isSequenceHeader == true)
+        assertEquals(0L, tag3?.timestampMs)
+
+        // Feed pre-IDR P-frame: must be dropped
+        val pFrameNalu = byteArrayOf(0x61, 0x01, 0x02)
+        val pFrameAnnexB = ByteArrayOutputStream().apply {
+            write(byteArrayOf(0, 0, 0, 1))
+            write(pFrameNalu)
+        }.toByteArray()
+        pipeline.onVideoFrame(EncodedFrame(pFrameAnnexB, 33_000L, 0, pFrameAnnexB.size))
+
+        val droppedPoll = queue.poll(50)
+        assertNull("Pre-IDR P-frame must NOT reach the packet queue", droppedPoll)
+
+        // Feed first IDR frame: must be accepted and emitted as first video media packet
+        val idrNalu = byteArrayOf(0x65, 0x01, 0x02, 0x03)
+        val idrAnnexB = ByteArrayOutputStream().apply {
+            write(byteArrayOf(0, 0, 0, 1))
+            write(idrNalu)
+        }.toByteArray()
+        pipeline.onVideoFrame(EncodedFrame(idrAnnexB, 66_000L, 1, idrAnnexB.size))
+
+        val tag4 = queue.poll(50)
+        assertNotNull("Tag 4 must be the first IDR media packet", tag4)
+        assertEquals(FlvPacket.TYPE_VIDEO, tag4?.packetType)
+        assertFalse("Must be media packet, not duplicate sequence header", tag4?.isSequenceHeader == true)
+        assertTrue("Must be keyframe", tag4?.isKeyFrame == true)
+        assertEquals(66L, tag4?.timestampMs)
+
+        pipeline.stop()
+    }
+
+    @Test
+    fun testConcurrentAudioVideoQueueOrderingAndMonotonicity() {
+        val pipeline = StreamPipeline()
+        val sps = byteArrayOf(0x67, 0x42, 0x00, 0x1E)
+        val pps = byteArrayOf(0x68, 0xCE.toByte())
+
+        pipeline.setSpsPps(sps, pps)
+        pipeline.start(
+            endpoint = RtmpEndpoint("127.0.0.1", 1935, "live", "key"),
+            videoWidth = 480,
+            videoHeight = 854,
+            videoFps = 30,
+            videoBitrateKbps = 1000,
+            audioSampleRate = 44100,
+            audioBitrateKbps = 96,
+            audioChannels = 1
+        )
+
+        val queue = pipeline.packetQueueRef
+
+        // Drain headers
+        val meta = queue.poll(50)
+        val aacHdr = queue.poll(50)
+        val avcHdr = queue.poll(50)
+        assertNotNull(meta)
+        assertNotNull(aacHdr)
+        assertNotNull(avcHdr)
+
+        // Feed first IDR and audio frames concurrently
+        val idrAnnexB = ByteArrayOutputStream().apply {
+            write(byteArrayOf(0, 0, 0, 1))
+            write(byteArrayOf(0x65, 0x01))
+        }.toByteArray()
+        pipeline.onVideoFrame(EncodedFrame(idrAnnexB, 100_000L, 1, idrAnnexB.size))
+
+        val audioData1 = byteArrayOf(0x21, 0x01)
+        pipeline.onAudioFrame(EncodedAudioFrame(audioData1, 100_000L, 0, audioData1.size))
+
+        val pFrameAnnexB = ByteArrayOutputStream().apply {
+            write(byteArrayOf(0, 0, 0, 1))
+            write(byteArrayOf(0x61, 0x02))
+        }.toByteArray()
+        pipeline.onVideoFrame(EncodedFrame(pFrameAnnexB, 133_000L, 0, pFrameAnnexB.size))
+
+        val audioData2 = byteArrayOf(0x21, 0x02)
+        pipeline.onAudioFrame(EncodedAudioFrame(audioData2, 123_000L, 0, audioData2.size))
+
+        // Collect packets and check monotonic timestamps per stream type
+        val packets = mutableListOf<FlvPacket>()
+        while (true) {
+            val p = queue.poll(50) ?: break
+            packets.add(p)
+        }
+
+        assertTrue("Must receive at least 4 media packets", packets.size >= 4)
+        var lastVideoPts = -1L
+        var lastAudioPts = -1L
+        for (p in packets) {
+            when (p.packetType) {
+                FlvPacket.TYPE_VIDEO -> {
+                    assertTrue("Video timestamps must be monotonic", p.timestampMs >= lastVideoPts)
+                    lastVideoPts = p.timestampMs
+                }
+                FlvPacket.TYPE_AUDIO -> {
+                    assertTrue("Audio timestamps must be monotonic", p.timestampMs >= lastAudioPts)
+                    lastAudioPts = p.timestampMs
+                }
+            }
+        }
+
+        pipeline.stop()
     }
 
     // --- 6. IN-PROCESS RTMP LOOPBACK SERVER INTEGRATION TEST ---

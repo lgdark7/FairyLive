@@ -106,8 +106,13 @@ class AudioMixerProcessor {
     val isVoiceDetected: Boolean get() = if (isVadEnabled) vad.isVoiceActive else isGateOpen
     val voiceProbability: Float get() = if (isVadEnabled) vad.voiceProbability else if (isGateOpen) 1.0f else 0.0f
 
+    // Real-Time STFT Overlap-Add Spectral Noise Suppressor (256-point, 50% OLA, Sine Window)
+    val spectralSuppressor = SpectralNoiseSuppressor()
+    @Volatile var isSpectralNoiseSuppressionEnabled: Boolean = false
+
     // Gate Telemetry
     val isGateActive: Boolean get() = isGateOpen
+    val gateGain: Float get() = currentGateGain
 
     // Current Preset
     @Volatile var activePreset: AudioPreset = AudioPreset.GAMING
@@ -129,6 +134,10 @@ class AudioMixerProcessor {
         private set
     @Volatile var estimatedNoiseFloorDb: Float = -50.0f
         private set
+
+    // Intermediate Stage Telemetry for Audits & Empirical Verification
+    var intermediateSnsBuffer: FloatArray? = null
+    var intermediateSnsOffset: Int = 0
 
     // DSP internal filter states (strictly single-thread / audio-loop thread)
     private var hpPrevIn = 0.0f
@@ -173,7 +182,9 @@ class AudioMixerProcessor {
         gameDb = -60.0f
         masterDb = -60.0f
         estimatedNoiseFloorDb = -50.0f
+        intermediateSnsOffset = 0
         vad.reset()
+        spectralSuppressor.resetState()
         Log.i(TAG, "DSP internal state reset (crystal clear studio filters initialized)")
     }
 
@@ -331,32 +342,59 @@ class AudioMixerProcessor {
             if (effectiveMicVol > 0.0f) {
                 val levelNorm = (noiseSuppressionLevel.coerceIn(0, 100) / 100.0f)
 
-                // A. 1st-Order Butterworth Rumble High-Pass Filter
-                // Tunable cutoff from ~75Hz at level 0 up to ~140Hz at level 100 to eliminate ceiling fan & AC motor hum
-                val currentHpAlpha = if (isGodModeNoiseEnabled) {
-                    0.989f - (levelNorm * 0.009f)
+                // Track raw mic envelope for voice presence detection
+                val absRaw = abs(rawMic)
+                if (absRaw > micEnvelope) {
+                    micEnvelope += 0.008f * (absRaw - micEnvelope)
                 } else {
-                    HP_ALPHA
+                    micEnvelope += 0.00045f * (absRaw - micEnvelope)
                 }
 
-                val hpOut = rawMic - hpPrevIn + currentHpAlpha * hpPrevOut
-                hpPrevIn = rawMic
-                hpPrevOut = hpOut
-                val micSignal = hpOut
-                val absSignal = abs(micSignal)
+                // 2.A Unconditional Acoustic VAD Engine
+                // VAD MUST always receive raw microphone samples regardless of whether software spectral
+                // suppression or expander gating is enabled, guaranteeing fresh voice probability state.
+                if (isVadEnabled) {
+                    vad.processSample(rawMic)
+                }
+                val isSpeechActive = if (isVadEnabled) vad.isVoiceActive else (micEnvelope > 0.015f)
+
+                // 2.B STFT Multi-Band Spectral Noise Suppressor (Power-Domain Wiener Filtering)
+                // Consumes the latest valid speech state without making VAD execution conditional on the suppressor.
+                val micPreprocessed = if (isSpectralNoiseSuppressionEnabled && noiseSuppressionLevel > 0) {
+                    spectralSuppressor.isEnabled = true
+                    spectralSuppressor.intensity = levelNorm
+                    spectralSuppressor.processSample(rawMic, isSpeechActive)
+                } else {
+                    spectralSuppressor.isEnabled = false
+                    rawMic
+                }
+                val intermediateBuf = intermediateSnsBuffer
+                if (intermediateBuf != null && intermediateSnsOffset < intermediateBuf.size) {
+                    intermediateBuf[intermediateSnsOffset++] = micPreprocessed
+                }
+
+                // 2.C Low-Frequency Conditioning
+                // When Spectral Suppressor is active, it already applies a 2nd-order 80 Hz Butterworth HPF.
+                // Do not cascade a second HP filter which would decimate male vocal fundamentals.
+                val micSignal = if (isSpectralNoiseSuppressionEnabled) {
+                    micPreprocessed
+                } else {
+                    val currentHpAlpha = if (isGodModeNoiseEnabled) {
+                        0.989f // ~78 Hz cutoff, preserves low vocal body
+                    } else {
+                        HP_ALPHA
+                    }
+                    val hpOut = micPreprocessed - hpPrevIn + currentHpAlpha * hpPrevOut
+                    hpPrevIn = micPreprocessed
+                    hpPrevOut = hpOut
+                    hpOut
+                }
 
                 if (isNoiseSuppressionEnabled && noiseSuppressionLevel > 0) {
                     // Split input into Vocal Core (< 3 kHz) and Air / Hiss Band (> 3 kHz) using 1-pole crossover
                     crossoverLp += 0.35f * (micSignal - crossoverLp)
                     val speechBody = crossoverLp
                     val airBand = micSignal - crossoverLp
-
-                    // B. Envelope Follower (fast 4ms attack, smooth 140ms release)
-                    if (absSignal > micEnvelope) {
-                        micEnvelope += 0.008f * (absSignal - micEnvelope)
-                    } else {
-                        micEnvelope += 0.00045f * (absSignal - micEnvelope)
-                    }
 
                     // High-frequency air envelope follower for transient speech consonant detection
                     val absAir = abs(airBand)
@@ -388,22 +426,14 @@ class AudioMixerProcessor {
                     ambientAirFloor = ambientAirFloor.coerceIn(0.0005f, 0.005f)
                     estimatedNoiseFloorDb = (20.0 * log10(max(ambientNoiseFloor, 0.00001f).toDouble())).toFloat()
 
-                    // C. Adaptive Downward Expander with Acoustic VAD (Zero Chopping, Zero False Gate Open)
-                    val baseClose = 0.0025f + levelNorm * 0.006f
-                    val baseOpen = 0.0050f + levelNorm * 0.010f
-                    val dynamicClose = max(baseClose, ambientNoiseFloor * 1.2f)
-                    val dynamicOpen = max(baseOpen, ambientNoiseFloor * 1.5f)
+                    // Adaptive Downward Expander with Acoustic VAD (Zero Chopping, Zero False Gate Open)
+                    val dynamicOpen = max(0.0050f + levelNorm * 0.010f, ambientNoiseFloor * 1.5f)
 
-                    val isVoiceDetectedSample = if (isVadEnabled) {
-                        vad.processSample(micSignal) || (micEnvelope >= 0.10f)
-                    } else {
-                        micEnvelope >= dynamicOpen
-                    }
-
-                    if (isVoiceDetectedSample) {
+                    val isGateTriggered = if (isVadEnabled) isSpeechActive else (micEnvelope >= dynamicOpen)
+                    if (isGateTriggered) {
                         isGateOpen = true
-                        gateHoldCounter = GATE_HOLD_SAMPLES
-                    } else if (micEnvelope < dynamicClose || (isVadEnabled && !vad.isVoiceActive)) {
+                        gateHoldCounter = if (isVadEnabled) 0 else GATE_HOLD_SAMPLES
+                    } else {
                         if (gateHoldCounter > 0) {
                             gateHoldCounter--
                         } else {
@@ -412,26 +442,27 @@ class AudioMixerProcessor {
                     }
 
                     // Soft downward expansion target gain:
-                    // When levelNorm is high (>= 0.70f), clamp to near-zero for aggressive fan/noise cancellation.
-                    // When levelNorm is balanced (default 50), provide smooth downward expansion (-16 to -20 dB) so speech is never chopped.
+                    // Downward expander reduces room noise smoothly without artificial hard muting.
+                    // Floor ranges from -18 dB (0.12f) down to -34 dB (0.02f) at max suppression,
+                    // ensuring quiet speech and natural room decay are never hard clamped to digital zero (-100 dBFS).
                     val targetGateGain = if (isGateOpen) {
                         1.0f
-                    } else if (levelNorm >= 0.70f) {
-                        0.0f
                     } else {
-                        (0.12f - levelNorm * 0.08f).coerceAtLeast(0.02f)
+                        (0.12f - levelNorm * 0.10f).coerceIn(0.02f, 0.12f)
                     }
                     val rampSpeed = if (targetGateGain > currentGateGain) 0.025f else 0.008f
                     currentGateGain += rampSpeed * (targetGateGain - currentGateGain)
-                    if (!isGateOpen && currentGateGain < 0.002f) {
-                        currentGateGain = 0.0f
-                    }
 
-                    // D. Under-Speech Multi-Band Fan & Room Noise Eraser (Zero Distortion)
+                    // Under-Speech Multi-Band Fan & Room Noise Eraser (Zero Distortion)
                     val cleanBody: Float
                     val cleanAir: Float
 
-                    if (isGodModeNoiseEnabled && isGateOpen && currentGateGain > 0.4f) {
+                    if (isSpectralNoiseSuppressionEnabled) {
+                        // Spectral suppressor already cleaned stationary noise in STFT domain with Power-Domain Wiener filtering.
+                        // Preserve full speech naturalness without double-carving.
+                        cleanBody = speechBody
+                        cleanAir = airBand
+                    } else if (isGodModeNoiseEnabled && isGateOpen && currentGateGain > 0.4f) {
                         // 1. Vocal Core: Gentle stationary room noise reduction without voice distortion
                         val overSub = 0.4f + 0.4f * levelNorm
                         val voiceMargin = max(0.0f, micEnvelope - (ambientNoiseFloor * overSub))
@@ -456,7 +487,7 @@ class AudioMixerProcessor {
                     var micClean = (cleanBody + cleanAir) * currentGateGain
 
                     // E. Broadcast Vocal Clarity Presence Filter (+2.2 dB clarity boost around 3 kHz)
-                    if (isGateOpen && currentGateGain > 0.5f) {
+                    if (!isSpectralNoiseSuppressionEnabled && isGateOpen && currentGateGain > 0.5f) {
                         val presenceDiff = micClean - presenceLowPass
                         presenceLowPass += 0.28f * presenceDiff
                         micClean += (presenceDiff * PRESENCE_ALPHA)
@@ -469,7 +500,7 @@ class AudioMixerProcessor {
                     currentGateGain = 1.0f
                     currentAirGain = 1.0f
                     isGateOpen = true
-                    processedMic = rawMic * effectiveMicVol
+                    processedMic = micSignal * effectiveMicVol
                 }
 
                 // E. Speech-Aware AGC (automatic gentle leveling)

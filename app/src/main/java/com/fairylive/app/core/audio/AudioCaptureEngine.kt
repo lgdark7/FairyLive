@@ -3,6 +3,7 @@ package com.fairylive.app.core.audio
 import android.annotation.SuppressLint
 import android.media.AudioRecord
 import android.media.MediaRecorder
+import android.media.audiofx.NoiseSuppressor
 import android.media.projection.MediaProjection
 import android.os.Build
 import android.os.SystemClock
@@ -47,6 +48,11 @@ class AudioCaptureEngine {
     @Volatile
     var isMicSilencedBySystem: Boolean = false
         private set
+
+    // Hardware Audio Effect: NoiseSuppressor attached to AudioRecord session ID (FORTEMEDIA / OEM HAL)
+    private var hardwareNoiseSuppressor: NoiseSuppressor? = null
+    @Volatile var isHardwareNsEnabled: Boolean = false
+    val isHardwareNsAvailable: Boolean get() = NoiseSuppressor.isAvailable()
 
     private var playbackRingBuffer: PcmRingBuffer? = null
     private var mediaProjectionRef: MediaProjection? = null
@@ -131,7 +137,16 @@ class AudioCaptureEngine {
         Log.i(TAG, "Media audio muted: $muted")
     }
 
-    fun setDspFilters(noiseGate: Boolean, agc: Boolean, compressor: Boolean, limiter: Boolean, godMode: Boolean = true, noiseLevel: Int? = null) {
+    fun setDspFilters(
+        noiseGate: Boolean,
+        agc: Boolean,
+        compressor: Boolean,
+        limiter: Boolean,
+        godMode: Boolean = true,
+        noiseLevel: Int? = null,
+        spectralNoise: Boolean? = null,
+        hardwareNs: Boolean? = null
+    ) {
         audioMixer.isNoiseSuppressionEnabled = noiseGate
         audioMixer.isGodModeNoiseEnabled = godMode
         if (noiseLevel != null) {
@@ -140,6 +155,22 @@ class AudioCaptureEngine {
         audioMixer.isAgcEnabled = agc
         audioMixer.isCompressorEnabled = compressor
         audioMixer.isLimiterEnabled = limiter
+        if (spectralNoise != null) {
+            audioMixer.isSpectralNoiseSuppressionEnabled = spectralNoise
+        }
+        if (hardwareNs != null) {
+            setHardwareNoiseSuppressor(hardwareNs)
+        }
+    }
+
+    fun setHardwareNoiseSuppressor(enabled: Boolean) {
+        this.isHardwareNsEnabled = enabled
+        try {
+            hardwareNoiseSuppressor?.enabled = enabled
+            Log.i(TAG, "Hardware NoiseSuppressor enabled=$enabled")
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to toggle hardware NoiseSuppressor: ${e.message}")
+        }
     }
 
     fun setAutoDucking(enabled: Boolean, attenuation: Float = 0.30f) {
@@ -200,6 +231,21 @@ class AudioCaptureEngine {
                 if (rec.state == AudioRecord.STATE_INITIALIZED) {
                     micRec = rec
                     Log.i(TAG, "Initialized Microphone AudioRecord (source=$source, sampleRate=${config.sampleRate}Hz, buffer: $bufferSize, clean raw audio)")
+
+                    // Attach hardware NoiseSuppressor if available on device HAL (e.g. Fortemedia on Pixel 6a)
+                    // Note: AcousticEchoCanceler (AEC) strictly remains disabled for game streaming fidelity
+                    if (NoiseSuppressor.isAvailable()) {
+                        try {
+                            val ns = NoiseSuppressor.create(rec.audioSessionId)
+                            if (ns != null) {
+                                ns.enabled = isHardwareNsEnabled
+                                hardwareNoiseSuppressor = ns
+                                Log.i(TAG, "Hardware NoiseSuppressor attached to session ${rec.audioSessionId} (enabled=$isHardwareNsEnabled)")
+                            }
+                        } catch (e: Exception) {
+                            Log.w(TAG, "Hardware NoiseSuppressor initialization failed: ${e.message}")
+                        }
+                    }
                     break
                 } else {
                     rec.release()
@@ -522,7 +568,9 @@ class AudioCaptureEngine {
                             isGameAudioActive = audioMixer.gameDb > -50.0f,
                             isGateOpen = audioMixer.isGateActive,
                             isVoiceDetected = audioMixer.isVoiceDetected,
-                            noiseFloorDb = audioMixer.estimatedNoiseFloorDb
+                            noiseFloorDb = audioMixer.estimatedNoiseFloorDb,
+                            isHardwareNsActive = hardwareNoiseSuppressor?.enabled == true,
+                            isSpectralNsActive = audioMixer.isSpectralNoiseSuppressionEnabled && audioMixer.isNoiseSuppressionEnabled
                         )
                     )
                 }
@@ -617,6 +665,11 @@ class AudioCaptureEngine {
             micRecord?.release()
         } catch (_: Exception) {}
         micRecord = null
+
+        try {
+            hardwareNoiseSuppressor?.release()
+        } catch (_: Exception) {}
+        hardwareNoiseSuppressor = null
 
         try {
             playbackRecord?.stop()
