@@ -13,8 +13,17 @@ class PcmRingBuffer(val capacity: Int) {
     private var available = 0
     private val lock = Any()
 
+    private var _overflowCount = 0L
+    private var _droppedBytes = 0L
+
     val availableBytes: Int
         get() = synchronized(lock) { available }
+
+    val overflowCount: Long
+        get() = synchronized(lock) { _overflowCount }
+
+    val droppedBytes: Long
+        get() = synchronized(lock) { _droppedBytes }
 
     fun write(data: ByteArray, offset: Int, length: Int) {
         synchronized(lock) {
@@ -26,6 +35,8 @@ class PcmRingBuffer(val capacity: Int) {
             if (overflow > 0) {
                 readPos = (readPos + overflow) % capacity
                 available -= overflow
+                _overflowCount++
+                _droppedBytes += overflow
             }
 
             val firstChunk = min(toWrite, capacity - writePos)
@@ -64,6 +75,13 @@ class PcmRingBuffer(val capacity: Int) {
             writePos = 0
             readPos = 0
             available = 0
+        }
+    }
+
+    fun resetTelemetry() {
+        synchronized(lock) {
+            _overflowCount = 0L
+            _droppedBytes = 0L
         }
     }
 }

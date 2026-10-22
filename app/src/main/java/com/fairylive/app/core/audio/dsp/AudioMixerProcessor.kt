@@ -55,12 +55,12 @@ class AudioMixerProcessor {
         // 1st-order High-Pass Rumble Filter alpha (~75Hz cutoff at 44.1kHz)
         private const val HP_ALPHA = 0.989f
 
-        // Vocal Presence Enhancement (+2.2 dB clarity lift above 2.8 kHz for crystal-clear speech articulation)
-        private const val PRESENCE_ALPHA = 0.22f
+        // Vocal Presence Enhancement (+1.5 dB clarity lift above 2.8 kHz for crystal-clear speech articulation)
+        private const val PRESENCE_ALPHA = 0.18f
 
         // Auto-Ducking (Sidechain Ducking)
         private const val DUCK_TRIGGER_THRESHOLD = 0.005f     // Speech envelope trigger (~ -46 dBFS)
-        private const val DUCK_HOLD_SAMPLES = 20000           // ~450ms hold at 44.1kHz to prevent pumping between words
+        private const val DUCK_HOLD_SAMPLES = 10000           // ~226ms hold at 44.1kHz to prevent pumping between words
         private const val GATE_HOLD_SAMPLES = 20000           // ~450ms hold to guarantee words/syllables are NEVER chopped
     }
 
@@ -463,18 +463,16 @@ class AudioMixerProcessor {
                         cleanBody = speechBody
                         cleanAir = airBand
                     } else if (isGodModeNoiseEnabled && isGateOpen && currentGateGain > 0.4f) {
-                        // 1. Vocal Core: Gentle stationary room noise reduction without voice distortion
-                        val overSub = 0.4f + 0.4f * levelNorm
-                        val voiceMargin = max(0.0f, micEnvelope - (ambientNoiseFloor * overSub))
-                        val voicePurity = if (micEnvelope > 0.0001f) (voiceMargin / micEnvelope).coerceIn(0.65f, 1.0f) else 1.0f
-                        cleanBody = speechBody * voicePurity
+                        // 1. Vocal Core: Speech body passes 100% natural and transparent during active speech
+                        // to eliminate hollow/thin timbre and protect vocal fundamentals.
+                        cleanBody = speechBody
 
-                        // 2. Air Band (>3 kHz): Clamps fan wind rush under vowels
+                        // 2. Air Band (>3 kHz): Preserves unvoiced consonants ('s', 'f', 't', 'k') without harsh gating
                         val hasHighFrequencySpeech = airEnvelope > (ambientAirFloor * 1.5f)
-                        val targetAirGain = if (hasHighFrequencySpeech) {
+                        val targetAirGain = if (hasHighFrequencySpeech || isGateOpen) {
                             1.0f
                         } else {
-                            (1.0f - levelNorm * 0.70f).coerceAtLeast(0.30f)
+                            (1.0f - levelNorm * 0.25f).coerceAtLeast(0.75f)
                         }
                         currentAirGain += 0.02f * (targetAirGain - currentAirGain)
                         cleanAir = airBand * currentAirGain
@@ -535,10 +533,13 @@ class AudioMixerProcessor {
             // Dynamic Sidechain Auto-Ducking
             // Priority 1: User's voice always dominates. Game audio ducks smoothly when user speaks.
             if (isAutoDuckingEnabled && effectiveMicVol > 0.0f && micBuffer != null) {
+                // Robust speech trigger immune to fan noise:
+                // Requires mic envelope to exceed both baseline threshold and noise floor margin
+                val duckThreshold = max(DUCK_TRIGGER_THRESHOLD, ambientNoiseFloor * 2.0f)
                 val isSpeaking = if (isVadEnabled) {
-                    vad.isVoiceActive && (micEnvelope > DUCK_TRIGGER_THRESHOLD)
+                    vad.isVoiceActive && (micEnvelope > duckThreshold) && (vad.voiceProbability > 0.25f || isGateOpen)
                 } else {
-                    isGateOpen && (micEnvelope > DUCK_TRIGGER_THRESHOLD)
+                    isGateOpen && (micEnvelope > duckThreshold)
                 }
                 if (isSpeaking) {
                     duckHoldCounter = DUCK_HOLD_SAMPLES
@@ -547,7 +548,8 @@ class AudioMixerProcessor {
                 }
 
                 val targetDuck = if (isSpeaking || duckHoldCounter > 0) duckingAttenuation else 1.0f
-                val rampSpeed = if (targetDuck < currentDuckingGain) 0.006f else 0.0003f
+                // Attack: 0.006f (~15ms ducking attack), Release: 0.0020f (~35ms smooth natural recovery)
+                val rampSpeed = if (targetDuck < currentDuckingGain) 0.006f else 0.0020f
                 currentDuckingGain += rampSpeed * (targetDuck - currentDuckingGain)
             } else {
                 currentDuckingGain = 1.0f

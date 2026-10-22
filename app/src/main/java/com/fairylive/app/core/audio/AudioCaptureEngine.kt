@@ -37,6 +37,7 @@ class AudioCaptureEngine {
     private var config: AudioCaptureConfig = AudioCaptureConfig()
     private var sampleListener: AudioSampleListener? = null
 
+    private var micThread: Thread? = null
     private var captureThread: Thread? = null
     private var playbackThread: Thread? = null
     private val isCapturing = AtomicBoolean(false)
@@ -54,10 +55,16 @@ class AudioCaptureEngine {
     @Volatile var isHardwareNsEnabled: Boolean = false
     val isHardwareNsAvailable: Boolean get() = NoiseSuppressor.isAvailable()
 
+    private var micRingBuffer: PcmRingBuffer? = null
     private var playbackRingBuffer: PcmRingBuffer? = null
     private var mediaProjectionRef: MediaProjection? = null
     private var isPlaybackStereo: Boolean = false
     private var lastTelemetryLogTime: Long = 0L
+
+    val micRingBufferDepth: Int get() = micRingBuffer?.availableBytes ?: 0
+    val gameRingBufferDepth: Int get() = playbackRingBuffer?.availableBytes ?: 0
+    val micOverflowCount: Long get() = micRingBuffer?.overflowCount ?: 0L
+    val gameOverflowCount: Long get() = playbackRingBuffer?.overflowCount ?: 0L
 
     val audioMixer = com.fairylive.app.core.audio.dsp.AudioMixerProcessor()
 
@@ -297,24 +304,34 @@ class AudioCaptureEngine {
         this.startTimestampUs = com.fairylive.app.core.common.MediaClock.toSessionPtsUs(nowNs)
         this.lastAmplitudeUpdateTime = SystemClock.elapsedRealtime()
 
-        val ringBuffer = PcmRingBuffer(config.minBufferSize * 8)
-        this.playbackRingBuffer = ringBuffer
+        val ringCapacity = kotlin.math.max(config.minBufferSize * 8, 32768)
+        val mRing = if (micRec != null) PcmRingBuffer(ringCapacity) else null
+        val pRing = if (playRec != null) PcmRingBuffer(ringCapacity) else null
+        this.micRingBuffer = mRing
+        this.playbackRingBuffer = pRing
 
         isCapturing.set(true)
 
         // Start playback recording thread if internal audio is active
-        if (playRec != null) {
+        if (playRec != null && pRing != null) {
             playRec.startRecording()
             val isStereo = isPlaybackStereo
-            val pThread = Thread({ playbackCaptureLoop(playRec, ringBuffer, isStereo) }, "FairyGameAudioThread").apply {
+            val pThread = Thread({ playbackCaptureLoop(playRec, pRing, isStereo) }, "FairyGameAudioThread").apply {
                 priority = Thread.MAX_PRIORITY
                 start()
             }
             this.playbackThread = pThread
         }
 
-        // Start main capture & mixing thread
-        micRec?.startRecording()
+        // Start dedicated microphone recording thread if mic is active
+        if (micRec != null && mRing != null) {
+            micRec.startRecording()
+            val mThread = Thread({ micCaptureLoop(micRec, mRing) }, "FairyMicCaptureThread").apply {
+                priority = Thread.MAX_PRIORITY
+                start()
+            }
+            this.micThread = mThread
+        }
 
         // Register system AudioRecordingCallback for automatic in-game mic / concurrent capture detection (Android 10+)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && micRec != null) {
@@ -359,7 +376,7 @@ class AudioCaptureEngine {
             }
         }
 
-        val mThread = Thread({ masterCaptureLoop(micRec, ringBuffer) }, "FairyAudioMixerThread").apply {
+        val mThread = Thread({ masterCaptureLoop(mRing, pRing) }, "FairyAudioMixerThread").apply {
             priority = Thread.MAX_PRIORITY
             start()
         }
@@ -445,161 +462,33 @@ class AudioCaptureEngine {
         }
     }
 
-    private fun masterCaptureLoop(micRec: AudioRecord?, ringBuffer: PcmRingBuffer) {
-        val micBuffer = ByteArray(config.minBufferSize)
-        val gameBuffer = ByteArray(config.minBufferSize)
-        val mixedBuffer = ByteArray(config.minBufferSize)
-        val bytesPerFrame = config.bytesPerFrame
-
+    private fun micCaptureLoop(micRec: AudioRecord, micRing: PcmRingBuffer) {
+        val buffer = ByteArray(config.minBufferSize)
         while (isCapturing.get()) {
-            val bytesRead = if (micRec != null) {
-                micRec.read(micBuffer, 0, micBuffer.size)
-            } else {
-                // If no microphone, pace by reading game audio directly
-                val readCount = ringBuffer.read(gameBuffer, 0, gameBuffer.size)
-                if (readCount <= 0) {
-                    val frameDurationMs = (gameBuffer.size.toLong() * 1000L) / (config.sampleRate.toLong() * bytesPerFrame)
-                    try {
-                        Thread.sleep(frameDurationMs.coerceIn(10L, 50L))
-                    } catch (_: Exception) {}
-                    gameBuffer.fill(0)
-                    gameBuffer.size
-                } else {
-                    readCount
-                }
-            }
-
+            val bytesRead = micRec.read(buffer, 0, buffer.size)
             if (bytesRead > 0) {
-                val framesRead = bytesRead / bytesPerFrame
-                val bufferDurationUs = (framesRead * 1_000_000L) / config.sampleRate
-
-                // Wall clock session PTS
-                val nowNs = com.fairylive.app.core.common.MediaClock.nanoTimeSource()
-                val wallClockPtsUs = (com.fairylive.app.core.common.MediaClock.toSessionPtsUs(nowNs) - bufferDurationUs).coerceAtLeast(0L)
-
-                if (totalSamplesRead == 0L) {
-                    startTimestampUs = wallClockPtsUs
-                }
-
-                val accumulatedPtsUs = startTimestampUs + (totalSamplesRead * 1_000_000L) / config.sampleRate
-
-                // Clock drift synchronization without silence flooding
-                // Prevents the 1-second audio cut/dropout on low-end devices & heavy gaming CPU spikes
-                val driftUs = wallClockPtsUs - accumulatedPtsUs
-                if (driftUs > GAP_COMPENSATION_THRESHOLD_US) {
-                    // Under CPU load or thread scheduling jitter, smoothly re-anchor timeline to wall clock.
-                    // Never flood the AAC encoder queue with 1-3 seconds of fake silence chunks!
-                    startTimestampUs = wallClockPtsUs - (totalSamplesRead * 1_000_000L) / config.sampleRate
-                    Log.i(TAG, "Audio clock resynchronized to wall clock (drift=${driftUs / 1000}ms, zero silence cut)")
-                } else if (driftUs < -GAP_COMPENSATION_THRESHOLD_US) {
-                    startTimestampUs = wallClockPtsUs - (totalSamplesRead * 1_000_000L) / config.sampleRate
-                }
-
-                val currentPtsUs = startTimestampUs + (totalSamplesRead * 1_000_000L) / config.sampleRate
-                totalSamplesRead += framesRead
-
-                // If microphone was read and internal audio is active, fetch matching game audio from ring buffer
-                if (micRec != null && playbackRecord != null) {
-                    val readBytes = ringBuffer.read(gameBuffer, 0, bytesRead)
-                    if (readBytes < bytesRead) {
-                        gameBuffer.fill(0, readBytes, bytesRead)
-                    }
-                }
-
                 // If OS un-silences mic or recovers, apply smooth fade-in ramp
-                if (recoveryRampFrames > 0 && micRec != null) {
-                    // Smooth linear ramp during post-silence recovery (prevents HAL mode-switch pop)
+                if (recoveryRampFrames > 0) {
                     val totalRamp = (config.sampleRate * 0.15f).toInt().coerceAtLeast(1)
                     for (i in 0 until bytesRead - 1 step 2) {
                         if (recoveryRampFrames > 0) {
                             val factor = (totalRamp - recoveryRampFrames).toFloat() / totalRamp
-                            val sample = ((micBuffer[i + 1].toInt() shl 8) or (micBuffer[i].toInt() and 0xFF)).toShort()
+                            val sample = ((buffer[i + 1].toInt() shl 8) or (buffer[i].toInt() and 0xFF)).toShort()
                             val rampedSample = (sample * factor).toInt().toShort()
-                            micBuffer[i] = (rampedSample.toInt() and 0xFF).toByte()
-                            micBuffer[i + 1] = ((rampedSample.toInt() shr 8) and 0xFF).toByte()
+                            buffer[i] = (rampedSample.toInt() and 0xFF).toByte()
+                            buffer[i + 1] = ((rampedSample.toInt() shr 8) and 0xFF).toByte()
                             recoveryRampFrames--
                         }
                     }
                 }
-
-                // Sync mute & pause states to DSP mixer
-                // Creator's mic is ONLY muted if explicitly requested by user or master engine mute.
-                // It must NEVER be muted when game video is paused / minimized (BRB active).
-                audioMixer.isMicMuted = isMuted || isMicMuted
-                // Game audio is muted if stream is paused (game minimized/BRB), explicitly muted, or playback capture inactive
-                audioMixer.isGameMuted = isMuted || isGameMuted || isStreamPaused || (playbackRecord == null)
-
-                // Real-time 16-bit PCM mixing & DSP audio processing
-                // Only bypass the mixer if all active channels are muted
-                val isCompletelySilent = audioMixer.isMicMuted && (playbackRecord == null || audioMixer.isGameMuted) && audioMixer.isMediaMuted
-                audioMixer.processAndMix(
-                    micBuffer = if (micRec != null) micBuffer else null,
-                    gameBuffer = if (playbackRecord != null) gameBuffer else null,
-                    outMixedBuffer = mixedBuffer,
-                    bytesToProcess = bytesRead,
-                    isPaused = isCompletelySilent
-                )
-
-                // Peak amplitude calculation for UI meters
-                val now = SystemClock.elapsedRealtime()
-                if (now - lastAmplitudeUpdateTime >= 100L) {
-                    lastAmplitudeUpdateTime = now
-                    val amplitudePercent = if (audioMixer.isMicMuted && audioMixer.isGameMuted) 0 else calculateRmsAmplitude(mixedBuffer, bytesRead)
-                    AudioStateNotifier.updateMetrics(
-                        AudioStateNotifier.currentMetrics.copy(
-                            samplesRead = totalSamplesRead,
-                            silenceFramesInserted = totalSilenceFramesInserted,
-                            peakAmplitudePercent = amplitudePercent,
-                            micDb = audioMixer.micDb,
-                            gameDb = audioMixer.gameDb,
-                            mediaDb = audioMixer.mediaDb,
-                            masterDb = audioMixer.masterDb,
-                            micPeakPercent = audioMixer.micPeakPercent,
-                            gamePeakPercent = audioMixer.gamePeakPercent,
-                            masterPeakPercent = audioMixer.masterPeakPercent,
-                            pcmUnderruns = pcmDroppedCount.sum(),
-                            ringBufferDepth = playbackRingBuffer?.availableBytes ?: 0,
-                            lastPresentationTimeUs = currentPtsUs,
-                            rtmpAudioPacketsSent = com.fairylive.app.core.stream.StreamTelemetryNotifier.currentTelemetry.audioFramesSent,
-                            isMuted = (audioMixer.isMicMuted && audioMixer.isGameMuted) || isMuted,
-                            isDeviceAudio = playbackRecord != null,
-                            isDeviceAudioStereo = isPlaybackStereo,
-                            isMicSilencedBySystem = isMicSilencedBySystem,
-                            isGameAudioActive = audioMixer.gameDb > -50.0f,
-                            isGateOpen = audioMixer.isGateActive,
-                            isVoiceDetected = audioMixer.isVoiceDetected,
-                            noiseFloorDb = audioMixer.estimatedNoiseFloorDb,
-                            isHardwareNsActive = hardwareNoiseSuppressor?.enabled == true,
-                            isSpectralNsActive = audioMixer.isSpectralNoiseSuppressionEnabled && audioMixer.isNoiseSuppressionEnabled
-                        )
-                    )
-                }
-
-                if (now - lastTelemetryLogTime >= 5000L) {
-                    lastTelemetryLogTime = now
-                    val rtmpA = com.fairylive.app.core.stream.StreamTelemetryNotifier.currentTelemetry.audioFramesSent
-                    Log.i(
-                        TAG,
-                        "[AUDIO-DIAGNOSTIC] mic=${audioMixer.micDb}dB (${audioMixer.micPeakPercent}%) " +
-                        "game=${audioMixer.gameDb}dB (${audioMixer.gamePeakPercent}%) " +
-                        "master=${audioMixer.masterDb}dB ringDepth=${playbackRingBuffer?.availableBytes ?: 0}B " +
-                        "gateOpen=${audioMixer.isGateActive} vad=${audioMixer.isVoiceDetected} rtmpAudioSent=$rtmpA"
-                    )
-                }
-
-                val listener = sampleListener
-                if (listener != null) {
-                    listener.onAudioSample(mixedBuffer, bytesRead, currentPtsUs)
-                } else {
-                    pcmDroppedCount.increment()
-                }
+                micRing.write(buffer, 0, bytesRead)
             } else if (bytesRead < 0) {
-                Log.w(TAG, "AudioRecord read error: $bytesRead")
+                Log.w(TAG, "Microphone AudioRecord read error: $bytesRead")
                 if (isCapturing.get()) {
                     try {
-                        Thread.sleep(50)
+                        Thread.sleep(20)
                     } catch (_: Exception) {}
-                    if (micRec != null && micRec.recordingState != AudioRecord.RECORDSTATE_RECORDING) {
+                    if (micRec.recordingState != AudioRecord.RECORDSTATE_RECORDING) {
                         try {
                             micRec.startRecording()
                         } catch (e: Exception) {
@@ -607,6 +496,142 @@ class AudioCaptureEngine {
                         }
                     }
                 }
+            }
+        }
+    }
+
+    private fun masterCaptureLoop(micRing: PcmRingBuffer?, gameRing: PcmRingBuffer?) {
+        val frameBytes = FRAME_SAMPLES * config.bytesPerFrame
+        val micFrame = ByteArray(frameBytes)
+        val gameFrame = ByteArray(frameBytes)
+        val mixedFrame = ByteArray(frameBytes)
+
+        val frameDurationNs = (FRAME_SAMPLES * 1_000_000_000L) / config.sampleRate
+        var nextFrameDeadlineNs = com.fairylive.app.core.common.MediaClock.nanoTimeSource()
+
+        while (isCapturing.get()) {
+            val nowNs = com.fairylive.app.core.common.MediaClock.nanoTimeSource()
+
+            // Check data availability in active ring buffers
+            val micAvail = micRing?.availableBytes ?: 0
+            val gameAvail = gameRing?.availableBytes ?: 0
+
+            // If neither active buffer has a full frame yet, pace using frame timing
+            val hasData = (micRing != null && micAvail >= frameBytes) ||
+                    (gameRing != null && gameAvail >= frameBytes)
+
+            if (!hasData) {
+                val waitNs = nextFrameDeadlineNs - nowNs
+                if (waitNs > 1_000_000L) {
+                    try {
+                        Thread.sleep((waitNs / 1_000_000L).coerceIn(1L, 25L))
+                    } catch (_: InterruptedException) {
+                        if (!isCapturing.get()) break
+                    }
+                    continue
+                }
+            }
+
+            // Advance target time for next frame
+            nextFrameDeadlineNs += frameDurationNs
+            val curTimeNs = com.fairylive.app.core.common.MediaClock.nanoTimeSource()
+            if (curTimeNs - nextFrameDeadlineNs > frameDurationNs * 4) {
+                nextFrameDeadlineNs = curTimeNs + frameDurationNs
+            }
+
+            // Drain microphone frame (PcmRingBuffer.read automatically zero-fills remainder if underflow)
+            if (micRing != null) {
+                micRing.read(micFrame, 0, frameBytes)
+            } else {
+                micFrame.fill(0)
+            }
+
+            // Drain game audio frame (PcmRingBuffer.read automatically zero-fills remainder if underflow)
+            if (gameRing != null) {
+                gameRing.read(gameFrame, 0, frameBytes)
+            } else {
+                gameFrame.fill(0)
+            }
+
+            // Presentation timestamp calculation:
+            // Strictly monotonic sample-count timeline matching MediaClock session origin
+            if (totalSamplesRead == 0L) {
+                startTimestampUs = com.fairylive.app.core.common.MediaClock.toSessionPtsUs(curTimeNs)
+            }
+            val currentPtsUs = startTimestampUs + (totalSamplesRead * 1_000_000L) / config.sampleRate
+            totalSamplesRead += FRAME_SAMPLES
+
+            // Sync mute & pause states to DSP mixer
+            audioMixer.isMicMuted = isMuted || isMicMuted
+            audioMixer.isGameMuted = isMuted || isGameMuted || isStreamPaused || (playbackRecord == null)
+
+            // Real-time 16-bit PCM mixing & DSP audio processing
+            val isCompletelySilent = audioMixer.isMicMuted &&
+                    (playbackRecord == null || audioMixer.isGameMuted) &&
+                    audioMixer.isMediaMuted
+            audioMixer.processAndMix(
+                micBuffer = if (micRecord != null) micFrame else null,
+                gameBuffer = if (playbackRecord != null) gameFrame else null,
+                outMixedBuffer = mixedFrame,
+                bytesToProcess = frameBytes,
+                isPaused = isCompletelySilent
+            )
+
+            // Peak amplitude calculation for UI meters (every 100ms)
+            val now = SystemClock.elapsedRealtime()
+            if (now - lastAmplitudeUpdateTime >= 100L) {
+                lastAmplitudeUpdateTime = now
+                val amplitudePercent = if (audioMixer.isMicMuted && audioMixer.isGameMuted) 0
+                    else calculateRmsAmplitude(mixedFrame, frameBytes)
+                AudioStateNotifier.updateMetrics(
+                    AudioStateNotifier.currentMetrics.copy(
+                        samplesRead = totalSamplesRead,
+                        silenceFramesInserted = totalSilenceFramesInserted,
+                        peakAmplitudePercent = amplitudePercent,
+                        micDb = audioMixer.micDb,
+                        gameDb = audioMixer.gameDb,
+                        mediaDb = audioMixer.mediaDb,
+                        masterDb = audioMixer.masterDb,
+                        micPeakPercent = audioMixer.micPeakPercent,
+                        gamePeakPercent = audioMixer.gamePeakPercent,
+                        masterPeakPercent = audioMixer.masterPeakPercent,
+                        pcmUnderruns = pcmDroppedCount.sum(),
+                        ringBufferDepth = gameRing?.availableBytes ?: 0,
+                        lastPresentationTimeUs = currentPtsUs,
+                        rtmpAudioPacketsSent = com.fairylive.app.core.stream.StreamTelemetryNotifier.currentTelemetry.audioFramesSent,
+                        isMuted = (audioMixer.isMicMuted && audioMixer.isGameMuted) || isMuted,
+                        isDeviceAudio = playbackRecord != null,
+                        isDeviceAudioStereo = isPlaybackStereo,
+                        isMicSilencedBySystem = isMicSilencedBySystem,
+                        isGameAudioActive = audioMixer.gameDb > -50.0f,
+                        isGateOpen = audioMixer.isGateActive,
+                        isVoiceDetected = audioMixer.isVoiceDetected,
+                        noiseFloorDb = audioMixer.estimatedNoiseFloorDb,
+                        isHardwareNsActive = hardwareNoiseSuppressor?.enabled == true,
+                        isSpectralNsActive = audioMixer.isSpectralNoiseSuppressionEnabled && audioMixer.isNoiseSuppressionEnabled
+                    )
+                )
+            }
+
+            if (now - lastTelemetryLogTime >= 5000L) {
+                lastTelemetryLogTime = now
+                val rtmpA = com.fairylive.app.core.stream.StreamTelemetryNotifier.currentTelemetry.audioFramesSent
+                val micOverflow = micRing?.overflowCount ?: 0L
+                val gameOverflow = gameRing?.overflowCount ?: 0L
+                Log.i(
+                    TAG,
+                    "[AUDIO-DIAGNOSTIC] mic=${audioMixer.micDb}dB (${audioMixer.micPeakPercent}%) micAvail=${micRing?.availableBytes ?: 0}B " +
+                    "game=${audioMixer.gameDb}dB (${audioMixer.gamePeakPercent}%) gameAvail=${gameRing?.availableBytes ?: 0}B " +
+                    "master=${audioMixer.masterDb}dB ovf(mic=$micOverflow, game=$gameOverflow) " +
+                    "gateOpen=${audioMixer.isGateActive} vad=${audioMixer.isVoiceDetected} rtmpAudioSent=$rtmpA"
+                )
+            }
+
+            val listener = sampleListener
+            if (listener != null) {
+                listener.onAudioSample(mixedFrame, frameBytes, currentPtsUs)
+            } else {
+                pcmDroppedCount.increment()
             }
         }
     }
@@ -650,12 +675,15 @@ class AudioCaptureEngine {
         AudioStateNotifier.updateState(AudioCaptureState.STOPPING)
         isCapturing.set(false)
 
+        micThread?.interrupt()
         playbackThread?.interrupt()
         captureThread?.interrupt()
         try {
+            micThread?.join(400L)
             playbackThread?.join(400L)
             captureThread?.join(400L)
         } catch (_: Exception) {}
+        micThread = null
         playbackThread = null
         captureThread = null
         recoveryRampFrames = 0
@@ -677,6 +705,8 @@ class AudioCaptureEngine {
         } catch (_: Exception) {}
         playbackRecord = null
 
+        micRingBuffer?.clear()
+        micRingBuffer = null
         playbackRingBuffer?.clear()
         playbackRingBuffer = null
         mediaProjectionRef = null
@@ -706,6 +736,7 @@ class AudioCaptureEngine {
 
     companion object {
         private const val TAG = "AudioCaptureEngine"
+        private const val FRAME_SAMPLES = 1024
         private const val GAP_COMPENSATION_THRESHOLD_US = 500_000L
     }
 }

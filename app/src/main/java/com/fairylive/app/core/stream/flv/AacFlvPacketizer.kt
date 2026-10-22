@@ -1,7 +1,6 @@
 package com.fairylive.app.core.stream.flv
 
 import com.fairylive.app.core.stream.model.FlvPacket
-import java.io.ByteArrayOutputStream
 
 /**
  * Converts raw AAC audio frames into FLV audio packets.
@@ -34,17 +33,17 @@ class AacFlvPacketizer(
     fun buildAacSequenceHeader(ptsMs: Long = 0L): FlvPacket {
         val config = cachedAudioSpecificConfig ?: generateAudioSpecificConfig(sampleRate, channelCount)
 
-        val out = ByteArrayOutputStream()
-        out.write(audioTagHeaderByte)
-        out.write(0) // AACPacketType = 0 (Sequence Header)
-        out.write(config)
+        val payload = ByteArray(2 + config.size)
+        payload[0] = audioTagHeaderByte.toByte()
+        payload[1] = 0 // AACPacketType = 0 (Sequence Header)
+        System.arraycopy(config, 0, payload, 2, config.size)
 
         isHeaderGenerated = true
 
         return FlvPacket(
             packetType = FlvPacket.TYPE_AUDIO,
             timestampMs = 0L, // MUST ALWAYS BE 0 for Sequence Header in RTMP/FLV
-            payload = out.toByteArray(),
+            payload = payload,
             isKeyFrame = true,
             isSequenceHeader = true
         )
@@ -52,30 +51,28 @@ class AacFlvPacketizer(
 
     /**
      * Packages a raw AAC compressed audio access unit into an FLV audio packet.
+     * Zero-allocation streaming path avoiding ByteArrayOutputStream and dynamic resizing.
      */
     fun processAacFrame(aacData: ByteArray, ptsMs: Long): List<FlvPacket> {
-        val list = mutableListOf<FlvPacket>()
+        val payload = ByteArray(2 + aacData.size)
+        payload[0] = audioTagHeaderByte.toByte()
+        payload[1] = 1 // AACPacketType = 1 (Raw AAC data)
+        System.arraycopy(aacData, 0, payload, 2, aacData.size)
 
-        if (!isHeaderGenerated) {
-            list.add(buildAacSequenceHeader(0L))
-        }
-
-        val out = ByteArrayOutputStream()
-        out.write(audioTagHeaderByte)
-        out.write(1) // AACPacketType = 1 (Raw AAC data)
-        out.write(aacData)
-
-        list.add(
-            FlvPacket(
-                packetType = FlvPacket.TYPE_AUDIO,
-                timestampMs = ptsMs,
-                payload = out.toByteArray(),
-                isKeyFrame = false,
-                isSequenceHeader = false
-            )
+        val audioPacket = FlvPacket(
+            packetType = FlvPacket.TYPE_AUDIO,
+            timestampMs = ptsMs,
+            payload = payload,
+            isKeyFrame = false,
+            isSequenceHeader = false
         )
 
-        return list
+        return if (!isHeaderGenerated) {
+            val header = buildAacSequenceHeader(0L)
+            listOf(header, audioPacket)
+        } else {
+            java.util.Collections.singletonList(audioPacket)
+        }
     }
 
     fun reset() {
